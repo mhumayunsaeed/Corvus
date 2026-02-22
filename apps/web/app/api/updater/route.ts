@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 // It checks your latest GitHub release and constructs the JSON structure Tauri needs (`{{target}}/{{current_version}}`)
 // Usually, you might host a static updater.json at S3 instead. Here is a dynamic fallback.
 
-const REPO = "username/veyra"; // Change me
+const REPO = "Humayun-glitch/Veyra"; // Change me
 
 export async function GET(request: Request) {
     try {

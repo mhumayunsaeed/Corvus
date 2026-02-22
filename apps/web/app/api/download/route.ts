@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 // This is a proxy to your centralized storage (like GitHub Releases or Amazon S3)
 // For now, these are placeholder links where your GitHub Actions will publish binaries.
-const REPO = "username/veyra"; // Change to your actual repository
+const REPO = "Humayun-glitch/Veyra"; // Change to your actual repository
 const GITHUB_RELEASE_BASE = `https://github.com/${REPO}/releases/latest/download`;
 
 export async function GET(request: Request) {
