@@ -7,3 +7,4 @@ target/
 *.tsbuildinfo
 .env*.local
 .env
+.env.example
