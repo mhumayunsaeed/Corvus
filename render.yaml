@@ -13,7 +13,7 @@ services:
     rootDir: .
     buildCommand: |
       corepack enable
-      pnpm install --frozen-lockfile
+      pnpm install --frozen-lockfile --prod=false
       pnpm --filter @veyra/api db:generate
       pnpm --filter @veyra/api db:push
       pnpm --filter @veyra/api build
@@ -62,7 +62,7 @@ services:
     rootDir: .
     buildCommand: |
       corepack enable
-      pnpm install --frozen-lockfile
+      pnpm install --frozen-lockfile --prod=false
       pnpm --filter @veyra/web build
     startCommand: pnpm --filter @veyra/web start
     autoDeploy: true

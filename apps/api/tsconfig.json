@@ -11,6 +11,10 @@
         "resolveJsonModule": true,
         "declaration": true,
         "sourceMap": true,
+        "types": [
+            "node",
+            "ws"
+        ],
         "baseUrl": ".",
         "paths": {
             "@/*": [
