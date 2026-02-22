@@ -7,7 +7,7 @@
     "devUrl": "http://localhost:3000",
     "frontendDist": "../../web/out",
     "beforeDevCommand": "cd ../web && pnpm dev",
-    "beforeBuildCommand": "cd ../web && pnpm build"
+    "beforeBuildCommand": "cd ../web && pnpm build:tauri"
   },
   "app": {
     "windows": [
