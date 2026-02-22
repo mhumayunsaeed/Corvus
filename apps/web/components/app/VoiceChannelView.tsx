@@ -27,26 +27,23 @@ function getGridClass(count: number): string {
 
 function ParticipantTile({ participant }: { participant: Participant }) {
     const isSpeaking = useIsSpeaking(participant);
-    const videoTracks = useTracks(
-        [Track.Source.Camera],
-        { participant }
-    );
-    const hasVideo = videoTracks.length > 0 && !videoTracks[0].publication?.isMuted;
+    const tracks = useTracks([Track.Source.Camera]);
+    const trackRef = tracks.find((t) => t.participant.identity === participant.identity);
+    const hasVideo = !!(trackRef?.publication && !trackRef.publication.isMuted);
     const isMuted = participant.isMicrophoneEnabled === false;
     const displayName = participant.name || participant.identity;
     const avatarUrl = `https://api.dicebear.com/9.x/avataaars/svg?seed=${participant.identity}`;
 
     return (
         <div
-            className={`relative bg-surface rounded-xl overflow-hidden flex flex-col items-center justify-center aspect-video transition-all duration-200 ${
-                isSpeaking
-                    ? "ring-2 ring-accent-teal shadow-[0_0_16px_rgba(62,207,207,0.3)]"
-                    : "ring-1 ring-border"
-            }`}
+            className={`relative bg-surface rounded-xl overflow-hidden flex flex-col items-center justify-center aspect-video transition-all duration-200 ${isSpeaking
+                ? "ring-2 ring-accent-teal shadow-[0_0_16px_rgba(62,207,207,0.3)]"
+                : "ring-1 ring-border"
+                }`}
         >
-            {hasVideo ? (
+            {hasVideo && trackRef ? (
                 <VideoTrack
-                    trackRef={videoTracks[0]}
+                    trackRef={trackRef}
                     className="w-full h-full object-cover"
                 />
             ) : (
@@ -54,9 +51,8 @@ function ParticipantTile({ participant }: { participant: Participant }) {
                     <img
                         src={avatarUrl}
                         alt={displayName}
-                        className={`w-16 h-16 rounded-full transition-all duration-200 ${
-                            isSpeaking ? "ring-[3px] ring-accent-teal" : ""
-                        }`}
+                        className={`w-16 h-16 rounded-full transition-all duration-200 ${isSpeaking ? "ring-[3px] ring-accent-teal" : ""
+                            }`}
                     />
                 </div>
             )}
@@ -122,13 +118,20 @@ function RoomContent() {
 
     // Sync speaking states to the store
     useEffect(() => {
-        const handleSpeaking = (speaking: boolean, participant: Participant) => {
-            updateParticipant(participant.identity, { isSpeaking: speaking });
+        const handleSpeakersChanged = (speakers: Participant[]) => {
+            const speakerIds = new Set(speakers.map((s) => s.identity));
+
+            Array.from(room.remoteParticipants.values()).forEach((p: Participant) => {
+                updateParticipant(p.identity, { isSpeaking: speakerIds.has(p.identity) });
+            });
+            if (room.localParticipant) {
+                updateParticipant(room.localParticipant.identity, { isSpeaking: speakerIds.has(room.localParticipant.identity) });
+            }
         };
 
-        room.on(RoomEvent.IsSpeakingChanged, handleSpeaking);
+        room.on(RoomEvent.ActiveSpeakersChanged, handleSpeakersChanged);
         return () => {
-            room.off(RoomEvent.IsSpeakingChanged, handleSpeaking);
+            room.off(RoomEvent.ActiveSpeakersChanged, handleSpeakersChanged);
         };
     }, [room, updateParticipant]);
 
