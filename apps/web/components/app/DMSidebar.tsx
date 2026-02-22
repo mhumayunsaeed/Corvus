@@ -79,7 +79,7 @@ export function DMSidebar({
 
     return (
         <>
-            <div className="w-[240px] bg-channel-sidebar border-r border-border flex flex-col flex-shrink-0">
+            <div className="w-full lg:w-[240px] max-h-[42vh] lg:max-h-none bg-channel-sidebar border-b lg:border-b-0 lg:border-r border-border flex flex-col flex-shrink-0">
                 <div className="h-12 border-b border-border px-3 flex items-center justify-between">
                     <span className="text-emphasis font-semibold text-text-primary">Direct Messages</span>
                     <button

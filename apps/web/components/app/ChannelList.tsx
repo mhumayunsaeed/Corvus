@@ -105,7 +105,7 @@ export function ChannelList({ serverName, onCreateChannel, onInvite, onOpenSetti
     const userStatus = user?.status || "online";
 
     return (
-        <div className="w-[240px] bg-channel-sidebar flex flex-col border-r border-border flex-shrink-0">
+        <div className="w-full lg:w-[240px] max-h-[42vh] lg:max-h-none bg-channel-sidebar flex flex-col border-b lg:border-b-0 lg:border-r border-border flex-shrink-0">
             {/* Server Header */}
             <button className="h-12 px-4 flex items-center justify-between border-b border-border hover:bg-hover-row transition-colors group flex-shrink-0">
                 <span className="text-emphasis font-semibold text-text-primary truncate">

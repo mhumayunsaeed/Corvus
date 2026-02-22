@@ -99,7 +99,7 @@ export function ServerRail({ onCreateServer, onJoinServer, onOpenSettings }: Ser
     return (
         <div
             ref={railRef}
-            className="w-[68px] bg-background flex flex-col items-center py-3 gap-2 border-r border-border flex-shrink-0"
+            className="w-full lg:w-[68px] bg-background flex flex-row lg:flex-col items-center py-2 lg:py-3 px-2 lg:px-0 gap-2 border-b lg:border-b-0 lg:border-r border-border flex-shrink-0"
         >
             {/* Veyra Home */}
             <div className="relative group">
@@ -118,12 +118,12 @@ export function ServerRail({ onCreateServer, onJoinServer, onOpenSettings }: Ser
                 </div>
             </div>
 
-            <div className="w-8 h-[2px] bg-border rounded-full" />
+            <div className="h-8 w-[2px] lg:h-[2px] lg:w-8 bg-border rounded-full" />
 
             {/* Server icons */}
             <div
                 ref={serverIconsRef}
-                className="flex-1 flex flex-col items-center gap-2 overflow-y-auto scrollbar-none py-1"
+                className="flex-1 min-w-0 flex flex-row lg:flex-col items-center gap-2 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto scrollbar-none py-1"
             >
                 {servers.map((server) => {
                     const isActive = server.id === activeServerId;
@@ -212,7 +212,7 @@ export function ServerRail({ onCreateServer, onJoinServer, onOpenSettings }: Ser
                 </button>
 
                 {showUserMenu && (
-                    <div className="absolute left-full bottom-0 ml-3 w-56 bg-surface border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150">
+                    <div className="absolute right-0 lg:right-auto lg:left-full bottom-full lg:bottom-0 mb-2 lg:mb-0 lg:ml-3 w-56 bg-surface border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150">
                         <div className="px-4 py-3 border-b border-border">
                             <p className="text-sm font-semibold text-text-primary truncate">
                                 {user?.displayName || "User"}

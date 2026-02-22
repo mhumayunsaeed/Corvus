@@ -64,7 +64,6 @@ export default function AppPage() {
     const setServers = useAppStore((s) => s.setServers);
     const setChannels = useAppStore((s) => s.setChannels);
     const setDMConversations = useAppStore((s) => s.setDMConversations);
-    const setActiveServer = useAppStore((s) => s.setActiveServer);
     const setActiveChannel = useAppStore((s) => s.setActiveChannel);
     const setActiveDMConversation = useAppStore((s) => s.setActiveDMConversation);
     const upsertDMConversation = useAppStore((s) => s.upsertDMConversation);
@@ -98,9 +97,6 @@ export default function AppPage() {
         fetchServers()
             .then((result) => {
                 setServers(result.servers);
-                if (result.servers.length > 0 && !activeServerId) {
-                    setActiveServer(result.servers[0].id);
-                }
             })
             .catch(console.error)
             .finally(() => setLoading(false));
@@ -291,7 +287,7 @@ export default function AppPage() {
     }
 
     return (
-        <div className="flex h-full overflow-hidden bg-background">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background lg:flex-row">
             {/* Server Rail */}
             <ServerRail
                 onCreateServer={() => setShowCreateServer(true)}
@@ -310,9 +306,9 @@ export default function AppPage() {
             )}
 
             {/* Content Area */}
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 min-h-0 min-w-0 flex flex-col">
                 {!activeServerId ? (
-                    <div className="flex-1 flex min-w-0">
+                    <div className="flex-1 min-h-0 min-w-0 flex flex-col lg:flex-row">
                         <DMSidebar
                             conversations={dmConversations}
                             friends={friendList}

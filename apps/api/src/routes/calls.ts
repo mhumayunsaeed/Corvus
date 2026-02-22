@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
 import { generateVoiceToken, getLiveKitUrl } from "../lib/livekit.js";
-import { broadcastToDMConversation } from "../ws.js";
+import { broadcastToDMConversation, broadcastToUsers } from "../ws.js";
 
 const calls = new Hono<AuthEnv>();
 
@@ -27,6 +27,11 @@ calls.post("/dms/:conversationId/call/start", async (c) => {
         return c.json({ error: "You are not a participant in this conversation." }, 403);
     }
 
+    const participants = await prisma.dMParticipant.findMany({
+        where: { conversationId },
+        select: { userId: true },
+    });
+
     // Get user details
     const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -48,8 +53,12 @@ calls.post("/dms/:conversationId/call/start", async (c) => {
         canSubscribe: true,
     });
 
-    // Broadcast incoming call to other participants
-    broadcastToDMConversation(conversationId, {
+    // Broadcast incoming call to participants, even if they are not in DM view.
+    const targetUserIds = participants
+        .map((p) => p.userId)
+        .filter((id) => id !== userId);
+
+    broadcastToUsers(targetUserIds, {
         type: "incoming_call",
         data: {
             conversationId,
@@ -119,6 +128,12 @@ calls.post("/dms/:conversationId/call/end", async (c) => {
     if (roomInfo) {
         activeCallRooms.delete(conversationId);
 
+        const participants = await prisma.dMParticipant.findMany({
+            where: { conversationId },
+            select: { userId: true },
+        });
+        const participantUserIds = participants.map((p) => p.userId);
+
         const duration = Math.floor((Date.now() - roomInfo.startTime) / 1000);
 
         const dmMessage = await prisma.dMMessage.create({
@@ -132,7 +147,7 @@ calls.post("/dms/:conversationId/call/end", async (c) => {
             include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, status: true } } },
         });
 
-        broadcastToDMConversation(conversationId, {
+        broadcastToUsers(participantUserIds, {
             type: "call_ended",
             data: { conversationId, endedBy: userId },
         });

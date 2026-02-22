@@ -91,6 +91,21 @@ export function broadcastToDMConversation(
     }
 }
 
+export function broadcastToUsers(
+    userIds: Iterable<string>,
+    event: { type: string; data: unknown }
+) {
+    const targetUserIds = new Set(userIds);
+    if (targetUserIds.size === 0) return;
+
+    const payload = JSON.stringify(event);
+    for (const [ws, client] of clients) {
+        if (targetUserIds.has(client.userId) && ws.readyState === WebSocket.OPEN) {
+            ws.send(payload);
+        }
+    }
+}
+
 function subscribeToChannel(ws: WebSocket, channelId: string) {
     const client = clients.get(ws);
     if (!client) return;
