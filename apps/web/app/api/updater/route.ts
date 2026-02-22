@@ -6,6 +6,8 @@ import { NextResponse } from "next/server";
 
 const REPO = "Humayun-glitch/Veyra"; // Change me
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
     try {
         // Fetch the newest GitHub release from your repo

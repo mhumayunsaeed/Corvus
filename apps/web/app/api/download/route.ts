@@ -5,6 +5,8 @@ import { NextResponse } from "next/server";
 const REPO = "Humayun-glitch/Veyra"; // Change to your actual repository
 const GITHUB_RELEASE_BASE = `https://github.com/${REPO}/releases/latest/download`;
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const os = searchParams.get("os");
