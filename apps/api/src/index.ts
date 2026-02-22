@@ -69,6 +69,14 @@ app.onError((err, c) => {
 
 // ─── Routes ─────────────────────────────────────────────────────
 
+// Public health check used by Render
+app.get("/healthz", (c) => {
+    return c.json({
+        name: "Veyra API",
+        version: "0.1.0",
+        status: "ok",
+    });
+});
 app.route("/auth", auth);
 app.route("/servers", servers);
 app.route("/", channels); // routes are /servers/:serverId/channels and /channels/:id

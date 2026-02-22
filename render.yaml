@@ -18,7 +18,7 @@ services:
       pnpm --filter @veyra/api db:push
       pnpm --filter @veyra/api build
     startCommand: pnpm --filter @veyra/api start
-    healthCheckPath: /
+    healthCheckPath: /healthz
     autoDeploy: true
     envVars:
       - key: NODE_ENV
