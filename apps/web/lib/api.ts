@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+import { ensureApiUrl } from "@/lib/endpoints";
 
 function getToken(): string | null {
     if (typeof window === "undefined") return null;
@@ -16,6 +16,7 @@ export async function api<T>(
     path: string,
     options: RequestInit = {}
 ): Promise<T> {
+    const baseUrl = ensureApiUrl();
     const token = getToken();
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -26,10 +27,18 @@ export async function api<T>(
         headers.Authorization = `Bearer ${token}`;
     }
 
-    const res = await fetch(`${API_URL}${path}`, {
-        ...options,
-        headers,
-    });
+    let res: Response;
+    try {
+        res = await fetch(`${baseUrl}${path}`, {
+            ...options,
+            headers,
+        });
+    } catch {
+        throw new Error(
+            `Failed to reach API at ${baseUrl}. ` +
+            "Check NEXT_PUBLIC_API_URL and backend CORS settings."
+        );
+    }
 
     const contentType = res.headers.get("content-type") || "";
     let data: unknown = null;

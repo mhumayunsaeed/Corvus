@@ -4,8 +4,7 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Mail, ArrowLeft, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+import { ensureApiUrl } from "@/lib/endpoints";
 
 function ConfirmEmailContent() {
     const searchParams = useSearchParams();
@@ -44,11 +43,12 @@ function ConfirmEmailContent() {
     // Auto-verify if token is present in URL
     useEffect(() => {
         if (!token) return;
+        const baseUrl = ensureApiUrl();
 
         async function verify() {
             setVerifying(true);
             try {
-                const res = await fetch(`${API_URL}/auth/verify-email?token=${token}`);
+                const res = await fetch(`${baseUrl}/auth/verify-email?token=${token}`);
                 const data = await res.json();
 
                 if (res.ok) {
@@ -77,11 +77,12 @@ function ConfirmEmailContent() {
 
     const handleResend = async () => {
         if (resending || cooldown > 0 || !email) return;
+        const baseUrl = ensureApiUrl();
         setResending(true);
         setResent(false);
 
         try {
-            await fetch(`${API_URL}/auth/resend-verification`, {
+            await fetch(`${baseUrl}/auth/resend-verification`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email }),

@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+import { ensureApiUrl } from "@/lib/endpoints";
 
 export interface User {
     id: string;
@@ -40,13 +39,22 @@ async function api<T>(
     path: string,
     options: RequestInit = {}
 ): Promise<T> {
-    const res = await fetch(`${API_URL}${path}`, {
-        headers: {
-            "Content-Type": "application/json",
-            ...options.headers,
-        },
-        ...options,
-    });
+    const baseUrl = ensureApiUrl();
+    let res: Response;
+    try {
+        res = await fetch(`${baseUrl}${path}`, {
+            headers: {
+                "Content-Type": "application/json",
+                ...options.headers,
+            },
+            ...options,
+        });
+    } catch {
+        throw new Error(
+            `Failed to reach API at ${baseUrl}. ` +
+            "Check NEXT_PUBLIC_API_URL and backend CORS settings."
+        );
+    }
 
     const data = await res.json();
 

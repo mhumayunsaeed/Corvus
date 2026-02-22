@@ -6,8 +6,7 @@ import { useChatStore } from "@/stores/chat-store";
 import { useDMStore } from "@/stores/dm-store";
 import { useAppStore } from "@/stores/app-store";
 import { useVoiceStore } from "@/stores/voice-store";
-
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001/ws";
+import { ensureWsUrl } from "@/lib/endpoints";
 
 let globalWs: WebSocket | null = null;
 let globalReconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -72,13 +71,14 @@ export function useWebSocket() {
 
     useEffect(() => {
         if (!token) return;
+        const wsUrl = ensureWsUrl();
 
         function connect() {
             if (globalWs?.readyState === WebSocket.OPEN || globalWs?.readyState === WebSocket.CONNECTING) {
                 return;
             }
 
-            globalWs = new WebSocket(`${WS_URL}?token=${token}`);
+            globalWs = new WebSocket(`${wsUrl}?token=${token}`);
 
             globalWs.onopen = () => {
                 globalReconnectAttempts = 0;
