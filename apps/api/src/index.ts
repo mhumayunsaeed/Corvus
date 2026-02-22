@@ -21,15 +21,35 @@ const app = new Hono();
 
 app.use("*", logger());
 
+const localOrigins = [
+    "http://localhost:3000", // Next.js dev
+    "http://localhost:1420", // Tauri dev
+    "tauri://localhost", // Tauri production
+    "https://tauri.localhost", // Tauri production (Windows)
+];
+
+function normalizeOrigin(value: string) {
+    return value.trim().replace(/\/+$/, "");
+}
+
+const envOrigins = [
+    process.env.FRONTEND_URL ?? "",
+    ...(process.env.CORS_ORIGINS ?? "")
+        .split(",")
+        .map((value) => value.trim()),
+]
+    .filter(Boolean)
+    .map(normalizeOrigin);
+
+const allowedOrigins = new Set([...localOrigins.map(normalizeOrigin), ...envOrigins]);
+
 app.use(
     "*",
     cors({
-        origin: [
-            "http://localhost:3000", // Next.js dev
-            "http://localhost:1420", // Tauri dev
-            "tauri://localhost", // Tauri production
-            "https://tauri.localhost", // Tauri production (Windows)
-        ],
+        origin: (origin) => {
+            if (!origin) return "*";
+            return allowedOrigins.has(normalizeOrigin(origin)) ? origin : "";
+        },
         allowHeaders: ["Content-Type", "Authorization"],
         allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         credentials: true,
