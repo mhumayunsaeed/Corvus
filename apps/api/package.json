@@ -1,0 +1,35 @@
+{
+  "name": "@veyra/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "@node-rs/argon2": "^2.0.2",
+    "@prisma/client": "^6.8.0",
+    "dotenv": "^16.5.0",
+    "hono": "^4.7.0",
+    "jose": "^6.0.8",
+    "livekit-server-sdk": "^2.15.0",
+    "node-html-parser": "^7.0.2",
+    "resend": "^4.1.0",
+    "ws": "^8.19.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
+    "prisma": "^6.8.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

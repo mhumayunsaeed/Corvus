@@ -1,0 +1,16 @@
+{
+  "name": "@veyra/config",
+  "version": "0.0.1",
+  "private": true,
+  "exports": {
+    "./tailwind": "./tailwind.config.ts",
+    "./typescript/base": "./tsconfig.base.json",
+    "./typescript/nextjs": "./tsconfig.nextjs.json",
+    "./typescript/library": "./tsconfig.library.json",
+    "./eslint": "./eslint.config.mjs"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4",
+    "typescript": "^5.7"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "veyra",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "dev:web": "turbo dev --filter=@veyra/web",
+    "dev:desktop": "turbo dev --filter=@veyra/desktop",
+    "build:web": "turbo build --filter=@veyra/web",
+    "build:desktop": "turbo build --filter=@veyra/desktop"
+  },
+  "devDependencies": {
+    "turbo": "^2"
+  }
+}

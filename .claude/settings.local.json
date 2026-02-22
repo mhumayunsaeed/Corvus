@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --version:*)",
+      "Bash(npm:*)",
+      "Bash(pnpm --version:*)",
+      "Bash(bun:*)",
+      "Bash(rustc:*)",
+      "Bash(cargo --version:*)",
+      "Bash(npx --version:*)",
+      "Bash(cargo install:*)",
+      "Bash(taskkill:*)",
+      "Bash(npx prisma generate:*)"
+    ]
+  }
+}
