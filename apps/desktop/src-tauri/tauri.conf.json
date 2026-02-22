@@ -3,6 +3,10 @@
   "productName": "Veyra",
   "version": "0.0.1",
   "identifier": "com.veyra.app",
+  "bundle": {
+    "active": true,
+    "targets": "nsis"
+  },
   "build": {
     "devUrl": "http://localhost:3000",
     "frontendDist": "../../web/out",
