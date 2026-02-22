@@ -101,7 +101,7 @@ export function useWebSocket() {
                     switch (msg.type) {
                         case "new_message":
                             h.addMessage(msg.data.channelId, msg.data);
-                            if (msg.data.author.id !== currentUserId && typeof window !== "undefined" && window.__TAURI_INTERNALS__) {
+                            if (msg.data.author.id !== currentUserId && typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
                                 import("@tauri-apps/plugin-notification").then(({ isPermissionGranted, sendNotification }) => {
                                     isPermissionGranted().then(granted => {
                                         if (granted) {
@@ -164,7 +164,7 @@ export function useWebSocket() {
                             if (msg.data.conversation) {
                                 h.upsertDMConversation(msg.data.conversation);
                             }
-                            if (msg.data.message.author.id !== currentUserId && typeof window !== "undefined" && window.__TAURI_INTERNALS__) {
+                            if (msg.data.message.author.id !== currentUserId && typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
                                 import("@tauri-apps/plugin-notification").then(({ isPermissionGranted, sendNotification }) => {
                                     isPermissionGranted().then(granted => {
                                         if (granted) {
