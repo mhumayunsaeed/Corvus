@@ -34,7 +34,6 @@ export function createRoomOptions(overrides?: {
             audioPreset: AudioPresets.music,
             dtx: false,
             red: true,
-            codec: "opus",
         },
 
         reconnectPolicy: new DefaultReconnectPolicy(),
