@@ -54,7 +54,7 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
                 : `${TENOR_BASE}/featured`;
             const params = new URLSearchParams({
                 key: TENOR_API_KEY,
-                client_key: "veyra_chat",
+                client_key: "corvus_chat",
                 limit: "30",
                 media_filter: "gif,tinygif,nanogif",
             });

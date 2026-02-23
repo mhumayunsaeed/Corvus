@@ -1,5 +1,5 @@
 {
-  "extends": "@veyra/config/typescript/nextjs",
+  "extends": "../../packages/config/tsconfig.nextjs.json",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {

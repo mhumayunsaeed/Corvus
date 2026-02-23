@@ -27,7 +27,7 @@ const desktopLabelByOs: Record<DesktopOS, string> = {
     windows: "Download for Windows",
     mac: "Download for macOS",
     linux: "Download for Linux",
-    unknown: "Download Veyra Desktop",
+    unknown: "Download Corvus Desktop",
 };
 
 function detectDesktopOS(): DesktopOS {
@@ -388,7 +388,7 @@ export function OnboardingPage() {
                                         <p className="text-micro uppercase tracking-[0.18em] text-accent-teal mb-2">
                                             Desktop install flow
                                         </p>
-                                        <h2 className="text-2xl font-bold text-text-primary mb-1">Install Veyra in 3 steps</h2>
+                                        <h2 className="text-2xl font-bold text-text-primary mb-1">Install Corvus in 3 steps</h2>
                                         <p className="text-text-muted text-sm">
                                             Start the download, run the installer, then launch the desktop app.
                                         </p>
@@ -419,7 +419,7 @@ export function OnboardingPage() {
                                     { icon: Bell, text: "Native notifications" },
                                     { icon: Zap, text: "Lightning fast" },
                                     { icon: Monitor, text: "Push-to-talk" },
-                                    { icon: Wifi, text: "Offline cache" },
+                                    { icon: Wifi, text: "Background sync" },
                                 ].map(({ icon: Icon, text }) => (
                                     <div
                                         key={text}
@@ -487,7 +487,7 @@ export function OnboardingPage() {
                                             <Circle className="w-5 h-5 text-text-muted" />
                                         )}
                                         <div>
-                                            <p className="text-body font-semibold text-text-primary">3. Open Veyra desktop</p>
+                                            <p className="text-body font-semibold text-text-primary">3. Open Corvus desktop</p>
                                             <p className="text-micro text-text-muted">Sign in to sync your communities and preferences.</p>
                                         </div>
                                     </div>

@@ -72,6 +72,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@corvus/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@livekit/components-react':
         specifier: ^2.9.20
         version: 2.9.20(livekit-client@2.17.2(@types/dom-mediacapture-record@1.0.22))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(tslib@2.8.1)
@@ -117,9 +120,6 @@ importers:
       '@tauri-apps/plugin-updater':
         specifier: ^2.10.0
         version: 2.10.0
-      '@veyra/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -148,6 +148,9 @@ importers:
         specifier: ^5
         version: 5.0.11(@types/react@19.2.14)(react@19.2.4)
     devDependencies:
+      '@corvus/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@types/node':
         specifier: ^22
         version: 22.19.11
@@ -157,9 +160,6 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.2.3(@types/react@19.2.14)
-      '@veyra/config':
-        specifier: workspace:*
-        version: link:../../packages/config
       autoprefixer:
         specifier: ^10
         version: 10.4.24(postcss@8.5.6)
@@ -210,6 +210,9 @@ importers:
         specifier: ^2
         version: 2.6.1
     devDependencies:
+      '@corvus/config':
+        specifier: workspace:*
+        version: link:../config
       '@tauri-apps/api':
         specifier: ^2
         version: 2.10.1
@@ -219,9 +222,6 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.2.3(@types/react@19.2.14)
-      '@veyra/config':
-        specifier: workspace:*
-        version: link:../config
       tailwindcss:
         specifier: ^3.4
         version: 3.4.19(tsx@4.21.0)

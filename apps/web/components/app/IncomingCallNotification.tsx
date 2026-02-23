@@ -37,12 +37,12 @@ export function IncomingCallNotification({ onAccept, onDecline }: IncomingCallNo
             setCallData(null);
         };
 
-        window.addEventListener("veyra:incoming_call", handleIncomingCall as EventListener);
-        window.addEventListener("veyra:call_ended", handleCallEnded as EventListener);
+        window.addEventListener("corvus:incoming_call", handleIncomingCall as EventListener);
+        window.addEventListener("corvus:call_ended", handleCallEnded as EventListener);
 
         return () => {
-            window.removeEventListener("veyra:incoming_call", handleIncomingCall as EventListener);
-            window.removeEventListener("veyra:call_ended", handleCallEnded as EventListener);
+            window.removeEventListener("corvus:incoming_call", handleIncomingCall as EventListener);
+            window.removeEventListener("corvus:call_ended", handleCallEnded as EventListener);
         };
     }, [user?.id]);
 

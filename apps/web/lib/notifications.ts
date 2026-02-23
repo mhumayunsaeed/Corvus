@@ -2,7 +2,7 @@ import { parseAttachmentContent } from "@/lib/attachments";
 
 export type NotificationSoundKind = "message" | "mention" | "other";
 
-const APP_TITLE = "Veyra";
+const APP_TITLE = "Corvus";
 const overlayIconCache = new Map<string, Promise<any | null>>();
 let sharedAudioContext: AudioContext | null = null;
 

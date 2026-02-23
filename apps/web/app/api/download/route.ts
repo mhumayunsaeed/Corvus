@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const REPO = "Humayun-glitch/Veyra";
+const REPO = "Humayun-glitch/Corvus";
 const GITHUB_RELEASE_LATEST = `https://github.com/${REPO}/releases/latest`;
 const GITHUB_RELEASE_LATEST_DOWNLOAD = `https://github.com/${REPO}/releases/latest/download`;
 

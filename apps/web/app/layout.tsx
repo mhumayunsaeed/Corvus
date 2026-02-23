@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
-import { Titlebar } from "@veyra/ui";
+import { Titlebar } from "@corvus/ui";
 import { AuthGuard } from "@/components/auth";
+import { BRAND_DESCRIPTION } from "@/lib/brand";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Veyra",
-  description: "Where your world connects.",
+  title: "Corvus",
+  description: BRAND_DESCRIPTION,
+  icons: {
+    icon: "/corvus-logo.png",
+    shortcut: "/corvus-logo.png",
+    apple: "/corvus-logo.png",
+  },
 };
 
 export default function RootLayout({

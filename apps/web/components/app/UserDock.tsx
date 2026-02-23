@@ -117,10 +117,10 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
 
     useEffect(() => {
         if (typeof window === "undefined") return;
-        const savedInput = window.localStorage.getItem("veyra-input-device-id");
-        const savedOutput = window.localStorage.getItem("veyra-output-device-id");
-        const savedInputVolume = window.localStorage.getItem("veyra-input-volume");
-        const savedOutputVolume = window.localStorage.getItem("veyra-output-volume");
+        const savedInput = window.localStorage.getItem("corvus-input-device-id");
+        const savedOutput = window.localStorage.getItem("corvus-output-device-id");
+        const savedInputVolume = window.localStorage.getItem("corvus-input-volume");
+        const savedOutputVolume = window.localStorage.getItem("corvus-output-volume");
 
         if (savedInput) setInputDeviceId(savedInput);
         if (savedOutput) {
@@ -294,7 +294,7 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                                                 onClick={() => {
                                                     setInputDeviceId(id);
                                                     if (typeof window !== "undefined") {
-                                                        window.localStorage.setItem("veyra-input-device-id", id);
+                                                        window.localStorage.setItem("corvus-input-device-id", id);
                                                     }
                                                 }}
                                                 className={`w-full text-left px-2 py-1.5 rounded-md text-[13px] transition-colors ${
@@ -323,7 +323,7 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                                         const value = Number(e.target.value);
                                         setInputVolume(value);
                                         if (typeof window !== "undefined") {
-                                            window.localStorage.setItem("veyra-input-volume", String(value));
+                                            window.localStorage.setItem("corvus-input-volume", String(value));
                                         }
                                     }}
                                     className="w-full h-1.5 accent-[#5865F2] cursor-pointer"
@@ -386,7 +386,7 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                                                 onClick={() => {
                                                     setOutputDeviceId(id);
                                                     if (typeof window !== "undefined") {
-                                                        window.localStorage.setItem("veyra-output-device-id", id);
+                                                        window.localStorage.setItem("corvus-output-device-id", id);
                                                     }
                                                     applyOutputDevice(id);
                                                 }}
@@ -415,7 +415,7 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                                         const value = Number(e.target.value);
                                         setOutputVolume(value);
                                         if (typeof window !== "undefined") {
-                                            window.localStorage.setItem("veyra-output-volume", String(value));
+                                            window.localStorage.setItem("corvus-output-volume", String(value));
                                         }
                                         applyOutputVolume(value);
                                     }}

@@ -1,6 +1,25 @@
 import { create } from "zustand";
 import type { DMMessageData } from "@/lib/api";
 
+const MAX_MESSAGES_PER_CONVERSATION = 1000;
+
+function normalizeMessage(message: DMMessageData): DMMessageData {
+    if (message.reactions) return message;
+    return {
+        ...message,
+        reactions: [],
+    };
+}
+
+function normalizeMessages(messages: DMMessageData[]): DMMessageData[] {
+    return messages.map(normalizeMessage);
+}
+
+function trimMessages(messages: DMMessageData[]) {
+    if (messages.length <= MAX_MESSAGES_PER_CONVERSATION) return messages;
+    return messages.slice(-MAX_MESSAGES_PER_CONVERSATION);
+}
+
 interface DMState {
     messages: Record<string, DMMessageData[]>;
     cursors: Record<string, string | null>;
@@ -25,13 +44,6 @@ interface DMState {
     clearConversation: (conversationId: string) => void;
 }
 
-function withReactions(message: DMMessageData): DMMessageData {
-    return {
-        ...message,
-        reactions: message.reactions || [],
-    };
-}
-
 export const useDMStore = create<DMState>((set) => ({
     messages: {},
     cursors: {},
@@ -39,7 +51,10 @@ export const useDMStore = create<DMState>((set) => ({
 
     setMessages: (conversationId, messages, cursor, hasMore) =>
         set((state) => ({
-            messages: { ...state.messages, [conversationId]: messages.map(withReactions) },
+            messages: {
+                ...state.messages,
+                [conversationId]: trimMessages(normalizeMessages(messages)),
+            },
             cursors: { ...state.cursors, [conversationId]: cursor },
             hasMore: { ...state.hasMore, [conversationId]: hasMore },
         })),
@@ -48,10 +63,10 @@ export const useDMStore = create<DMState>((set) => ({
         set((state) => ({
             messages: {
                 ...state.messages,
-                [conversationId]: [
-                    ...messages.map(withReactions),
-                    ...((state.messages[conversationId] || []).map(withReactions)),
-                ],
+                [conversationId]: trimMessages([
+                    ...normalizeMessages(messages),
+                    ...(state.messages[conversationId] || []),
+                ]),
             },
             cursors: { ...state.cursors, [conversationId]: cursor },
             hasMore: { ...state.hasMore, [conversationId]: hasMore },
@@ -66,7 +81,7 @@ export const useDMStore = create<DMState>((set) => ({
             return {
                 messages: {
                     ...state.messages,
-                    [conversationId]: [...existing.map(withReactions), withReactions(message)],
+                    [conversationId]: trimMessages([...existing, normalizeMessage(message)]),
                 },
             };
         }),
@@ -79,7 +94,7 @@ export const useDMStore = create<DMState>((set) => ({
                 messages: {
                     ...state.messages,
                     [conversationId]: existing.map((m) =>
-                        m.id === messageId ? withReactions({ ...m, ...updates }) : withReactions(m)
+                        m.id === messageId ? normalizeMessage({ ...m, ...updates }) : m
                     ),
                 },
             };

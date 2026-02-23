@@ -157,7 +157,7 @@ export const mockMessages: Message[] = [
     id: "m3",
     userId: "u4",
     content:
-      "Here's a quick example of the new API:\n\n```tsx\nimport { Button } from '@veyra/ui';\n\nexport function Demo() {\n  return (\n    <Button variant=\"primary\" size=\"lg\">\n      Click me\n    </Button>\n  );\n}\n```",
+      "Here's a quick example of the new API:\n\n```tsx\nimport { Button } from '@corvus/ui';\n\nexport function Demo() {\n  return (\n    <Button variant=\"primary\" size=\"lg\">\n      Click me\n    </Button>\n  );\n}\n```",
     timestamp: new Date(now - 3600000 * 1.5),
     reactions: [{ emoji: "👀", count: 3, reacted: false }],
   },

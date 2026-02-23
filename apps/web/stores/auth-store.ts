@@ -86,12 +86,20 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
 
             login: async (email: string, password: string) => {
+                const normalizedEmail = email.trim().toLowerCase();
+                if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+                    throw new Error("Please enter a valid email address.");
+                }
+                if (!password) {
+                    throw new Error("Password is required.");
+                }
+
                 set({ isLoading: true });
 
                 try {
                     const data = await api<{ token: string; user: User }>("/auth/login", {
                         method: "POST",
-                        body: JSON.stringify({ email, password }),
+                        body: JSON.stringify({ email: normalizedEmail, password }),
                     });
 
                     set({
@@ -224,7 +232,7 @@ export const useAuthStore = create<AuthState>()(
             },
         }),
         {
-            name: "veyra-auth",
+            name: "corvus-auth",
             storage: createJSONStorage(() => {
                 // Use localStorage on web, will integrate with Tauri secure storage later
                 if (typeof window !== "undefined") {

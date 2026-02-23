@@ -3,8 +3,45 @@
 import { useEffect, useRef } from "react";
 import { useChatStore } from "@/stores/chat-store";
 import { useDMStore } from "@/stores/dm-store";
+import type { MessageData, DMMessageData } from "@/lib/api";
 
-const DB_NAME = "veyracache.db";
+const DB_NAME = "corvuscache.db";
+
+type MessageMap<T extends { id: string }> = Record<string, T[]>;
+
+function getChangedKeys<T extends { id: string }>(
+    next: MessageMap<T>,
+    prev: MessageMap<T>
+): string[] {
+    const keys = new Set([...Object.keys(next), ...Object.keys(prev)]);
+    const changed: string[] = [];
+
+    for (const key of keys) {
+        if ((next[key] || []) !== (prev[key] || [])) {
+            changed.push(key);
+        }
+    }
+
+    return changed;
+}
+
+function getAddedMessages<T extends { id: string }>(
+    next: T[],
+    prev: T[]
+): T[] {
+    if (next.length === 0) return [];
+    if (prev.length === 0) return next;
+    if (next.length <= prev.length) return [];
+
+    const prevIds = new Set(prev.map((msg) => msg.id));
+    const added: T[] = [];
+    for (const msg of next) {
+        if (!prevIds.has(msg.id)) {
+            added.push(msg);
+        }
+    }
+    return added;
+}
 
 export function useMessageCache() {
     const initialized = useRef(false);
@@ -24,6 +61,7 @@ export function useMessageCache() {
         }
 
         let dbInstance: any = null;
+        let writeQueue = Promise.resolve();
 
         const setupSqlite = async () => {
             if (initialized.current) return;
@@ -53,44 +91,66 @@ export function useMessageCache() {
                     )`
                 );
 
-                // Add store subscriptions to react to new messages
+                const queueWrite = (query: string, values: unknown[]) => {
+                    writeQueue = writeQueue
+                        .then(() => dbInstance.execute(query, values))
+                        .catch((err: unknown) => {
+                            console.error("Failed to persist message cache write", err);
+                        });
+                };
+
+                const persistAddedChatMessages = (
+                    channelId: string,
+                    messages: MessageData[]
+                ) => {
+                    for (const msg of messages) {
+                        queueWrite(
+                            "INSERT OR REPLACE INTO messages (id, channel_id, content, payload_json) VALUES ($1, $2, $3, $4)",
+                            [msg.id, channelId, msg.content, JSON.stringify(msg)]
+                        );
+                    }
+                };
+
+                const persistAddedDMMessages = (
+                    conversationId: string,
+                    messages: DMMessageData[]
+                ) => {
+                    for (const msg of messages) {
+                        queueWrite(
+                            "INSERT OR REPLACE INTO dm_messages (id, conversation_id, content, payload_json) VALUES ($1, $2, $3, $4)",
+                            [msg.id, conversationId, msg.content, JSON.stringify(msg)]
+                        );
+                    }
+                };
+
+                // Add store subscriptions to react only to new message entries.
                 const unsubChat = useChatStore.subscribe((state, prevState) => {
-                    // Quick diff for newly added messages (simplified approach for demonstration)
-                    Object.entries(state.messages).forEach(([channelId, messages]) => {
+                    if (state.messages === prevState.messages) return;
+
+                    for (const channelId of getChangedKeys(state.messages, prevState.messages)) {
+                        const nextMessages = state.messages[channelId] || [];
                         const prevMessages = prevState.messages[channelId] || [];
-                        if (messages.length > prevMessages.length) {
-                            const diff = messages.filter(m => !prevMessages.some(pm => pm.id === m.id));
-                            diff.forEach(async msg => {
-                                try {
-                                    await dbInstance.execute(
-                                        "INSERT OR REPLACE INTO messages (id, channel_id, content, payload_json) VALUES ($1, $2, $3, $4)",
-                                        [msg.id, channelId, msg.content, JSON.stringify(msg)]
-                                    );
-                                } catch (e) {
-                                    console.error("Failed to insert message into SQLite", e);
-                                }
-                            });
-                        }
-                    });
+                        persistAddedChatMessages(
+                            channelId,
+                            getAddedMessages(nextMessages, prevMessages)
+                        );
+                    }
                 });
 
                 const unsubDM = useDMStore.subscribe((state, prevState) => {
-                    Object.entries(state.messages).forEach(([convId, messages]) => {
-                        const prevMessages = prevState.messages[convId] || [];
-                        if (messages.length > prevMessages.length) {
-                            const diff = messages.filter(m => !prevMessages.some(pm => pm.id === m.id));
-                            diff.forEach(async msg => {
-                                try {
-                                    await dbInstance.execute(
-                                        "INSERT OR REPLACE INTO dm_messages (id, conversation_id, content, payload_json) VALUES ($1, $2, $3, $4)",
-                                        [msg.id, convId, msg.content, JSON.stringify(msg)]
-                                    );
-                                } catch (e) {
-                                    console.error("Failed to insert DM message into SQLite", e);
-                                }
-                            });
-                        }
-                    });
+                    if (state.messages === prevState.messages) return;
+
+                    for (const conversationId of getChangedKeys(
+                        state.messages,
+                        prevState.messages
+                    )) {
+                        const nextMessages = state.messages[conversationId] || [];
+                        const prevMessages = prevState.messages[conversationId] || [];
+                        persistAddedDMMessages(
+                            conversationId,
+                            getAddedMessages(nextMessages, prevMessages)
+                        );
+                    }
                 });
 
                 // Ideally we'd also provide functions to LOAD messages from DB on initial mount

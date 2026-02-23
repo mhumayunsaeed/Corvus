@@ -28,11 +28,18 @@ export function Pricing() {
 
   useEffect(() => {
     let ctx: { revert: () => void } | undefined;
+    let disposed = false;
 
     async function animate() {
       const gsapModule = await import("gsap");
       const gsap = gsapModule.default;
       const { ScrollTrigger } = await import("gsap/ScrollTrigger");
+      if (disposed) return;
+
+      const sectionEl = sectionRef.current;
+      if (!sectionEl) return;
+
+      const scrollerEl = document.getElementById("landing-scroll");
       gsap.registerPlugin(ScrollTrigger);
 
       ctx = gsap.context(() => {
@@ -49,19 +56,22 @@ export function Pricing() {
                 delay: i * 0.12,
                 ease: "power2.out",
                 scrollTrigger: {
-                  trigger: sectionRef.current,
-                  scroller: "#landing-scroll",
+                  trigger: sectionEl,
+                  ...(scrollerEl ? { scroller: scrollerEl } : {}),
                   start: "top 75%",
                   toggleActions: "play none none none",
                 },
               }
             );
           });
-      }, sectionRef);
+      }, sectionEl);
     }
 
-    animate();
-    return () => ctx?.revert();
+    void animate();
+    return () => {
+      disposed = true;
+      ctx?.revert();
+    };
   }, []);
 
   return (
@@ -116,7 +126,7 @@ export function Pricing() {
             </button>
           </div>
 
-          {/* Veyra Spark */}
+          {/* Corvus Spark */}
           <div
             data-pricing-card
             className="relative bg-surface rounded-xl p-8 flex flex-col opacity-0 border-2 border-accent-violet shadow-[0_0_40px_rgba(124,106,247,0.12)]"
@@ -130,7 +140,7 @@ export function Pricing() {
             </div>
 
             <h3 className="text-heading font-bold text-text-primary mb-1 mt-1">
-              Veyra Spark
+              Corvus Spark
             </h3>
             <p className="text-body text-text-muted mb-6">
               For power users and thriving communities

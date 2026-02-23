@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Monitor, Apple, Globe, Download } from "lucide-react";
 import { AppMockup } from "./app-mockup";
+import { BRAND_DESCRIPTION, BRAND_MOTTO, BRAND_TAGLINE } from "@/lib/brand";
 
 type OSType = "windows" | "mac" | "linux" | "unknown";
 
@@ -10,7 +11,7 @@ const osConfig: Record<OSType, { icon: React.ElementType; label: string }> = {
   windows: { icon: Monitor, label: "Download for Windows" },
   mac: { icon: Apple, label: "Download for macOS" },
   linux: { icon: Download, label: "Download for Linux" },
-  unknown: { icon: Download, label: "Download Veyra" },
+  unknown: { icon: Download, label: "Download Corvus" },
 };
 
 function detectOS(): OSType {
@@ -104,7 +105,7 @@ export function Hero() {
         ref={headlineRef}
         className="relative z-10 text-5xl sm:text-6xl lg:text-[72px] font-bold text-text-primary text-center leading-[1.1] tracking-tight max-w-4xl opacity-0"
       >
-        A new era of connection.
+        {BRAND_MOTTO}
       </h1>
 
       {/* Subheadline */}
@@ -112,8 +113,7 @@ export function Hero() {
         ref={subRef}
         className="relative z-10 mt-6 text-lg sm:text-xl text-text-muted text-center max-w-2xl leading-relaxed opacity-0"
       >
-        Veyra brings together everything your community needs — voice, video,
-        and real-time chat — in a faster, cleaner, and more private space.
+        {BRAND_TAGLINE} {BRAND_DESCRIPTION}
       </p>
 
       {/* CTAs */}
@@ -152,3 +152,4 @@ export function Hero() {
     </section>
   );
 }
+

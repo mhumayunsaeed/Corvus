@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Modal } from "@veyra/ui";
+import { Modal } from "@corvus/ui";
 import { X, Loader2, Hash, Volume2, Megaphone } from "lucide-react";
 import { createChannel } from "@/lib/api";
 import { useAppStore } from "@/stores/app-store";

@@ -34,15 +34,22 @@ function Callout({
 
   useEffect(() => {
     let ctx: { revert: () => void } | undefined;
+    let disposed = false;
 
     async function animate() {
       const gsapModule = await import("gsap");
       const gsap = gsapModule.default;
       const { ScrollTrigger } = await import("gsap/ScrollTrigger");
+      if (disposed) return;
+
+      const rowEl = rowRef.current;
+      if (!rowEl) return;
+
+      const scrollerEl = document.getElementById("landing-scroll");
       gsap.registerPlugin(ScrollTrigger);
 
-      const textEl = rowRef.current?.querySelector("[data-callout-text]");
-      const visEl = rowRef.current?.querySelector("[data-callout-visual]");
+      const textEl = rowEl.querySelector("[data-callout-text]");
+      const visEl = rowEl.querySelector("[data-callout-visual]");
 
       ctx = gsap.context(() => {
         if (textEl) {
@@ -55,8 +62,8 @@ function Callout({
               duration: 0.7,
               ease: "power2.out",
               scrollTrigger: {
-                trigger: rowRef.current,
-                scroller: "#landing-scroll",
+                trigger: rowEl,
+                ...(scrollerEl ? { scroller: scrollerEl } : {}),
                 start: "top 80%",
                 toggleActions: "play none none none",
               },
@@ -73,19 +80,22 @@ function Callout({
               duration: 0.7,
               ease: "power2.out",
               scrollTrigger: {
-                trigger: rowRef.current,
-                scroller: "#landing-scroll",
+                trigger: rowEl,
+                ...(scrollerEl ? { scroller: scrollerEl } : {}),
                 start: "top 80%",
                 toggleActions: "play none none none",
               },
             }
           );
         }
-      }, rowRef);
+      }, rowEl);
     }
 
-    animate();
-    return () => ctx?.revert();
+    void animate();
+    return () => {
+      disposed = true;
+      ctx?.revert();
+    };
   }, [reverse]);
 
   return (

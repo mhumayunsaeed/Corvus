@@ -1,5 +1,5 @@
 {
-  "name": "@veyra/web",
+  "name": "@corvus/web",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -25,7 +25,7 @@
     "@tauri-apps/plugin-sql": "^2.3.2",
     "@tauri-apps/plugin-store": "^2.4.2",
     "@tauri-apps/plugin-updater": "^2.10.0",
-    "@veyra/ui": "workspace:*",
+    "@corvus/ui": "workspace:*",
     "date-fns": "^4.1.0",
     "framer-motion": "^11.18.2",
     "gsap": "^3",
@@ -40,7 +40,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@veyra/config": "workspace:*",
+    "@corvus/config": "workspace:*",
     "autoprefixer": "^10",
     "postcss": "^8",
     "sharp": "^0.34.5",

@@ -489,7 +489,7 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                         <div>
                                             <p className="text-body text-text-primary">Show alerts while app is focused</p>
                                             <p className="text-micro text-text-muted">
-                                                Keep popups on even when you are already looking at Veyra.
+                                                Keep popups on even when you are already looking at Corvus.
                                             </p>
                                         </div>
                                         <button
@@ -620,7 +620,7 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                         <div>
                                             <p className="text-body text-text-primary">Play sounds while focused</p>
                                             <p className="text-micro text-text-muted">
-                                                Keep sound cues enabled while Veyra is the active window.
+                                                Keep sound cues enabled while Corvus is the active window.
                                             </p>
                                         </div>
                                         <button

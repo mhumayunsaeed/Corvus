@@ -64,9 +64,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!isReady) {
         return (
             <div className="h-full bg-background flex items-center justify-center">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-violet to-accent-teal flex items-center justify-center shadow-glow animate-pulse">
-                    <span className="text-white font-bold text-lg">V</span>
-                </div>
+                <img
+                    src="/corvus-logo.png"
+                    alt="Corvus"
+                    className="w-10 h-10 rounded-full shadow-glow animate-pulse"
+                />
             </div>
         );
     }

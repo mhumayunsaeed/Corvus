@@ -1,5 +1,5 @@
 {
-  "extends": "@veyra/config/typescript/library",
+  "extends": "@corvus/config/typescript/library",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src"

@@ -149,7 +149,7 @@ export const useNotificationStore = create<NotificationState>()(
             },
         }),
         {
-            name: "veyra-notification-preferences",
+            name: "corvus-notification-preferences",
             storage: createJSONStorage(() => {
                 if (typeof window !== "undefined") {
                     return localStorage;

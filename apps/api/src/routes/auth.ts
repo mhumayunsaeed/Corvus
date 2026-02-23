@@ -20,7 +20,11 @@ const registerSchema = z.object({
             "Username can only contain letters, numbers, and underscores"
         )
         .transform((v) => v.toLowerCase()),
-    email: z.string().email("Invalid email address"),
+    email: z
+        .string()
+        .trim()
+        .toLowerCase()
+        .email("Invalid email address"),
     password: z
         .string()
         .min(6, "Password must be at least 6 characters")
@@ -28,7 +32,11 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-    email: z.string().email("Invalid email address"),
+    email: z
+        .string()
+        .trim()
+        .toLowerCase()
+        .email("Invalid email address"),
     password: z.string().min(1, "Password is required"),
 });
 
@@ -46,7 +54,9 @@ auth.post("/register", async (c) => {
     const { displayName, username, email, password } = result.data;
 
     // Check if email already exists
-    const existingEmail = await prisma.user.findUnique({ where: { email } });
+    const existingEmail = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
+    });
     if (existingEmail) {
         return c.json({ error: "An account with this email already exists." }, 409);
     }
@@ -127,7 +137,9 @@ auth.post("/login", async (c) => {
 
     const { email, password } = result.data;
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
+    });
     if (!user) {
         return c.json({ error: "Invalid email or password." }, 401);
     }
@@ -211,12 +223,15 @@ auth.get("/verify-email", async (c) => {
 // ─── POST /auth/resend-verification ─────────────────────────────
 
 auth.post("/resend-verification", async (c) => {
-    const { email } = await c.req.json();
+    const body = await c.req.json().catch(() => ({}));
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     if (!email) {
         return c.json({ error: "Email is required." }, 400);
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
+    });
     if (!user) {
         // Don't reveal whether the email exists
         return c.json({ message: "If that email exists, a new verification link has been sent." });

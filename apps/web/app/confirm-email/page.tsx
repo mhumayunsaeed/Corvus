@@ -212,7 +212,7 @@ function ConfirmEmailContent() {
                             <ol className="space-y-2.5">
                                 {[
                                     "Open your email inbox",
-                                    "Click the confirmation link from Veyra",
+                                    "Click the confirmation link from Corvus",
                                     "You\u2019ll be redirected to log in",
                                 ].map((step, i) => (
                                     <li key={i} className="flex items-start gap-3">
@@ -272,9 +272,11 @@ export default function ConfirmEmailPage() {
         <Suspense
             fallback={
                 <div className="h-full bg-background flex items-center justify-center">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-violet to-accent-teal flex items-center justify-center shadow-glow animate-pulse">
-                        <span className="text-white font-bold text-lg">V</span>
-                    </div>
+                    <img
+                        src="/corvus-logo.png"
+                        alt="Corvus"
+                        className="w-10 h-10 rounded-full shadow-glow animate-pulse"
+                    />
                 </div>
             }
         >

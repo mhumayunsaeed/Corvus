@@ -7,6 +7,7 @@ import {
     ChatView,
     DMSidebar,
     DMChatView,
+    CallModal,
     FriendsView,
     CreateServerModal,
     CreateChannelModal,
@@ -296,9 +297,9 @@ export default function AppPage() {
             );
         };
 
-        window.addEventListener("veyra:call_ended", handleCallEnded);
+        window.addEventListener("corvus:call_ended", handleCallEnded);
         return () => {
-            window.removeEventListener("veyra:call_ended", handleCallEnded);
+            window.removeEventListener("corvus:call_ended", handleCallEnded);
         };
     }, []);
 
@@ -324,6 +325,9 @@ export default function AppPage() {
     const activeDMConversation = dmConversations.find(
         (c) => c.id === activeDMConversationId
     );
+    const activeCallConversation = activeDMCall
+        ? dmConversations.find((c) => c.id === activeDMCall.conversationId)
+        : null;
     const activeCallForConversation =
         activeDMConversation && activeDMCall?.conversationId === activeDMConversation.id
             ? activeDMCall
@@ -358,6 +362,16 @@ export default function AppPage() {
 
             {/* Content Area */}
             <div className="flex-1 min-h-0 min-w-0 flex flex-col">
+                {activeDMCall && (
+                    <CallModal
+                        onClose={closeDMCall}
+                        token={activeDMCall.token}
+                        url={activeDMCall.url}
+                        initialVideo={activeDMCall.initialVideo}
+                        participants={activeCallConversation?.participants || []}
+                    />
+                )}
+
                 {!activeServerId ? (
                     <div className="flex-1 min-h-0 min-w-0 flex flex-col lg:flex-row">
                         <DMSidebar
@@ -374,11 +388,10 @@ export default function AppPage() {
                                 conversation={activeDMConversation}
                                 onConversationUpdated={upsertDMConversation}
                                 onSubscribeDM={subscribeDM}
-                                onUnsubscribeDM={unsubscribeDM}
-                                onStartCall={handleStartDMCall}
-                                activeCall={activeCallForConversation}
-                                onEndCall={closeDMCall}
-                            />
+                            onUnsubscribeDM={unsubscribeDM}
+                            onStartCall={handleStartDMCall}
+                            activeCall={activeCallForConversation}
+                        />
                         ) : (
                             <FriendsView onMessageFriend={openDirectDM} />
                         )}
@@ -400,11 +413,9 @@ export default function AppPage() {
                         <div className="text-center">
                             {servers.length === 0 ? (
                                 <>
-                                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-accent-violet to-accent-teal flex items-center justify-center mx-auto mb-4">
-                                        <span className="text-white font-bold text-2xl">V</span>
-                                    </div>
+                                    <img src="/corvus-logo.png" alt="Corvus" className="w-16 h-16 rounded-full mx-auto mb-4" />
                                     <h2 className="text-heading font-bold text-text-primary mb-2">
-                                        Welcome to Veyra
+                                        Welcome to Corvus
                                     </h2>
                                     <p className="text-body text-text-muted mb-6 max-w-sm">
                                         Create a server to get started, or join an existing one with an invite link.

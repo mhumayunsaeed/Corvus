@@ -18,16 +18,14 @@ import {
   Image,
 } from "lucide-react";
 
-/** Realistic mock of Veyra's main app shell (Screen 4) used as a hero visual. */
+/** Realistic mock of Corvus's main app shell (Screen 4) used as a hero visual. */
 export function AppMockup() {
   return (
     <div className="flex h-[520px] sm:h-[560px] lg:h-[620px] bg-background text-text-primary text-body select-none overflow-hidden">
       {/* Server Rail */}
       <div className="hidden sm:flex w-[68px] shrink-0 flex-col items-center py-3 gap-2 bg-background border-r border-border">
         {/* Home / logo */}
-        <div className="w-12 h-12 rounded-md bg-gradient-to-br from-accent-violet to-accent-teal flex items-center justify-center mb-1 shadow-glow">
-          <span className="text-white font-bold text-lg">V</span>
-        </div>
+        <img src="/corvus-logo.png" alt="Corvus" className="w-12 h-12 rounded-full shadow-glow mb-1" />
         <div className="w-8 h-px bg-border" />
         {/* Servers */}
         {[

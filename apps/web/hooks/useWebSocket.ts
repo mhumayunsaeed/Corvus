@@ -477,14 +477,14 @@ export function useWebSocket() {
 
                             // Handle incoming DM call - dispatch custom event
                             window.dispatchEvent(
-                                new CustomEvent("veyra:incoming_call", { detail: msg.data })
+                                new CustomEvent("corvus:incoming_call", { detail: msg.data })
                             );
                             break;
                         }
 
                         case "call_ended":
                             window.dispatchEvent(
-                                new CustomEvent("veyra:call_ended", { detail: msg.data })
+                                new CustomEvent("corvus:call_ended", { detail: msg.data })
                             );
                             break;
                     }

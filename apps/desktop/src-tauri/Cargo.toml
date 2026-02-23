@@ -1,15 +1,15 @@
 [package]
-name = "veyra-desktop"
+name = "corvus-desktop"
 version = "0.0.1"
-description = "Veyra Desktop Application"
-authors = ["Veyra Team"]
+description = "Corvus Desktop Application"
+authors = ["Corvus Team"]
 edition = "2021"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["tray-icon", "image-png", "image-ico"] }
 tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-store = "2"

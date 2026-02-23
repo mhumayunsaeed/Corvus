@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 // It checks your latest GitHub release and constructs the JSON structure Tauri needs (`{{target}}/{{current_version}}`)
 // Usually, you might host a static updater.json at S3 instead. Here is a dynamic fallback.
 
-const REPO = "Humayun-glitch/Veyra"; // Change me
+const REPO = "Humayun-glitch/Corvus"; // Change me
 
 export const dynamic = "force-dynamic";
 
@@ -36,15 +36,15 @@ export async function GET(request: Request) {
                 // Tauri uses very specific target strings depending on OS architecture it is running on.
                 "windows-x86_64": {
                     signature: "FETCHED_FROM_GITHUB_SIG_FILE_OR_CI", // In reality, you'd download the `.sig` release asset string or CI pushes it to a DB.
-                    url: `https://github.com/${REPO}/releases/download/${release.tag_name}/Veyra_${release.tag_name}_x64_en-US.msi.zip`
+                    url: `https://github.com/${REPO}/releases/download/${release.tag_name}/Corvus_${release.tag_name}_x64_en-US.msi.zip`
                 },
                 "darwin-aarch64": {
                     signature: "MAC_SIG",
-                    url: `https://github.com/${REPO}/releases/download/${release.tag_name}/Veyra_${release.tag_name}_aarch64.app.tar.gz`
+                    url: `https://github.com/${REPO}/releases/download/${release.tag_name}/Corvus_${release.tag_name}_aarch64.app.tar.gz`
                 },
                 "linux-x86_64": {
                     signature: "LINUX_SIG",
-                    url: `https://github.com/${REPO}/releases/download/${release.tag_name}/veyra_${release.tag_name}_amd64.AppImage.tar.gz`
+                    url: `https://github.com/${REPO}/releases/download/${release.tag_name}/corvus_${release.tag_name}_amd64.AppImage.tar.gz`
                 }
             }
         };

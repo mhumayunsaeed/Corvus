@@ -5,9 +5,7 @@ import {
   Mic,
   Video,
   Lock,
-  WifiOff,
   SearchCode,
-  KanbanSquare,
   Radio,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -22,9 +20,7 @@ const pills: FeaturePill[] = [
   { icon: Mic, label: "Crystal-Clear Voice" },
   { icon: Video, label: "HD Video" },
   { icon: Lock, label: "Encrypted DMs" },
-  { icon: WifiOff, label: "Offline Mode" },
   { icon: SearchCode, label: "Smart Search" },
-  { icon: KanbanSquare, label: "Kanban Boards" },
   { icon: Radio, label: "Stage Channels" },
 ];
 

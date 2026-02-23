@@ -75,7 +75,7 @@ app.onError((err, c) => {
 // Public health check used by Render
 app.get("/healthz", (c) => {
     return c.json({
-        name: "Veyra API",
+        name: "Corvus API",
         version: "0.1.0",
         status: "ok",
     });
@@ -97,7 +97,7 @@ app.route("/", stickerRoutes); // routes are /stickers/*
 // Health check
 app.get("/", (c) => {
     return c.json({
-        name: "Veyra API",
+        name: "Corvus API",
         version: "0.1.0",
         status: "running",
     });
@@ -114,7 +114,7 @@ const server = serve({ fetch: app.fetch, port }, (info) => {
     console.log("");
     console.log("  ┌─────────────────────────────────────┐");
     console.log("  │                                     │");
-    console.log(`  │   Veyra API running on :${info.port}        │`);
+    console.log(`  │   Corvus API running on :${info.port}        │`);
     console.log("  │                                     │");
     console.log("  └─────────────────────────────────────┘");
     console.log("");

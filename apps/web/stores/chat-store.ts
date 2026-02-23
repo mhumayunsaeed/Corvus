@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import type { MessageData } from "@/lib/api";
 
+const MAX_MESSAGES_PER_CHANNEL = 1000;
+
+function trimMessages(messages: MessageData[]) {
+    if (messages.length <= MAX_MESSAGES_PER_CHANNEL) return messages;
+    return messages.slice(-MAX_MESSAGES_PER_CHANNEL);
+}
+
 interface TypingUser {
     userId: string;
     username: string;
@@ -41,7 +48,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     setMessages: (channelId, messages, cursor, hasMore) =>
         set((state) => ({
-            messages: { ...state.messages, [channelId]: messages },
+            messages: { ...state.messages, [channelId]: trimMessages(messages) },
             cursors: { ...state.cursors, [channelId]: cursor },
             hasMore: { ...state.hasMore, [channelId]: hasMore },
         })),
@@ -50,7 +57,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set((state) => ({
             messages: {
                 ...state.messages,
-                [channelId]: [...messages, ...(state.messages[channelId] || [])],
+                [channelId]: trimMessages([
+                    ...messages,
+                    ...(state.messages[channelId] || []),
+                ]),
             },
             cursors: { ...state.cursors, [channelId]: cursor },
             hasMore: { ...state.hasMore, [channelId]: hasMore },
@@ -64,7 +74,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             return {
                 messages: {
                     ...state.messages,
-                    [channelId]: [...existing, message],
+                    [channelId]: trimMessages([...existing, message]),
                 },
             };
         }),
@@ -189,12 +199,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     clearChannel: (channelId) =>
         set((state) => {
+            for (const typingUser of state.typingUsers[channelId] || []) {
+                clearTimeout(typingUser.timeout);
+            }
             const newMessages = { ...state.messages };
             delete newMessages[channelId];
             const newCursors = { ...state.cursors };
             delete newCursors[channelId];
             const newHasMore = { ...state.hasMore };
             delete newHasMore[channelId];
-            return { messages: newMessages, cursors: newCursors, hasMore: newHasMore };
+            const newTypingUsers = { ...state.typingUsers };
+            delete newTypingUsers[channelId];
+            return {
+                messages: newMessages,
+                cursors: newCursors,
+                hasMore: newHasMore,
+                typingUsers: newTypingUsers,
+            };
         }),
 }));

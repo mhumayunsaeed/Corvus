@@ -29,10 +29,11 @@ import {
 import { API_URL } from "@/lib/endpoints";
 import { useAuthStore } from "@/stores/auth-store";
 import { useDMStore } from "@/stores/dm-store";
+import { useRuntimeThrottled } from "@/hooks/useRuntimeThrottled";
+import { useVirtualWindow } from "@/hooks/useVirtualWindow";
 import { EmojiPicker } from "./EmojiPicker";
 import { GifPicker } from "./GifPicker";
 import { StickerPicker } from "./StickerPicker";
-import { CallModal } from "./CallModal";
 import { LinkEmbed } from "./LinkEmbed";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { extractMessageUrls, linkifyMessageText } from "@/lib/link-utils";
@@ -53,11 +54,12 @@ interface DMChatViewProps {
         url: string;
         initialVideo: boolean;
     } | null;
-    onEndCall: () => Promise<void>;
 }
 
 const EMPTY_DM_MESSAGES: DMMessageData[] = [];
 const STICKER_PREFIX = "sticker:";
+const MAX_STICKER_CACHE_ENTRIES = 200;
+const MAX_PREVIEW_CACHE_ENTRIES = 500;
 const DM_STATUS_COLORS: Record<string, string> = {
     online: "#23A55A",
     idle: "#F0B232",
@@ -65,6 +67,40 @@ const DM_STATUS_COLORS: Record<string, string> = {
     invisible: "#80848E",
     offline: "#80848E",
 };
+
+function mergeCacheWithLimit<T>(
+    prev: Record<string, T>,
+    entries: Array<readonly [string, T]>,
+    limit: number
+) {
+    if (entries.length === 0) return prev;
+
+    const next: Record<string, T> = { ...prev };
+    for (const [key, value] of entries) {
+        next[key] = value;
+    }
+
+    const keys = Object.keys(next);
+    if (keys.length <= limit) return next;
+
+    const keptKeys = keys.slice(keys.length - limit);
+    const trimmed: Record<string, T> = {};
+    for (const key of keptKeys) {
+        trimmed[key] = next[key];
+    }
+    return trimmed;
+}
+
+function parseCallDuration(metadata: string | null | undefined): number {
+    if (!metadata) return 0;
+    try {
+        const parsed = JSON.parse(metadata) as { duration?: unknown };
+        const duration = parsed.duration;
+        return typeof duration === "number" && duration > 0 ? duration : 0;
+    } catch {
+        return 0;
+    }
+}
 
 function conversationTitle(conversation: DMConversationData, currentUserId: string | undefined) {
     if (conversation.type === "group") {
@@ -92,7 +128,6 @@ export function DMChatView({
     onUnsubscribeDM,
     onStartCall,
     activeCall,
-    onEndCall,
 }: DMChatViewProps) {
     const currentUserId = useAuthStore((s) => s.user?.id);
     const [loading, setLoading] = useState(true);
@@ -111,7 +146,6 @@ export function DMChatView({
     const [previewCache, setPreviewCache] = useState<Record<string, MessageEmbedData | null>>({});
     const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
     const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
-    const [endingCall, setEndingCall] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const endRef = useRef<HTMLDivElement>(null);
     const attachmentInputRef = useRef<HTMLInputElement>(null);
@@ -124,6 +158,7 @@ export function DMChatView({
     const addStoreMessage = useDMStore((s) => s.addMessage);
     const updateStoreMessage = useDMStore((s) => s.updateMessage);
     const deleteStoreMessage = useDMStore((s) => s.deleteMessage);
+    const runtimeThrottled = useRuntimeThrottled();
 
     const title = useMemo(
         () => conversationTitle(conversation, currentUserId),
@@ -151,6 +186,23 @@ export function DMChatView({
         [slashQuery]
     );
     const showSlashCommandMenu = slashQuery !== null && filteredSlashCommands.length > 0;
+    const callDurationByMessageId = useMemo(() => {
+        const durations = new Map<string, number>();
+        for (const message of messages) {
+            if (message.type === "call") {
+                durations.set(message.id, parseCallDuration(message.metadata));
+            }
+        }
+        return durations;
+    }, [messages]);
+    const virtualMessages = useVirtualWindow({
+        items: messages,
+        getItemKey: (message) => message.id,
+        containerRef,
+        estimateSize: 96,
+        overscan: 8,
+        enabled: messages.length > 80,
+    });
 
     const stickerIdsInMessages = useMemo(() => {
         const ids = new Set<string>();
@@ -166,6 +218,8 @@ export function DMChatView({
     }, [slashQuery]);
 
     useEffect(() => {
+        if (runtimeThrottled) return;
+
         const unresolved = stickerIdsInMessages.filter(
             (id) => !Object.prototype.hasOwnProperty.call(stickerCache, id)
         );
@@ -188,19 +242,19 @@ export function DMChatView({
 
             if (cancelled) return;
 
-            setStickerCache((prev) => {
-                const next = { ...prev };
-                for (const [id, sticker] of resolvedEntries) {
-                    next[id] = sticker;
-                }
-                return next;
-            });
+            setStickerCache((prev) =>
+                mergeCacheWithLimit(
+                    prev,
+                    resolvedEntries,
+                    MAX_STICKER_CACHE_ENTRIES
+                )
+            );
         })();
 
         return () => {
             cancelled = true;
         };
-    }, [stickerIdsInMessages, stickerCache]);
+    }, [runtimeThrottled, stickerIdsInMessages, stickerCache]);
 
     const previewUrls = useMemo(() => {
         const urls = new Set<string>();
@@ -216,6 +270,8 @@ export function DMChatView({
     }, [messages]);
 
     useEffect(() => {
+        if (runtimeThrottled) return;
+
         const missing = previewUrls.filter(
             (url) => !Object.prototype.hasOwnProperty.call(previewCache, url)
         );
@@ -244,19 +300,19 @@ export function DMChatView({
 
             if (cancelled) return;
 
-            setPreviewCache((prev) => {
-                const next = { ...prev };
-                for (const [url, embed] of fetched) {
-                    next[url] = embed;
-                }
-                return next;
-            });
+            setPreviewCache((prev) =>
+                mergeCacheWithLimit(
+                    prev,
+                    fetched,
+                    MAX_PREVIEW_CACHE_ENTRIES
+                )
+            );
         })();
 
         return () => {
             cancelled = true;
         };
-    }, [previewUrls, previewCache]);
+    }, [previewUrls, previewCache, runtimeThrottled]);
 
     useEffect(() => {
         let mounted = true;
@@ -698,25 +754,19 @@ export function DMChatView({
         [activeCall, conversation.id, onStartCall, startingCall]
     );
 
-    const handleEndCall = useCallback(async () => {
-        if (endingCall) return;
-        setEndingCall(true);
-        try {
-            await onEndCall();
-        } catch (err) {
-            console.error("Failed to end call:", err);
-        } finally {
-            setEndingCall(false);
-        }
-    }, [endingCall, onEndCall]);
-
     const handleSendSticker = useCallback(
         async (sticker: StickerData) => {
             try {
                 const result = await sendDMMessage(conversation.id, `${STICKER_PREFIX}${sticker.id}`);
                 addStoreMessage(conversation.id, result.message);
                 syncConversationFromMessage(result.message);
-                setStickerCache((prev) => ({ ...prev, [sticker.id]: sticker }));
+                setStickerCache((prev) =>
+                    mergeCacheWithLimit(
+                        prev,
+                        [[sticker.id, sticker]],
+                        MAX_STICKER_CACHE_ENTRIES
+                    )
+                );
                 setShowStickerPicker(false);
                 setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 20);
             } catch (err) {
@@ -818,17 +868,6 @@ export function DMChatView({
                     </div>
                 </div>
 
-                {activeCall && (
-                    <CallModal
-                        onClose={handleEndCall}
-                        token={activeCall.token}
-                        url={activeCall.url}
-                        initialVideo={activeCall.initialVideo}
-                        participants={conversation.participants}
-                        className={endingCall ? "opacity-70" : ""}
-                    />
-                )}
-
                 <div
                     ref={containerRef}
                     onScroll={handleScroll}
@@ -857,17 +896,13 @@ export function DMChatView({
                     </div>
                 )}
 
-                {messages.map((message) => {
+                {virtualMessages.topSpacer > 0 && (
+                    <div style={{ height: `${virtualMessages.topSpacer}px` }} />
+                )}
+
+                {virtualMessages.items.map(({ item: message, key, measureRef }) => {
                     if (message.type === "call") {
-                        let duration = 0;
-                        try {
-                            if (message.metadata) {
-                                const meta = JSON.parse(message.metadata);
-                                duration = meta.duration || 0;
-                            }
-                        } catch {
-                            // ignore malformed metadata
-                        }
+                        const duration = callDurationByMessageId.get(message.id) || 0;
 
                         const mins = Math.floor(duration / 60);
                         const secs = duration % 60;
@@ -882,7 +917,8 @@ export function DMChatView({
 
                         return (
                             <div
-                                key={message.id}
+                                key={key}
+                                ref={measureRef}
                                 className={`relative my-1 px-1 py-2 pl-4 ${
                                     hasDur ? "border-b border-[#262B39]" : "border-b border-[#4A232C]/70"
                                 }`}
@@ -952,7 +988,8 @@ export function DMChatView({
 
                     return (
                         <div
-                            key={message.id}
+                            key={key}
+                            ref={measureRef}
                             className={`relative flex gap-3 group p-1 -m-1 rounded-md transition-colors ${
                                 hoveredMessage === message.id ? "bg-hover-row" : ""
                             }`}
@@ -1075,6 +1112,10 @@ export function DMChatView({
                         </div>
                     );
                 })}
+
+                {virtualMessages.bottomSpacer > 0 && (
+                    <div style={{ height: `${virtualMessages.bottomSpacer}px` }} />
+                )}
 
                 <div ref={endRef} />
             </div>

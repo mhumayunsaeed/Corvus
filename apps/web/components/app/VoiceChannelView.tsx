@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { memo, useEffect, useState, useMemo } from "react";
 import {
     LiveKitRoom,
     RoomAudioRenderer,
@@ -28,10 +28,14 @@ function getGridClass(count: number): string {
 
 // ─── Participant Tile ────────────────────────────────────────────
 
-function ParticipantTile({ participant }: { participant: Participant }) {
+function ParticipantTile({
+    participant,
+    trackRef,
+}: {
+    participant: Participant;
+    trackRef: ReturnType<typeof useTracks>[number] | undefined;
+}) {
     const isSpeaking = useIsSpeaking(participant);
-    const tracks = useTracks([Track.Source.Camera]);
-    const trackRef = tracks.find((t) => t.participant.identity === participant.identity);
     const hasVideo = !!(trackRef?.publication && !trackRef.publication.isMuted);
     const isMuted = participant.isMicrophoneEnabled === false;
     const displayName = participant.name || participant.identity;
@@ -86,6 +90,8 @@ function ParticipantTile({ participant }: { participant: Participant }) {
         </div>
     );
 }
+
+const MemoizedParticipantTile = memo(ParticipantTile);
 
 // ─── Screen Share View ──────────────────────────────────────────
 
@@ -143,7 +149,7 @@ function LatencyIndicator() {
         };
 
         measure();
-        const interval = setInterval(measure, 1000);
+        const interval = setInterval(measure, 2500);
         return () => clearInterval(interval);
     }, [room]);
 
@@ -163,6 +169,7 @@ function LatencyIndicator() {
 
 function RoomContent() {
     const participants = useParticipants();
+    const cameraTracks = useTracks([Track.Source.Camera]);
     const room = useRoomContext();
     const updateParticipant = useVoiceStore((s) => s.updateParticipant);
     useNoiseSuppression();
@@ -250,6 +257,13 @@ function RoomContent() {
     }, [room, updateParticipant]);
 
     const gridClass = getGridClass(participants.length);
+    const tracksByIdentity = useMemo(() => {
+        const map = new Map<string, ReturnType<typeof useTracks>[number]>();
+        for (const trackRef of cameraTracks) {
+            map.set(trackRef.participant.identity, trackRef);
+        }
+        return map;
+    }, [cameraTracks]);
 
     return (
         <div className="flex-1 flex flex-col p-6 overflow-y-auto">
@@ -257,9 +271,10 @@ function RoomContent() {
 
             <div className={`grid ${gridClass} gap-4 flex-1 content-center`}>
                 {participants.map((participant) => (
-                    <ParticipantTile
+                    <MemoizedParticipantTile
                         key={participant.identity}
                         participant={participant}
+                        trackRef={tracksByIdentity.get(participant.identity)}
                     />
                 ))}
             </div>

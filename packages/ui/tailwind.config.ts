@@ -1,4 +1,4 @@
-import baseConfig from "@veyra/config/tailwind";
+import baseConfig from "@corvus/config/tailwind";
 import type { Config } from "tailwindcss";
 
 const config: Config = {

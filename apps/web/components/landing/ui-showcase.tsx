@@ -10,16 +10,25 @@ export function UIShowcase() {
 
   useEffect(() => {
     let ctx: { revert: () => void } | undefined;
+    let disposed = false;
 
     async function animate() {
       const gsapModule = await import("gsap");
       const gsap = gsapModule.default;
       const { ScrollTrigger } = await import("gsap/ScrollTrigger");
+      if (disposed) return;
+
+      const sectionEl = sectionRef.current;
+      const mockupEl = mockupRef.current;
+      const captionEl = captionRef.current;
+      if (!sectionEl || !mockupEl || !captionEl) return;
+
+      const scrollerEl = document.getElementById("landing-scroll");
       gsap.registerPlugin(ScrollTrigger);
 
       ctx = gsap.context(() => {
         gsap.fromTo(
-          mockupRef.current,
+          mockupEl,
           { opacity: 0, y: 60, scale: 0.96 },
           {
             opacity: 1,
@@ -28,15 +37,15 @@ export function UIShowcase() {
             duration: 0.8,
             ease: "power2.out",
             scrollTrigger: {
-              trigger: sectionRef.current,
-              scroller: "#landing-scroll",
+              trigger: sectionEl,
+              ...(scrollerEl ? { scroller: scrollerEl } : {}),
               start: "top 80%",
               toggleActions: "play none none none",
             },
           }
         );
         gsap.fromTo(
-          captionRef.current,
+          captionEl,
           { opacity: 0, y: 20 },
           {
             opacity: 1,
@@ -44,18 +53,21 @@ export function UIShowcase() {
             duration: 0.5,
             ease: "power2.out",
             scrollTrigger: {
-              trigger: captionRef.current,
-              scroller: "#landing-scroll",
+              trigger: captionEl,
+              ...(scrollerEl ? { scroller: scrollerEl } : {}),
               start: "top 90%",
               toggleActions: "play none none none",
             },
           }
         );
-      }, sectionRef);
+      }, sectionEl);
     }
 
-    animate();
-    return () => ctx?.revert();
+    void animate();
+    return () => {
+      disposed = true;
+      ctx?.revert();
+    };
   }, []);
 
   return (

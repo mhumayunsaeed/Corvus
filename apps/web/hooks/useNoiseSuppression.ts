@@ -19,6 +19,7 @@ import { createNoiseSuppressor, type NoiseSuppressor } from "@/lib/noise-suppres
 export function useNoiseSuppression() {
     const room = useRoomContext();
     const noiseSuppression = useVoiceStore((s) => s.noiseSuppression);
+    const isMuted = useVoiceStore((s) => s.isMuted);
     const suppressorRef = useRef<NoiseSuppressor | null>(null);
     const originalTrackRef = useRef<MediaStreamTrack | null>(null);
 
@@ -82,8 +83,8 @@ export function useNoiseSuppression() {
             originalTrackRef.current = null;
         };
 
-        if (!noiseSuppression) {
-            restoreOriginal();
+        if (!noiseSuppression || isMuted) {
+            void restoreOriginal();
             return;
         }
 
@@ -111,5 +112,5 @@ export function useNoiseSuppression() {
             }
             originalTrackRef.current = null;
         };
-    }, [noiseSuppression, room]);
+    }, [isMuted, noiseSuppression, room]);
 }

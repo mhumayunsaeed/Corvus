@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { memo, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
     LiveKitRoom,
     RoomAudioRenderer,
@@ -58,13 +58,13 @@ function getAvatarFromMetadata(participant: Participant): string | null {
 function CallParticipantTile({
     participant,
     profile,
+    trackRef,
 }: {
     participant: Participant;
     profile?: DMParticipantData;
+    trackRef: ReturnType<typeof useTracks>[number] | undefined;
 }) {
     const isSpeaking = useIsSpeaking(participant);
-    const tracks = useTracks([Track.Source.Camera]);
-    const trackRef = tracks.find((t) => t.participant.identity === participant.identity);
     const hasVideo = !!(trackRef?.publication && !trackRef.publication.isMuted);
     const displayName = profile?.displayName || participant.name || participant.identity;
     const avatarUrl =
@@ -96,6 +96,8 @@ function CallParticipantTile({
     );
 }
 
+const MemoizedCallParticipantTile = memo(CallParticipantTile);
+
 function CallLatency() {
     const room = useRoomContext();
     const [latency, setLatency] = useState<number | null>(null);
@@ -121,7 +123,7 @@ function CallLatency() {
             } catch { /* ignore */ }
         };
         measure();
-        const interval = setInterval(measure, 1000);
+        const interval = setInterval(measure, 2500);
         return () => clearInterval(interval);
     }, [room]);
 
@@ -169,6 +171,7 @@ function CallContent({
     participants?: DMParticipantData[];
 }) {
     const roomParticipants = useParticipants();
+    const cameraTracks = useTracks([Track.Source.Camera]);
     const room = useRoomContext();
     useNoiseSuppression();
 
@@ -274,6 +277,13 @@ function CallContent({
                 : "grid-cols-3 max-w-[980px] mx-auto";
 
     const profileById = new Map(participantProfiles.map((p) => [p.id, p]));
+    const cameraTracksByIdentity = useMemo(() => {
+        const map = new Map<string, ReturnType<typeof useTracks>[number]>();
+        for (const trackRef of cameraTracks) {
+            map.set(trackRef.participant.identity, trackRef);
+        }
+        return map;
+    }, [cameraTracks]);
 
     return (
         <div className="flex-1 flex flex-col">
@@ -288,10 +298,11 @@ function CallContent({
 
                 <div className={`grid ${gridClass} gap-8 w-full justify-items-center`}>
                     {roomParticipants.map((p) => (
-                        <CallParticipantTile
+                        <MemoizedCallParticipantTile
                             key={p.identity}
                             participant={p}
                             profile={profileById.get(p.identity)}
+                            trackRef={cameraTracksByIdentity.get(p.identity)}
                         />
                     ))}
                 </div>

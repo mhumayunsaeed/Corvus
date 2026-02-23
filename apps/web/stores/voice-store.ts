@@ -9,6 +9,19 @@ export const SCREEN_SHARE_PRESETS: Record<ScreenShareQuality, { label: string; w
     "source": null, // Native resolution
 };
 
+function defaultNoiseSuppressionEnabled(): boolean {
+    if (typeof navigator === "undefined") {
+        return true;
+    }
+
+    const hardwareConcurrency = navigator.hardwareConcurrency || 8;
+    const deviceMemory =
+        (navigator as Navigator & { deviceMemory?: number }).deviceMemory || 8;
+
+    // RNNoise is CPU-intensive. Keep it enabled by default on mid/high-end devices.
+    return hardwareConcurrency >= 6 && deviceMemory >= 8;
+}
+
 export interface VoiceParticipant {
     userId: string;
     username: string;
@@ -90,7 +103,7 @@ export const useVoiceStore = create<VoiceState>((set) => ({
     hasVideo: false,
     isScreenSharing: false,
     screenShareQuality: "1080p30" as ScreenShareQuality,
-    noiseSuppression: true,
+    noiseSuppression: defaultNoiseSuppressionEnabled(),
     channelParticipants: {},
 
     joinChannel: (data) =>

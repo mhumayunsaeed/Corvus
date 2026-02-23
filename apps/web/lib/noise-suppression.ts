@@ -1,11 +1,20 @@
 /**
- * Noise suppression using RNNoise WASM.
- * Processes a MediaStreamTrack and returns a noise-suppressed track.
+ * Noise suppression pipeline for voice input.
+ *
+ * Primary path:
+ * - AudioWorklet-based suppressor (lower main-thread CPU and latency).
+ *
+ * Fallback path:
+ * - RNNoise WASM via ScriptProcessorNode for environments where AudioWorklet
+ *   fails to initialize.
  */
 
 import type { Rnnoise, DenoiseState } from "@shiguredo/rnnoise-wasm";
 
 let rnnoiseInstance: Rnnoise | null = null;
+
+const WORKLET_MODULE_PATH = "/worklets/noise-gate-processor.js";
+const WORKLET_PROCESSOR_NAME = "corvus-noise-gate-processor";
 
 async function getRnnoise(): Promise<Rnnoise> {
     if (!rnnoiseInstance) {
@@ -16,40 +25,61 @@ async function getRnnoise(): Promise<Rnnoise> {
 }
 
 export interface NoiseSuppressor {
-    /** The noise-suppressed output track */
     track: MediaStreamTrack;
-    /** Call to stop suppression and clean up resources */
     destroy: () => void;
 }
 
-/**
- * Creates a noise-suppressed version of an audio track.
- * Uses RNNoise WASM for real-time voice activity detection and denoising.
- *
- * @param inputTrack - The raw microphone MediaStreamTrack
- * @returns A NoiseSuppressor with the processed track and cleanup function
- */
-export async function createNoiseSuppressor(
+async function createWorkletNoiseSuppressor(
+    inputTrack: MediaStreamTrack
+): Promise<NoiseSuppressor> {
+    const audioContext = new AudioContext({
+        sampleRate: 48000,
+        latencyHint: "interactive",
+    });
+
+    const source = audioContext.createMediaStreamSource(new MediaStream([inputTrack]));
+
+    await audioContext.audioWorklet.addModule(WORKLET_MODULE_PATH);
+
+    const processor = new AudioWorkletNode(audioContext, WORKLET_PROCESSOR_NAME, {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [1],
+        channelCount: 1,
+        channelCountMode: "explicit",
+        channelInterpretation: "speakers",
+    });
+
+    const destination = audioContext.createMediaStreamDestination();
+    source.connect(processor);
+    processor.connect(destination);
+
+    const outputTrack = destination.stream.getAudioTracks()[0];
+
+    return {
+        track: outputTrack,
+        destroy: () => {
+            processor.disconnect();
+            source.disconnect();
+            audioContext.close().catch(() => {
+                // ignore
+            });
+        },
+    };
+}
+
+async function createLegacyRnnoiseSuppressor(
     inputTrack: MediaStreamTrack
 ): Promise<NoiseSuppressor> {
     const rnnoise = await getRnnoise();
     const denoiseState: DenoiseState = rnnoise.createDenoiseState();
-    const frameSize = rnnoise.frameSize; // typically 480 samples
+    const frameSize = rnnoise.frameSize;
 
     const audioContext = new AudioContext({ sampleRate: 48000 });
-    const source = audioContext.createMediaStreamSource(
-        new MediaStream([inputTrack])
-    );
+    const source = audioContext.createMediaStreamSource(new MediaStream([inputTrack]));
 
-    // ScriptProcessorNode for compatibility (AudioWorklet would be preferred
-    // but requires a separate file and is more complex to set up with WASM)
-    const processor = audioContext.createScriptProcessor(
-        4096, // buffer size
-        1,    // input channels
-        1     // output channels
-    );
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
 
-    // Residual buffer for samples that don't fill a complete frame
     let residual = new Float32Array(0);
     let destroyed = false;
 
@@ -57,14 +87,11 @@ export async function createNoiseSuppressor(
         const input = event.inputBuffer.getChannelData(0);
         const output = event.outputBuffer.getChannelData(0);
 
-        // Guard: ScriptProcessorNode fires async — may arrive after destroy()
         if (destroyed) {
             output.set(input);
             return;
         }
 
-        // RNNoise expects 16-bit PCM scale values
-        // Combine residual with new input
         const combined = new Float32Array(residual.length + input.length);
         combined.set(residual);
         combined.set(input, residual.length);
@@ -75,14 +102,12 @@ export async function createNoiseSuppressor(
         while (readOffset + frameSize <= combined.length && writeOffset < output.length) {
             const frame = new Float32Array(frameSize);
 
-            // Scale to 16-bit PCM range for RNNoise
             for (let i = 0; i < frameSize; i++) {
                 frame[i] = combined[readOffset + i] * 32768;
             }
 
             denoiseState.processFrame(frame);
 
-            // Scale back to float range and write to output
             const remaining = Math.min(frameSize, output.length - writeOffset);
             for (let i = 0; i < remaining; i++) {
                 output[writeOffset + i] = frame[i] / 32768;
@@ -92,20 +117,15 @@ export async function createNoiseSuppressor(
             writeOffset += remaining;
         }
 
-        // Store unprocessed samples as residual
-        if (readOffset < combined.length) {
-            residual = combined.slice(readOffset);
-        } else {
-            residual = new Float32Array(0);
-        }
+        residual = readOffset < combined.length
+            ? combined.slice(readOffset)
+            : new Float32Array(0);
 
-        // Fill any remaining output with silence
         for (let i = writeOffset; i < output.length; i++) {
             output[i] = 0;
         }
     };
 
-    // Connect the audio graph
     const destination = audioContext.createMediaStreamDestination();
     source.connect(processor);
     processor.connect(destination);
@@ -119,7 +139,23 @@ export async function createNoiseSuppressor(
             processor.disconnect();
             source.disconnect();
             denoiseState.destroy();
-            audioContext.close().catch(console.error);
+            audioContext.close().catch(() => {
+                // ignore
+            });
         },
     };
+}
+
+export async function createNoiseSuppressor(
+    inputTrack: MediaStreamTrack
+): Promise<NoiseSuppressor> {
+    try {
+        return await createWorkletNoiseSuppressor(inputTrack);
+    } catch (workletErr) {
+        console.warn(
+            "AudioWorklet suppressor unavailable, falling back to RNNoise ScriptProcessor:",
+            workletErr
+        );
+        return createLegacyRnnoiseSuppressor(inputTrack);
+    }
 }

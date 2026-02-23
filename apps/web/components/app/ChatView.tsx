@@ -25,6 +25,8 @@ import { StickerPicker } from "./StickerPicker";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useChatStore } from "@/stores/chat-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { useRuntimeThrottled } from "@/hooks/useRuntimeThrottled";
+import { useVirtualWindow } from "@/hooks/useVirtualWindow";
 import {
     sendMessage,
     editMessage,
@@ -69,6 +71,31 @@ interface ChatViewProps {
 const EMPTY_MESSAGES: MessageData[] = [];
 const EMPTY_TYPING_USERS: Array<{ userId: string; username: string }> = [];
 const STICKER_PREFIX = "sticker:";
+const MAX_STICKER_CACHE_ENTRIES = 200;
+const MAX_PREVIEW_CACHE_ENTRIES = 500;
+
+function mergeCacheWithLimit<T>(
+    prev: Record<string, T>,
+    entries: Array<readonly [string, T]>,
+    limit: number
+) {
+    if (entries.length === 0) return prev;
+
+    const next: Record<string, T> = { ...prev };
+    for (const [key, value] of entries) {
+        next[key] = value;
+    }
+
+    const keys = Object.keys(next);
+    if (keys.length <= limit) return next;
+
+    const keptKeys = keys.slice(keys.length - limit);
+    const trimmed: Record<string, T> = {};
+    for (const key of keptKeys) {
+        trimmed[key] = next[key];
+    }
+    return trimmed;
+}
 
 function getStickerId(content: string): string | null {
     const trimmed = content.trim();
@@ -115,6 +142,7 @@ export function ChatView({
     const setMessages = useChatStore((s) => s.setMessages);
     const prependMessages = useChatStore((s) => s.prependMessages);
     const userId = useAuthStore((s) => s.user?.id);
+    const runtimeThrottled = useRuntimeThrottled();
     const slashQuery = useMemo(() => extractSlashQuery(messageInput), [messageInput]);
     const filteredSlashCommands = useMemo(
         () => filterSlashCommands(slashQuery),
@@ -179,6 +207,8 @@ export function ChatView({
     }, [messages]);
 
     useEffect(() => {
+        if (runtimeThrottled) return;
+
         const unresolved = stickerIdsInMessages.filter(
             (id) => !Object.prototype.hasOwnProperty.call(stickerCache, id)
         );
@@ -201,18 +231,18 @@ export function ChatView({
             if (cancelled) return;
 
             setStickerCache((prev) => {
-                const next = { ...prev };
-                for (const [id, sticker] of resolvedEntries) {
-                    next[id] = sticker;
-                }
-                return next;
+                return mergeCacheWithLimit(
+                    prev,
+                    resolvedEntries,
+                    MAX_STICKER_CACHE_ENTRIES
+                );
             });
         })();
 
         return () => {
             cancelled = true;
         };
-    }, [stickerIdsInMessages, stickerCache]);
+    }, [runtimeThrottled, stickerIdsInMessages, stickerCache]);
 
     const previewUrls = useMemo(() => {
         const urls = new Set<string>();
@@ -232,6 +262,8 @@ export function ChatView({
     }, [messages]);
 
     useEffect(() => {
+        if (runtimeThrottled) return;
+
         const missing = previewUrls.filter(
             (url) => !Object.prototype.hasOwnProperty.call(previewCache, url)
         );
@@ -259,18 +291,18 @@ export function ChatView({
             if (cancelled) return;
 
             setPreviewCache((prev) => {
-                const next = { ...prev };
-                for (const [url, embed] of fetched) {
-                    next[url] = embed;
-                }
-                return next;
+                return mergeCacheWithLimit(
+                    prev,
+                    fetched,
+                    MAX_PREVIEW_CACHE_ENTRIES
+                );
             });
         })();
 
         return () => {
             cancelled = true;
         };
-    }, [previewUrls, previewCache]);
+    }, [previewUrls, previewCache, runtimeThrottled]);
 
     // Load older messages
     const loadOlderMessages = useCallback(async () => {
@@ -336,7 +368,13 @@ export function ChatView({
                     content: `${STICKER_PREFIX}${sticker.id}`,
                     replyToId: replyTo?.id,
                 });
-                setStickerCache((prev) => ({ ...prev, [sticker.id]: sticker }));
+                setStickerCache((prev) =>
+                    mergeCacheWithLimit(
+                        prev,
+                        [[sticker.id, sticker]],
+                        MAX_STICKER_CACHE_ENTRIES
+                    )
+                );
                 setReplyTo(null);
                 setShowStickerPicker(false);
             } catch (err) {
@@ -657,7 +695,15 @@ export function ChatView({
         return grouped;
     };
 
-    const messageGroups = groupMessages(messages);
+    const messageGroups = useMemo(() => groupMessages(messages), [messages]);
+    const virtualGroups = useVirtualWindow({
+        items: messageGroups,
+        getItemKey: (group, index) => group[0]?.id || `group-${index}`,
+        containerRef: messagesContainerRef,
+        estimateSize: 180,
+        overscan: 4,
+        enabled: messageGroups.length > 40,
+    });
 
     /* Action pill buttons */
     const ActionPill = ({ message }: { message: MessageData }) => (
@@ -797,13 +843,18 @@ export function ChatView({
                     </div>
                 )}
 
-                {messageGroups.map((group, groupIndex) => {
+                {virtualGroups.topSpacer > 0 && (
+                    <div style={{ height: `${virtualGroups.topSpacer}px` }} />
+                )}
+
+                {virtualGroups.items.map(({ item: group, key, measureRef }) => {
                     const firstMessage = group[0];
                     const author = firstMessage.author;
                     const avatarUrl = author.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${author.username}`;
+                    const firstMessageEmbeds = getCombinedEmbeds(firstMessage);
 
                     return (
-                        <div key={groupIndex} className="flex gap-3 group/msggroup">
+                        <div key={key} ref={measureRef} className="flex gap-3 group/msggroup">
                             <img
                                 src={avatarUrl}
                                 alt={author.displayName}
@@ -879,9 +930,9 @@ export function ChatView({
                                     )}
 
                                     {/* Link embeds */}
-                                    {getCombinedEmbeds(firstMessage).length > 0 && (
+                                    {firstMessageEmbeds.length > 0 && (
                                         <div className="mt-1">
-                                            {getCombinedEmbeds(firstMessage).map((embed) => (
+                                            {firstMessageEmbeds.map((embed) => (
                                                 <LinkEmbed key={embed.id} embed={embed} />
                                             ))}
                                         </div>
@@ -934,83 +985,90 @@ export function ChatView({
                                 </div>
 
                                 {/* Subsequent grouped messages */}
-                                {group.slice(1).map((message) => (
-                                    <div
-                                        key={message.id}
-                                        className={`relative p-1 -m-1 rounded-md mt-0.5 transition-colors duration-100 ${
-                                            hoveredMessage === message.id ? "bg-hover-row" : ""
-                                        }`}
-                                        onMouseEnter={() => setHoveredMessage(message.id)}
-                                        onMouseLeave={() => setHoveredMessage(null)}
-                                    >
-                                        {editingMessageId === message.id ? (
-                                            <div className="space-y-2">
-                                                <textarea
-                                                    value={editContent}
-                                                    onChange={(e) => setEditContent(e.target.value)}
-                                                    className="w-full px-3 py-2 bg-[#1A1D28] border border-[#2A2F3F] rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
-                                                    rows={2}
-                                                    autoFocus
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === "Enter" && !e.shiftKey) {
-                                                            e.preventDefault();
-                                                            handleEdit(message.id);
-                                                        }
-                                                        if (e.key === "Escape") {
-                                                            setEditingMessageId(null);
-                                                        }
-                                                    }}
-                                                />
-                                                <div className="flex items-center gap-2 text-micro text-text-muted">
-                                                    <span>Enter to save, Escape to cancel</span>
+                                {group.slice(1).map((message) => {
+                                    const messageEmbeds = getCombinedEmbeds(message);
+                                    return (
+                                        <div
+                                            key={message.id}
+                                            className={`relative p-1 -m-1 rounded-md mt-0.5 transition-colors duration-100 ${
+                                                hoveredMessage === message.id ? "bg-hover-row" : ""
+                                            }`}
+                                            onMouseEnter={() => setHoveredMessage(message.id)}
+                                            onMouseLeave={() => setHoveredMessage(null)}
+                                        >
+                                            {editingMessageId === message.id ? (
+                                                <div className="space-y-2">
+                                                    <textarea
+                                                        value={editContent}
+                                                        onChange={(e) => setEditContent(e.target.value)}
+                                                        className="w-full px-3 py-2 bg-[#1A1D28] border border-[#2A2F3F] rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
+                                                        rows={2}
+                                                        autoFocus
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === "Enter" && !e.shiftKey) {
+                                                                e.preventDefault();
+                                                                handleEdit(message.id);
+                                                            }
+                                                            if (e.key === "Escape") {
+                                                                setEditingMessageId(null);
+                                                            }
+                                                        }}
+                                                    />
+                                                    <div className="flex items-center gap-2 text-micro text-text-muted">
+                                                        <span>Enter to save, Escape to cancel</span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ) : (
-                                            <div className="text-[14px] text-text-primary leading-[1.6]">
-                                                {renderContent(message.content)}
-                                                {message.editedAt && (
-                                                    <span className="text-micro text-text-muted ml-1">(edited)</span>
-                                                )}
-                                            </div>
-                                        )}
+                                            ) : (
+                                                <div className="text-[14px] text-text-primary leading-[1.6]">
+                                                    {renderContent(message.content)}
+                                                    {message.editedAt && (
+                                                        <span className="text-micro text-text-muted ml-1">(edited)</span>
+                                                    )}
+                                                </div>
+                                            )}
 
-                                        {/* Link embeds */}
-                                        {getCombinedEmbeds(message).length > 0 && (
-                                            <div className="mt-1">
-                                                {getCombinedEmbeds(message).map((embed) => (
-                                                    <LinkEmbed key={embed.id} embed={embed} />
-                                                ))}
-                                            </div>
-                                        )}
+                                            {/* Link embeds */}
+                                            {messageEmbeds.length > 0 && (
+                                                <div className="mt-1">
+                                                    {messageEmbeds.map((embed) => (
+                                                        <LinkEmbed key={embed.id} embed={embed} />
+                                                    ))}
+                                                </div>
+                                            )}
 
-                                        {message.reactions.length > 0 && (
-                                            <div className="flex gap-1.5 mt-2">
-                                                {message.reactions.map((reaction, idx) => (
-                                                    <button
-                                                        key={idx}
-                                                        onClick={() => handleReaction(message.id, reaction.emoji, reaction.reacted)}
-                                                        className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${
-                                                            reaction.reacted
-                                                                ? "bg-reaction-own border border-accent-violet"
-                                                                : "bg-[#1A1D28] border border-[#2A2F3F] hover:border-accent-violet/40"
-                                                        }`}
-                                                    >
-                                                        <span>{reaction.emoji}</span>
-                                                        <span className="text-text-muted">{reaction.count}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
+                                            {message.reactions.length > 0 && (
+                                                <div className="flex gap-1.5 mt-2">
+                                                    {message.reactions.map((reaction, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={() => handleReaction(message.id, reaction.emoji, reaction.reacted)}
+                                                            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${
+                                                                reaction.reacted
+                                                                    ? "bg-reaction-own border border-accent-violet"
+                                                                    : "bg-[#1A1D28] border border-[#2A2F3F] hover:border-accent-violet/40"
+                                                            }`}
+                                                        >
+                                                            <span>{reaction.emoji}</span>
+                                                            <span className="text-text-muted">{reaction.count}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
 
-                                        {hoveredMessage === message.id && editingMessageId !== message.id && (
-                                            <ActionPill message={message} />
-                                        )}
-                                    </div>
-                                ))}
+                                            {hoveredMessage === message.id && editingMessageId !== message.id && (
+                                                <ActionPill message={message} />
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     );
                 })}
+
+                {virtualGroups.bottomSpacer > 0 && (
+                    <div style={{ height: `${virtualGroups.bottomSpacer}px` }} />
+                )}
                 <div ref={messagesEndRef} />
             </div>
 

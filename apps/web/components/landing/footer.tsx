@@ -1,4 +1,5 @@
 "use client";
+import { BRAND_DESCRIPTION, BRAND_MOTTO, BRAND_TAGLINE } from "@/lib/brand";
 
 const footerColumns = [
   {
@@ -32,7 +33,6 @@ const footerColumns = [
   {
     title: "Community",
     links: [
-      { label: "Discord", href: "#" },
       { label: "Twitter / X", href: "#" },
       { label: "GitHub", href: "#" },
       { label: "Reddit", href: "#" },
@@ -72,18 +72,13 @@ export function Footer() {
           {/* Brand column */}
           <div className="col-span-2">
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-9 h-9 rounded-md bg-gradient-to-br from-accent-violet to-accent-teal flex items-center justify-center">
-                <span className="text-white font-bold text-lg leading-none">
-                  V
-                </span>
-              </div>
+              <img src="/corvus-logo.png" alt="Corvus" className="w-9 h-9 rounded-full" />
               <span className="text-text-primary font-semibold text-emphasis">
-                Veyra
+                Corvus
               </span>
             </div>
             <p className="text-body text-text-muted leading-relaxed max-w-[240px]">
-              Where your world connects. A faster, cleaner, and more private
-              space for your community.
+              {BRAND_TAGLINE} {BRAND_DESCRIPTION}
             </p>
 
             {/* Social icons */}
@@ -130,10 +125,10 @@ export function Footer() {
         {/* Bottom bar */}
         <div className="pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-micro text-text-muted">
-            &copy; {new Date().getFullYear()} Veyra. All rights reserved.
+            &copy; {new Date().getFullYear()} Corvus. All rights reserved.
           </p>
           <p className="text-micro text-text-muted italic">
-            &ldquo;Where your world connects.&rdquo;
+            &ldquo;{BRAND_MOTTO}&rdquo;
           </p>
         </div>
       </div>

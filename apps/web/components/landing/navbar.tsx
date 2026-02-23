@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { cn } from "@veyra/ui";
+import { cn } from "@corvus/ui";
 import Link from "next/link";
 
 const navLinks = [
@@ -33,11 +33,9 @@ export function Navbar() {
     >
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2.5 group">
-        <div className="w-9 h-9 rounded-md bg-gradient-to-br from-accent-violet to-accent-teal flex items-center justify-center shadow-glow group-hover:shadow-[0_0_30px_rgba(124,106,247,0.3)] transition-shadow">
-          <span className="text-white font-bold text-lg leading-none">V</span>
-        </div>
+        <img src="/corvus-logo.png" alt="Corvus" className="w-9 h-9 rounded-full shadow-glow group-hover:shadow-[0_0_30px_rgba(124,106,247,0.3)] transition-shadow" />
         <span className="text-text-primary font-semibold text-emphasis hidden sm:block">
-          Veyra
+          Corvus
         </span>
       </Link>
 

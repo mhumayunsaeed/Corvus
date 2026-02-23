@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const from = process.env.EMAIL_FROM || "Veyra <noreply@veyra.app>";
+const from = process.env.EMAIL_FROM || "Corvus <noreply@corvus.app>";
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
 
 function confirmationEmailHtml(
@@ -14,7 +14,7 @@ function confirmationEmailHtml(
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Confirm your Veyra account</title>
+  <title>Confirm your Corvus account</title>
 </head>
 <body style="margin:0;padding:0;background-color:#0C0C0F;font-family:'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0C0C0F;padding:40px 0;">
@@ -49,7 +49,7 @@ function confirmationEmailHtml(
           <tr>
             <td align="center" style="padding:12px 40px 0;">
               <p style="margin:0;font-size:15px;line-height:1.6;color:#8B8B9E;">
-                Hey ${displayName}, welcome to Veyra! Click the button below to verify your email address and activate your account.
+                Hey ${displayName}, welcome to Corvus! Click the button below to verify your email address and activate your account.
               </p>
             </td>
           </tr>
@@ -92,7 +92,7 @@ function confirmationEmailHtml(
           <tr>
             <td align="center" style="padding:16px 40px 32px;">
               <p style="margin:0;font-size:12px;color:#3D3D4E;">
-                © ${new Date().getFullYear()} Veyra — Where your world connects.
+                © ${new Date().getFullYear()} Corvus — Where your world connects.
               </p>
             </td>
           </tr>
@@ -115,7 +115,7 @@ export async function sendConfirmationEmail(
     const { error } = await resend.emails.send({
       from,
       to: email,
-      subject: "Confirm your Veyra account",
+      subject: "Confirm your Corvus account",
       html: confirmationEmailHtml(displayName, confirmUrl),
     });
 

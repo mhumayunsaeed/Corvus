@@ -4,7 +4,7 @@ import type { SharedAttachment } from "@/lib/attachments";
 function getToken(): string | null {
     if (typeof window === "undefined") return null;
     try {
-        const stored = localStorage.getItem("veyra-auth");
+        const stored = localStorage.getItem("corvus-auth");
         if (!stored) return null;
         const parsed = JSON.parse(stored);
         return parsed?.state?.token || null;

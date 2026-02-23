@@ -116,7 +116,7 @@ export async function unfurlUrl(url: string): Promise<EmbedMetadata | null> {
         const res = await fetch(url, {
             signal: controller.signal,
             headers: {
-                "User-Agent": "VeyraBot/1.0 (+https://veyra.app)",
+                "User-Agent": "CorvusBot/1.0 (+https://corvus.app)",
                 Accept: "text/html,application/xhtml+xml",
             },
             redirect: "follow",
