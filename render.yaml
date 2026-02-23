@@ -8,10 +8,10 @@ services:
     buildCommand: |
       corepack enable
       pnpm install --frozen-lockfile --prod=false
-      pnpm --filter @veyra/api db:generate
-      pnpm --filter @veyra/api db:push
-      pnpm --filter @veyra/api build
-    startCommand: pnpm --filter @veyra/api start
+      pnpm --filter @corvus/api db:generate
+      pnpm --filter @corvus/api db:push
+      pnpm --filter @corvus/api build
+    startCommand: pnpm --filter @corvus/api start
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
@@ -55,8 +55,8 @@ services:
     buildCommand: |
       corepack enable
       pnpm install --frozen-lockfile --prod=false
-      pnpm --filter @veyra/web build
-    startCommand: pnpm --filter @veyra/web start
+      pnpm --filter @corvus/web build
+    startCommand: pnpm --filter @corvus/web start
     autoDeploy: true
     envVars:
       - key: NODE_ENV
