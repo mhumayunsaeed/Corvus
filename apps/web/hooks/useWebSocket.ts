@@ -26,6 +26,8 @@ export function useWebSocket() {
     const setTyping = useChatStore((s) => s.setTyping);
     const clearTyping = useChatStore((s) => s.clearTyping);
     const addDMMessage = useDMStore((s) => s.addMessage);
+    const updateDMMessage = useDMStore((s) => s.updateMessage);
+    const deleteDMMessage = useDMStore((s) => s.deleteMessage);
     const upsertDMConversation = useAppStore((s) => s.upsertDMConversation);
     const addVoiceChannelParticipant = useVoiceStore((s) => s.addChannelParticipant);
     const removeVoiceChannelParticipant = useVoiceStore((s) => s.removeChannelParticipant);
@@ -42,6 +44,8 @@ export function useWebSocket() {
         setTyping,
         clearTyping,
         addDMMessage,
+        updateDMMessage,
+        deleteDMMessage,
         upsertDMConversation,
         userId,
         addVoiceChannelParticipant,
@@ -60,6 +64,8 @@ export function useWebSocket() {
         setTyping,
         clearTyping,
         addDMMessage,
+        updateDMMessage,
+        deleteDMMessage,
         upsertDMConversation,
         userId,
         addVoiceChannelParticipant,
@@ -157,6 +163,17 @@ export function useWebSocket() {
                             h.updateMessage(msg.data.channelId, msg.data.messageId, {
                                 embeds: msg.data.embeds,
                             });
+                            break;
+
+                        case "dm_message_update":
+                            h.updateDMMessage(msg.data.conversationId, msg.data.id, {
+                                content: msg.data.content,
+                                editedAt: msg.data.editedAt,
+                            });
+                            break;
+
+                        case "dm_message_delete":
+                            h.deleteDMMessage(msg.data.conversationId, msg.data.id);
                             break;
 
                         case "new_dm_message":

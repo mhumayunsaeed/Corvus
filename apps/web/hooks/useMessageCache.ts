@@ -8,6 +8,14 @@ const DB_NAME = "veyracache.db";
 
 export function useMessageCache() {
     const initialized = useRef(false);
+    const isPermissionError = (err: unknown) => {
+        const text = err instanceof Error ? err.message : String(err);
+        return (
+            text.includes("not allowed") ||
+            text.includes("sql.execute not allowed") ||
+            text.includes("Permissions associated with this command")
+        );
+    };
 
     // We subscribe to the zustand stores and save newly added messages to the DB
     useEffect(() => {
@@ -19,7 +27,6 @@ export function useMessageCache() {
 
         const setupSqlite = async () => {
             if (initialized.current) return;
-            initialized.current = true;
 
             try {
                 const Database = (await import("@tauri-apps/plugin-sql")).default;
@@ -88,12 +95,16 @@ export function useMessageCache() {
 
                 // Ideally we'd also provide functions to LOAD messages from DB on initial mount
                 // but for this phase we focus on the caching architecture.
+                initialized.current = true;
                 return () => {
                     unsubChat();
                     unsubDM();
                 };
             } catch (err) {
-                console.error("Failed to initialize SQLite cache", err);
+                initialized.current = true;
+                if (!isPermissionError(err)) {
+                    console.error("Failed to initialize SQLite cache", err);
+                }
             }
         };
 

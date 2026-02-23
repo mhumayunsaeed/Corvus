@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import {
     Mic,
     MicOff,
@@ -12,8 +12,11 @@ import {
     PhoneOff,
     Maximize2,
     Settings,
+    ChevronUp,
+    Check,
 } from "lucide-react";
 import { useVoiceStore } from "@/stores/voice-store";
+import { SCREEN_SHARE_PRESETS, type ScreenShareQuality } from "@/stores/voice-store";
 import { leaveVoiceChannel } from "@/lib/api";
 
 interface VoiceControlBarProps {
@@ -38,11 +41,27 @@ export function VoiceControlBar({
     const isDeafened = useVoiceStore((s) => s.isDeafened);
     const hasVideo = useVoiceStore((s) => s.hasVideo);
     const isScreenSharing = useVoiceStore((s) => s.isScreenSharing);
+    const screenShareQuality = useVoiceStore((s) => s.screenShareQuality);
     const setLocalMuted = useVoiceStore((s) => s.setLocalMuted);
     const setLocalDeafened = useVoiceStore((s) => s.setLocalDeafened);
     const setLocalVideo = useVoiceStore((s) => s.setLocalVideo);
     const setLocalScreenSharing = useVoiceStore((s) => s.setLocalScreenSharing);
+    const setScreenShareQuality = useVoiceStore((s) => s.setScreenShareQuality);
     const voiceLeave = useVoiceStore((s) => s.leaveChannel);
+    const [showQualityPicker, setShowQualityPicker] = useState(false);
+    const qualityPickerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (qualityPickerRef.current && !qualityPickerRef.current.contains(e.target as Node)) {
+                setShowQualityPicker(false);
+            }
+        };
+        if (showQualityPicker) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [showQualityPicker]);
 
     const handleMuteToggle = useCallback(() => {
         const newMuted = !isMuted;
@@ -133,18 +152,55 @@ export function VoiceControlBar({
                     )}
                 </button>
 
-                {/* Screen Share */}
-                <button
-                    onClick={handleScreenShareToggle}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                        isScreenSharing
-                            ? "bg-accent-teal/20 text-accent-teal hover:bg-accent-teal/30"
-                            : "bg-surface-raised text-text-primary hover:bg-hover-row"
-                    }`}
-                    title={isScreenSharing ? "Stop Sharing" : "Share Screen"}
-                >
-                    <MonitorUp className="w-5 h-5" />
-                </button>
+                {/* Screen Share with Quality Picker */}
+                <div className="relative" ref={qualityPickerRef}>
+                    <div className="flex items-center">
+                        <button
+                            onClick={handleScreenShareToggle}
+                            className={`w-10 h-10 rounded-l-full flex items-center justify-center transition-all ${
+                                isScreenSharing
+                                    ? "bg-accent-teal/20 text-accent-teal hover:bg-accent-teal/30"
+                                    : "bg-surface-raised text-text-primary hover:bg-hover-row"
+                            }`}
+                            title={isScreenSharing ? "Stop Sharing" : "Share Screen"}
+                        >
+                            <MonitorUp className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={() => setShowQualityPicker(!showQualityPicker)}
+                            className={`w-5 h-10 rounded-r-full flex items-center justify-center transition-all border-l border-border/50 ${
+                                isScreenSharing
+                                    ? "bg-accent-teal/20 text-accent-teal hover:bg-accent-teal/30"
+                                    : "bg-surface-raised text-text-primary hover:bg-hover-row"
+                            }`}
+                            title="Screen Share Quality"
+                        >
+                            <ChevronUp className="w-3 h-3" />
+                        </button>
+                    </div>
+                    {showQualityPicker && (
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-surface-raised border border-border rounded-lg shadow-xl py-1 z-50">
+                            <div className="px-3 py-1.5 text-micro text-text-muted font-medium uppercase tracking-wider">
+                                Stream Quality
+                            </div>
+                            {(Object.entries(SCREEN_SHARE_PRESETS) as [ScreenShareQuality, typeof SCREEN_SHARE_PRESETS[ScreenShareQuality]][]).map(([key, preset]) => (
+                                <button
+                                    key={key}
+                                    onClick={() => {
+                                        setScreenShareQuality(key);
+                                        setShowQualityPicker(false);
+                                    }}
+                                    className={`w-full px-3 py-1.5 text-left text-body flex items-center justify-between hover:bg-hover-row transition-colors ${
+                                        screenShareQuality === key ? "text-accent-teal" : "text-text-primary"
+                                    }`}
+                                >
+                                    <span>{preset ? preset.label : "Source Quality"}</span>
+                                    {screenShareQuality === key && <Check className="w-4 h-4" />}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
 
                 {/* Camera */}
                 <button

@@ -40,29 +40,41 @@ async function api<T>(
     options: RequestInit = {}
 ): Promise<T> {
     const baseUrl = ensureApiUrl();
-    let res: Response;
-    try {
-        res = await fetch(`${baseUrl}${path}`, {
-            headers: {
-                "Content-Type": "application/json",
-                ...options.headers,
-            },
-            ...options,
-        });
-    } catch {
-        throw new Error(
-            `Failed to reach API at ${baseUrl}. ` +
-            "Check NEXT_PUBLIC_API_URL and backend CORS settings."
-        );
+    const maxRetries = 2;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        let res: Response;
+        try {
+            res = await fetch(`${baseUrl}${path}`, {
+                headers: {
+                    "Content-Type": "application/json",
+                    ...options.headers,
+                },
+                ...options,
+            });
+        } catch {
+            if (attempt < maxRetries) {
+                // Wait before retrying (handles Render cold starts)
+                await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+                continue;
+            }
+            throw new Error(
+                `Failed to reach API at ${baseUrl}. ` +
+                "The server may be waking up — please try again in a moment."
+            );
+        }
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.error || "Something went wrong.");
+        }
+
+        return data as T;
     }
 
-    const data = await res.json();
-
-    if (!res.ok) {
-        throw new Error(data.error || "Something went wrong.");
-    }
-
-    return data as T;
+    // Unreachable, but satisfies TypeScript
+    throw new Error("Unexpected error.");
 }
 
 export const useAuthStore = create<AuthState>()(

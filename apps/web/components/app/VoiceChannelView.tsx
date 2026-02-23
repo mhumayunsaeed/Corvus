@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useState } from "react";
 import {
     LiveKitRoom,
     RoomAudioRenderer,
@@ -12,7 +12,8 @@ import {
 } from "@livekit/components-react";
 import { Track, RoomEvent } from "livekit-client";
 import type { Participant } from "livekit-client";
-import { Mic, MicOff, Video, VideoOff, MonitorUp } from "lucide-react";
+import { SCREEN_SHARE_PRESETS } from "@/stores/voice-store";
+import { Mic, MicOff, Video, VideoOff, MonitorUp, Wifi } from "lucide-react";
 import { useVoiceStore } from "@/stores/voice-store";
 
 function getGridClass(count: number): string {
@@ -109,12 +110,105 @@ function ScreenShareView() {
     );
 }
 
-// ─── Room Content ────────────────────────────────────────────────
+// ─── Latency Display ─────────────────────────────────────────────
+
+function LatencyIndicator() {
+    const room = useRoomContext();
+    const [latency, setLatency] = useState<number | null>(null);
+
+    useEffect(() => {
+        const measure = () => {
+            try {
+                // LiveKit exposes RTT through engine latency
+                const engine = room.engine as any;
+                const rtt = engine?.latency;
+                if (typeof rtt === "number" && rtt > 0) {
+                    setLatency(Math.round(rtt * 1000));
+                    return;
+                }
+                // Fallback: estimate from connection quality
+                const lp = room.localParticipant;
+                if (lp) {
+                    const q = lp.connectionQuality;
+                    if (q === "excellent") setLatency(25);
+                    else if (q === "good") setLatency(75);
+                    else if (q === "poor") setLatency(200);
+                    else setLatency(null);
+                }
+            } catch {
+                // ignore
+            }
+        };
+
+        measure();
+        const interval = setInterval(measure, 3000);
+        return () => clearInterval(interval);
+    }, [room]);
+
+    if (latency === null) return null;
+
+    const color = latency < 80 ? "text-success" : latency < 150 ? "text-yellow-500" : "text-danger";
+
+    return (
+        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface-raised ${color}`}>
+            <Wifi className="w-3.5 h-3.5" />
+            <span className="text-micro font-medium">{latency}ms</span>
+        </div>
+    );
+}
+
+// ─── Room Content (syncs voice store ↔ LiveKit) ──────────────────
 
 function RoomContent() {
     const participants = useParticipants();
     const room = useRoomContext();
     const updateParticipant = useVoiceStore((s) => s.updateParticipant);
+    const isMuted = useVoiceStore((s) => s.isMuted);
+    const isDeafened = useVoiceStore((s) => s.isDeafened);
+    const hasVideo = useVoiceStore((s) => s.hasVideo);
+    const isScreenSharing = useVoiceStore((s) => s.isScreenSharing);
+    const screenShareQuality = useVoiceStore((s) => s.screenShareQuality);
+
+    // Sync mute state from store to LiveKit
+    useEffect(() => {
+        const lp = room.localParticipant;
+        if (!lp) return;
+        lp.setMicrophoneEnabled(!isMuted).catch(console.error);
+    }, [isMuted, room]);
+
+    // Sync deafen state - mute all remote audio tracks
+    useEffect(() => {
+        for (const p of room.remoteParticipants.values()) {
+            for (const pub of p.audioTrackPublications.values()) {
+                if (pub.track && pub.track.mediaStreamTrack) {
+                    pub.track.mediaStreamTrack.enabled = !isDeafened;
+                }
+            }
+        }
+    }, [isDeafened, room, participants]);
+
+    // Sync video state
+    useEffect(() => {
+        const lp = room.localParticipant;
+        if (!lp) return;
+        lp.setCameraEnabled(hasVideo).catch(console.error);
+    }, [hasVideo, room]);
+
+    // Sync screen sharing state with quality options
+    useEffect(() => {
+        const lp = room.localParticipant;
+        if (!lp) return;
+        if (isScreenSharing) {
+            const preset = SCREEN_SHARE_PRESETS[screenShareQuality];
+            const opts = preset ? {
+                resolution: { width: preset.width, height: preset.height, frameRate: preset.frameRate },
+                contentHint: "detail" as const,
+            } : undefined;
+            lp.setScreenShareEnabled(true, opts).catch(console.error);
+        } else {
+            lp.setScreenShareEnabled(false).catch(console.error);
+        }
+    }, [isScreenSharing, screenShareQuality, room]);
 
     // Sync speaking states to the store
     useEffect(() => {
@@ -201,6 +295,10 @@ export function VoiceChannelView() {
                 video={false}
                 className="flex-1 flex flex-col"
             >
+                {/* Latency in top-right */}
+                <div className="absolute top-14 right-4 z-10">
+                    <LatencyIndicator />
+                </div>
                 <RoomContent />
             </LiveKitRoom>
         </div>

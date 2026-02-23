@@ -34,7 +34,6 @@ import {
     type FriendListEntry,
 } from "@/lib/api";
 import { Hash, Loader2 } from "lucide-react";
-import { CallModal } from "@/components/app/CallModal";
 
 interface ActiveDMCall {
     conversationId: string;
@@ -276,6 +275,10 @@ export default function AppPage() {
     const activeDMConversation = dmConversations.find(
         (c) => c.id === activeDMConversationId
     );
+    const activeCallForConversation =
+        activeDMConversation && activeDMCall?.conversationId === activeDMConversation.id
+            ? activeDMCall
+            : null;
     const existingCategories = Array.from(new Set(channels.map((c) => c.category)));
 
     if (loading) {
@@ -324,6 +327,8 @@ export default function AppPage() {
                                 onSubscribeDM={subscribeDM}
                                 onUnsubscribeDM={unsubscribeDM}
                                 onStartCall={handleStartDMCall}
+                                activeCall={activeCallForConversation}
+                                onEndCall={closeDMCall}
                             />
                         ) : (
                             <FriendsView onMessageFriend={openDirectDM} />
@@ -427,6 +432,7 @@ export default function AppPage() {
             {/* Incoming Call Notification */}
             <IncomingCallNotification
                 onAccept={(data) => {
+                    setActiveDMConversation(data.conversationId);
                     setActiveDMCall({
                         conversationId: data.conversationId,
                         token: data.token,
@@ -438,16 +444,6 @@ export default function AppPage() {
                     // no-op for now
                 }}
             />
-
-            {activeDMCall && (
-                <CallModal
-                    open={true}
-                    onClose={closeDMCall}
-                    token={activeDMCall.token}
-                    url={activeDMCall.url}
-                    initialVideo={activeDMCall.initialVideo}
-                />
-            )}
 
             <UserSettingsModal
                 open={showSettings}

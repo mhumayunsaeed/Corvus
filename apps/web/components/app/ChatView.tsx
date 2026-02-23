@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
     Smile,
     Plus,
-    Gift,
     Image as ImageIcon,
     Search,
     Users,
@@ -16,8 +15,13 @@ import {
     Reply,
     Loader2,
     CornerDownRight,
+    Download,
+    FileText,
 } from "lucide-react";
 import { LinkEmbed } from "./LinkEmbed";
+import { EmojiPicker } from "./EmojiPicker";
+import { GifPicker } from "./GifPicker";
+import { StickerPicker } from "./StickerPicker";
 import { useChatStore } from "@/stores/chat-store";
 import { useAuthStore } from "@/stores/auth-store";
 import {
@@ -27,8 +31,19 @@ import {
     addReaction,
     removeReaction,
     fetchMessages,
+    fetchStickerById,
+    uploadAttachment,
     type MessageData,
+    type StickerData,
 } from "@/lib/api";
+import {
+    encodeAttachmentContent,
+    formatAttachmentSize,
+    FREE_ATTACHMENT_MAX_LABEL,
+    parseAttachmentContent,
+    validateAttachmentFile,
+    ATTACHMENT_INPUT_ACCEPT,
+} from "@/lib/attachments";
 
 interface ChatViewProps {
     channelId: string;
@@ -42,6 +57,14 @@ interface ChatViewProps {
 
 const EMPTY_MESSAGES: MessageData[] = [];
 const EMPTY_TYPING_USERS: Array<{ userId: string; username: string }> = [];
+const STICKER_PREFIX = "sticker:";
+
+function getStickerId(content: string): string | null {
+    const trimmed = content.trim();
+    if (!trimmed.startsWith(STICKER_PREFIX)) return null;
+    const id = trimmed.slice(STICKER_PREFIX.length).trim();
+    return id.length > 0 ? id : null;
+}
 
 export function ChatView({
     channelId,
@@ -58,8 +81,15 @@ export function ChatView({
     const [editContent, setEditContent] = useState("");
     const [replyTo, setReplyTo] = useState<MessageData | null>(null);
     const [loadingOlder, setLoadingOlder] = useState(false);
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [showGifPicker, setShowGifPicker] = useState(false);
+    const [showStickerPicker, setShowStickerPicker] = useState(false);
+    const [uploadingAttachment, setUploadingAttachment] = useState(false);
+    const [stickerCache, setStickerCache] = useState<Record<string, StickerData | null>>({});
+    const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const attachmentInputRef = useRef<HTMLInputElement>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const prevChannelRef = useRef<string | null>(null);
 
@@ -72,6 +102,14 @@ export function ChatView({
     const setMessages = useChatStore((s) => s.setMessages);
     const prependMessages = useChatStore((s) => s.prependMessages);
     const userId = useAuthStore((s) => s.user?.id);
+    const stickerIdsInMessages = useMemo(() => {
+        const ids = new Set<string>();
+        for (const message of messages) {
+            const stickerId = getStickerId(message.content);
+            if (stickerId) ids.add(stickerId);
+        }
+        return Array.from(ids);
+    }, [messages]);
 
     // Subscribe/unsubscribe to channel & load initial messages
     useEffect(() => {
@@ -116,6 +154,42 @@ export function ChatView({
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
         }
     }, [messages]);
+
+    useEffect(() => {
+        const unresolved = stickerIdsInMessages.filter(
+            (id) => !Object.prototype.hasOwnProperty.call(stickerCache, id)
+        );
+        if (unresolved.length === 0) return;
+
+        let cancelled = false;
+
+        (async () => {
+            const resolvedEntries = await Promise.all(
+                unresolved.map(async (id) => {
+                    try {
+                        const result = await fetchStickerById(id);
+                        return [id, result.sticker] as const;
+                    } catch {
+                        return [id, null] as const;
+                    }
+                })
+            );
+
+            if (cancelled) return;
+
+            setStickerCache((prev) => {
+                const next = { ...prev };
+                for (const [id, sticker] of resolvedEntries) {
+                    next[id] = sticker;
+                }
+                return next;
+            });
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [stickerIdsInMessages, stickerCache]);
 
     // Load older messages
     const loadOlderMessages = useCallback(async () => {
@@ -170,6 +244,53 @@ export function ChatView({
             setMessageInput(content); // Restore input on error
         }
     };
+
+    const handleSendSticker = useCallback(
+        async (sticker: StickerData) => {
+            try {
+                await sendMessage(channelId, {
+                    content: `${STICKER_PREFIX}${sticker.id}`,
+                    replyToId: replyTo?.id,
+                });
+                setStickerCache((prev) => ({ ...prev, [sticker.id]: sticker }));
+                setReplyTo(null);
+                setShowStickerPicker(false);
+            } catch (err) {
+                console.error("Failed to send sticker:", err);
+            }
+        },
+        [channelId, replyTo?.id]
+    );
+
+    const handleAttachmentSelect = useCallback(
+        async (e: React.ChangeEvent<HTMLInputElement>) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (!file) return;
+
+            const validationError = validateAttachmentFile(file);
+            if (validationError) {
+                alert(validationError);
+                return;
+            }
+
+            setUploadingAttachment(true);
+            try {
+                const result = await uploadAttachment(file);
+                await sendMessage(channelId, {
+                    content: encodeAttachmentContent(result.attachment),
+                    replyToId: replyTo?.id,
+                });
+                setReplyTo(null);
+            } catch (err) {
+                console.error("Failed to upload attachment:", err);
+                alert(err instanceof Error ? err.message : "Failed to upload attachment.");
+            } finally {
+                setUploadingAttachment(false);
+            }
+        },
+        [channelId, replyTo?.id]
+    );
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -242,8 +363,87 @@ export function ChatView({
         return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     };
 
-    /* Render message content with code blocks */
+    /* Check if content is a GIF URL */
+    const isGifUrl = (content: string) => {
+        const trimmed = content.trim();
+        return /^https?:\/\/.*\.(gif|webp)(\?.*)?$/i.test(trimmed) ||
+            trimmed.includes("tenor.com/") ||
+            trimmed.includes("giphy.com/");
+    };
+
+    /* Render message content with code blocks and GIFs */
     const renderContent = (content: string) => {
+        const stickerId = getStickerId(content);
+        if (stickerId) {
+            const sticker = stickerCache[stickerId];
+            if (!sticker) {
+                return (
+                    <div className="w-24 h-24 rounded-lg bg-surface-raised border border-border flex items-center justify-center text-micro text-text-muted">
+                        Sticker
+                    </div>
+                );
+            }
+
+            return (
+                <img
+                    src={sticker.imageData}
+                    alt={sticker.name}
+                    className="w-24 h-24 rounded-lg object-contain"
+                    loading="lazy"
+                />
+            );
+        }
+
+        const attachment = parseAttachmentContent(content);
+        if (attachment) {
+            if (attachment.kind === "image") {
+                return (
+                    <img
+                        src={attachment.url}
+                        alt={attachment.name}
+                        className="max-w-[360px] max-h-[280px] rounded-lg mt-1"
+                        loading="lazy"
+                    />
+                );
+            }
+
+            if (attachment.kind === "video") {
+                return (
+                    <video
+                        src={attachment.url}
+                        controls
+                        className="max-w-[420px] max-h-[320px] rounded-lg mt-1 bg-black"
+                    />
+                );
+            }
+
+            return (
+                <a
+                    href={attachment.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-flex items-center gap-2 rounded-lg border border-border bg-surface-raised px-3 py-2 text-body text-text-primary hover:bg-hover-row"
+                >
+                    <FileText className="w-4 h-4 text-text-muted" />
+                    <span className="truncate max-w-[280px]">{attachment.name}</span>
+                    <span className="text-micro text-text-muted">{formatAttachmentSize(attachment.size)}</span>
+                    <Download className="w-4 h-4 text-text-muted" />
+                </a>
+            );
+        }
+
+        // Check if the entire message is a GIF
+        if (isGifUrl(content.trim())) {
+            return (
+                <img
+                    src={content.trim()}
+                    alt="GIF"
+                    className="max-w-[300px] max-h-[250px] rounded-lg mt-1"
+                    loading="lazy"
+                />
+            );
+        }
+
         const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
         const parts: React.ReactNode[] = [];
         let lastIndex = 0;
@@ -273,6 +473,13 @@ export function ChatView({
             parts.push(<span key={lastIndex}>{content.substring(lastIndex)}</span>);
         }
         return parts.length > 0 ? parts : content;
+    };
+
+    const formatReplyContent = (content: string) => {
+        if (getStickerId(content)) return "[Sticker]";
+        const attachment = parseAttachmentContent(content);
+        if (attachment) return `[Attachment] ${attachment.name}`;
+        return content;
     };
 
     /* Group consecutive messages from same user */
@@ -306,13 +513,28 @@ export function ChatView({
     /* Action pill buttons */
     const ActionPill = ({ message }: { message: MessageData }) => (
         <div className="absolute -top-4 right-4 flex items-center gap-0.5 bg-surface border border-border rounded-lg px-1 py-1 shadow-lg z-20">
-            <button
-                onClick={() => handleReaction(message.id, "👍", message.reactions.some(r => r.emoji === "👍" && r.reacted))}
-                className="w-7 h-7 rounded-md hover:bg-surface-raised flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
-                title="React"
-            >
-                <Smile className="w-[14px] h-[14px]" />
-            </button>
+            <div className="relative">
+                <button
+                    onClick={() => setReactionPickerMessageId(
+                        reactionPickerMessageId === message.id ? null : message.id
+                    )}
+                    className="w-7 h-7 rounded-md hover:bg-surface-raised flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                    title="Add Reaction"
+                >
+                    <Smile className="w-[14px] h-[14px]" />
+                </button>
+                {reactionPickerMessageId === message.id && (
+                    <div className="absolute bottom-full right-0 mb-2">
+                        <EmojiPicker
+                            onSelect={(emoji) => {
+                                handleReaction(message.id, emoji, message.reactions.some(r => r.emoji === emoji && r.reacted));
+                                setReactionPickerMessageId(null);
+                            }}
+                            onClose={() => setReactionPickerMessageId(null)}
+                        />
+                    </div>
+                )}
+            </div>
             <button
                 onClick={() => setReplyTo(message)}
                 className="w-7 h-7 rounded-md hover:bg-surface-raised flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
@@ -439,7 +661,7 @@ export function ChatView({
                                                 {firstMessage.replyTo.author.displayName}
                                             </span>
                                             <span className="truncate max-w-[300px]">
-                                                {firstMessage.replyTo.content}
+                                                {formatReplyContent(firstMessage.replyTo.content)}
                                             </span>
                                         </div>
                                     )}
@@ -516,9 +738,27 @@ export function ChatView({
                                                     <span className="text-text-muted">{reaction.count}</span>
                                                 </button>
                                             ))}
-                                            <button className="flex items-center justify-center w-6 h-6 rounded-md bg-surface-raised border border-border hover:border-accent-violet/40 transition-all">
-                                                <Plus className="w-3 h-3 text-text-muted" />
-                                            </button>
+                                            <div className="relative">
+                                                <button
+                                                    onClick={() => setReactionPickerMessageId(
+                                                        reactionPickerMessageId === firstMessage.id ? null : firstMessage.id
+                                                    )}
+                                                    className="flex items-center justify-center w-6 h-6 rounded-md bg-surface-raised border border-border hover:border-accent-violet/40 transition-all"
+                                                >
+                                                    <Plus className="w-3 h-3 text-text-muted" />
+                                                </button>
+                                                {reactionPickerMessageId === firstMessage.id && (
+                                                    <div className="absolute bottom-full left-0 mb-2 z-50">
+                                                        <EmojiPicker
+                                                            onSelect={(emoji) => {
+                                                                handleReaction(firstMessage.id, emoji, firstMessage.reactions.some(r => r.emoji === emoji && r.reacted));
+                                                                setReactionPickerMessageId(null);
+                                                            }}
+                                                            onClose={() => setReactionPickerMessageId(null)}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
 
@@ -639,7 +879,7 @@ export function ChatView({
                             {replyTo.author.displayName}
                         </span>
                         <span className="text-micro text-text-muted truncate flex-1">
-                            {replyTo.content}
+                            {formatReplyContent(replyTo.content)}
                         </span>
                         <button
                             onClick={() => setReplyTo(null)}
@@ -656,36 +896,114 @@ export function ChatView({
                 <div className={`bg-surface-raised border border-border focus-within:border-accent-violet/40 focus-within:shadow-[0_0_0_1px_rgba(124,106,247,0.15)] transition-all ${
                     replyTo ? "rounded-b-xl" : "rounded-xl"
                 }`}>
-                    <div className="flex items-end gap-2 p-3">
-                        <button className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors flex-shrink-0 mb-0.5">
-                            <Plus className="w-5 h-5" />
+                    <div className="flex items-center gap-2 p-3">
+                        <button
+                            onClick={() => attachmentInputRef.current?.click()}
+                            disabled={uploadingAttachment}
+                            className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors flex-shrink-0 disabled:opacity-50"
+                            title="Upload file"
+                        >
+                            {uploadingAttachment ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Plus className="w-5 h-5" />
+                            )}
                         </button>
+                        <input
+                            ref={attachmentInputRef}
+                            type="file"
+                            className="hidden"
+                            accept={ATTACHMENT_INPUT_ACCEPT}
+                            onChange={handleAttachmentSelect}
+                        />
 
                         <textarea
                             value={messageInput}
                             onChange={handleInputChange}
                             onKeyDown={handleKeyPress}
                             placeholder={`Message #${channelName}`}
-                            className="flex-1 bg-transparent text-text-primary placeholder-text-muted resize-none outline-none min-h-[24px] max-h-[200px] text-[14px] leading-[1.5]"
+                            className="flex-1 bg-transparent text-text-primary placeholder:text-text-muted resize-none outline-none min-h-[22px] max-h-[200px] py-1 text-[14px] leading-[1.45]"
                             rows={1}
                         />
 
-                        <div className="flex items-center gap-0.5 flex-shrink-0 mb-0.5">
-                            <button className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors">
-                                <Gift className="w-[18px] h-[18px]" />
-                            </button>
-                            <button className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors">
-                                <ImageIcon className="w-[18px] h-[18px]" />
-                            </button>
-                            <button className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors">
-                                <Smile className="w-[18px] h-[18px]" />
-                            </button>
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                            <div className="relative">
+                                <button
+                                    onClick={() => {
+                                        setShowStickerPicker(!showStickerPicker);
+                                        setShowGifPicker(false);
+                                        setShowEmojiPicker(false);
+                                    }}
+                                    className={`w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showStickerPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                                    title="Sticker"
+                                >
+                                    <ImageIcon className="w-[18px] h-[18px]" />
+                                </button>
+                                {showStickerPicker && (
+                                    <div className="absolute bottom-full right-0 mb-2 z-50">
+                                        <StickerPicker
+                                            onSelect={handleSendSticker}
+                                            onClose={() => setShowStickerPicker(false)}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                            <div className="relative">
+                                <button
+                                    onClick={() => {
+                                        setShowGifPicker(!showGifPicker);
+                                        setShowEmojiPicker(false);
+                                        setShowStickerPicker(false);
+                                    }}
+                                    className={`w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showGifPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                                    title="GIF"
+                                >
+                                    <span className="text-[11px] font-bold leading-none">GIF</span>
+                                </button>
+                                {showGifPicker && (
+                                    <div className="absolute bottom-full right-0 mb-2 z-50">
+                                        <GifPicker
+                                            onSelect={(gifUrl) => {
+                                                sendMessage(channelId, { content: gifUrl, replyToId: replyTo?.id }).catch(console.error);
+                                                setReplyTo(null);
+                                                setShowGifPicker(false);
+                                            }}
+                                            onClose={() => setShowGifPicker(false)}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                            <div className="relative">
+                                <button
+                                    onClick={() => {
+                                        setShowEmojiPicker(!showEmojiPicker);
+                                        setShowGifPicker(false);
+                                        setShowStickerPicker(false);
+                                    }}
+                                    className={`w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showEmojiPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                                    title="Emoji"
+                                >
+                                    <Smile className="w-[18px] h-[18px]" />
+                                </button>
+                                {showEmojiPicker && (
+                                    <div className="absolute bottom-full right-0 mb-2 z-50">
+                                        <EmojiPicker
+                                            onSelect={(emoji) => {
+                                                setMessageInput((prev) => prev + emoji);
+                                                setShowEmojiPicker(false);
+                                            }}
+                                            onClose={() => setShowEmojiPicker(false)}
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div className="mt-1.5 flex items-center justify-between text-micro text-text-muted px-1">
                     <span>Press Enter to send, Shift+Enter for new line</span>
+                    <span>Free uploads: {FREE_ATTACHMENT_MAX_LABEL} per file</span>
                 </div>
             </div>
         </div>

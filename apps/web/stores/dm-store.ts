@@ -18,6 +18,8 @@ interface DMState {
         hasMore: boolean
     ) => void;
     addMessage: (conversationId: string, message: DMMessageData) => void;
+    updateMessage: (conversationId: string, messageId: string, updates: Partial<DMMessageData>) => void;
+    deleteMessage: (conversationId: string, messageId: string) => void;
     clearConversation: (conversationId: string) => void;
 }
 
@@ -53,6 +55,32 @@ export const useDMStore = create<DMState>((set) => ({
                 messages: {
                     ...state.messages,
                     [conversationId]: [...existing, message],
+                },
+            };
+        }),
+
+    updateMessage: (conversationId, messageId, updates) =>
+        set((state) => {
+            const existing = state.messages[conversationId];
+            if (!existing) return state;
+            return {
+                messages: {
+                    ...state.messages,
+                    [conversationId]: existing.map((m) =>
+                        m.id === messageId ? { ...m, ...updates } : m
+                    ),
+                },
+            };
+        }),
+
+    deleteMessage: (conversationId, messageId) =>
+        set((state) => {
+            const existing = state.messages[conversationId];
+            if (!existing) return state;
+            return {
+                messages: {
+                    ...state.messages,
+                    [conversationId]: existing.filter((m) => m.id !== messageId),
                 },
             };
         }),

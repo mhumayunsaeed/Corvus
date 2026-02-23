@@ -195,7 +195,7 @@ export function ServerRail({ onCreateServer, onJoinServer, onOpenSettings }: Ser
             <div className="relative" ref={menuRef}>
                 <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-all relative ${showUserMenu
+                    className={`w-12 h-12 rounded-full border-2 transition-all relative ${showUserMenu
                             ? "border-accent-violet/60 shadow-glow"
                             : "border-border hover:border-accent-violet/50"
                         }`}
@@ -203,10 +203,10 @@ export function ServerRail({ onCreateServer, onJoinServer, onOpenSettings }: Ser
                     <img
                         src={currentUserAvatar}
                         alt="Your avatar"
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover rounded-full"
                     />
                     <div
-                        className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-[2.5px] border-background"
+                        className="absolute bottom-0 right-0 translate-x-[10%] translate-y-[10%] w-3.5 h-3.5 rounded-full ring-2 ring-background"
                         style={{ backgroundColor: statusColors[currentUserStatus] }}
                     />
                 </button>

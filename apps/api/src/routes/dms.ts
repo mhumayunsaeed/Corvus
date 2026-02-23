@@ -395,4 +395,116 @@ dms.post("/dms/:id/messages", async (c) => {
     );
 });
 
+// ─── PATCH /dms/:conversationId/messages/:messageId — Edit DM message ────
+
+const updateDMMessageSchema = z.object({
+    content: z.string().min(1, "Message cannot be empty").max(4000),
+});
+
+dms.patch("/dms/:conversationId/messages/:messageId", async (c) => {
+    const userId = c.get("userId");
+    const conversationId = c.req.param("conversationId");
+    const messageId = c.req.param("messageId");
+
+    const isMember = await verifyConversationMembership(conversationId, userId);
+    if (!isMember) {
+        return c.json({ error: "Conversation not found." }, 404);
+    }
+
+    const message = await db.dMMessage.findUnique({
+        where: { id: messageId },
+    });
+
+    if (!message) {
+        return c.json({ error: "Message not found." }, 404);
+    }
+
+    if (message.authorId !== userId) {
+        return c.json({ error: "You can only edit your own messages." }, 403);
+    }
+
+    if (message.conversationId !== conversationId) {
+        return c.json({ error: "Message not found in this conversation." }, 404);
+    }
+
+    const body = await c.req.json();
+    const parsed = updateDMMessageSchema.safeParse(body);
+
+    if (!parsed.success) {
+        return c.json({ error: parsed.error.errors[0].message }, 400);
+    }
+
+    const updated = await db.dMMessage.update({
+        where: { id: messageId },
+        data: {
+            content: parsed.data.content,
+            editedAt: new Date(),
+        },
+        include: {
+            author: { select: userSelect },
+        },
+    });
+
+    broadcastToDMConversation(conversationId, {
+        type: "dm_message_update",
+        data: {
+            id: updated.id,
+            conversationId: updated.conversationId,
+            content: updated.content,
+            editedAt: updated.editedAt,
+        },
+    });
+
+    return c.json({
+        message: {
+            id: updated.id,
+            conversationId: updated.conversationId,
+            content: updated.content,
+            type: updated.type,
+            metadata: updated.metadata,
+            createdAt: updated.createdAt,
+            editedAt: updated.editedAt,
+            author: updated.author,
+        },
+    });
+});
+
+// ─── DELETE /dms/:conversationId/messages/:messageId — Delete DM message ────
+
+dms.delete("/dms/:conversationId/messages/:messageId", async (c) => {
+    const userId = c.get("userId");
+    const conversationId = c.req.param("conversationId");
+    const messageId = c.req.param("messageId");
+
+    const isMember = await verifyConversationMembership(conversationId, userId);
+    if (!isMember) {
+        return c.json({ error: "Conversation not found." }, 404);
+    }
+
+    const message = await db.dMMessage.findUnique({
+        where: { id: messageId },
+    });
+
+    if (!message) {
+        return c.json({ error: "Message not found." }, 404);
+    }
+
+    if (message.authorId !== userId) {
+        return c.json({ error: "You can only delete your own messages." }, 403);
+    }
+
+    if (message.conversationId !== conversationId) {
+        return c.json({ error: "Message not found in this conversation." }, 404);
+    }
+
+    await db.dMMessage.delete({ where: { id: messageId } });
+
+    broadcastToDMConversation(conversationId, {
+        type: "dm_message_delete",
+        data: { id: messageId, conversationId },
+    });
+
+    return c.json({ message: "Message deleted." });
+});
+
 export default dms;

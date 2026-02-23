@@ -9,55 +9,95 @@ export function useDesktop() {
             return;
         }
 
+        const isExpectedUpdaterError = (err: unknown) => {
+            const text = err instanceof Error ? err.message : String(err);
+            return text.includes("Could not fetch a valid release JSON from the remote");
+        };
+
         const setupDesktop = async () => {
+            const removeListeners: Array<() => void> = [];
+
             try {
-                // 1. Native Notifications Permission
-                const { isPermissionGranted, requestPermission } = await import("@tauri-apps/plugin-notification");
-                let permissionGranted = await isPermissionGranted();
-                if (!permissionGranted) {
-                    const permission = await requestPermission();
-                    permissionGranted = permission === "granted";
+                try {
+                    // 1. Native Notifications Permission
+                    const { isPermissionGranted, requestPermission } = await import("@tauri-apps/plugin-notification");
+                    let permissionGranted = await isPermissionGranted();
+                    if (!permissionGranted) {
+                        const permission = await requestPermission();
+                        permissionGranted = permission === "granted";
+                    }
+                } catch (err) {
+                    console.error("Failed to setup desktop notifications:", err);
                 }
 
-                // 2. Auto-Updater
-                const { check } = await import("@tauri-apps/plugin-updater");
-                const { ask, message } = await import("@tauri-apps/plugin-dialog");
-                const update = await check();
-                if (update) {
-                    const yes = await ask(`Update to ${update.version} is available!\n\nRelease notes: ${update.body}`, {
-                        title: 'Update Available',
-                        kind: 'info',
-                    });
-                    if (yes) {
-                        await update.downloadAndInstall();
-                        await message("Update installed! Veyra will now restart.", { title: "Complete", kind: "info" });
-                        const { relaunch } = await import("@tauri-apps/plugin-process");
-                        await relaunch();
+                try {
+                    // 2. Auto-Updater
+                    const { check } = await import("@tauri-apps/plugin-updater");
+                    const { ask, message } = await import("@tauri-apps/plugin-dialog");
+                    const update = await check();
+                    if (update) {
+                        const yes = await ask(`Update to ${update.version} is available!\n\nRelease notes: ${update.body}`, {
+                            title: "Update Available",
+                            kind: "info",
+                        });
+                        if (yes) {
+                            await update.downloadAndInstall();
+                            await message("Update installed! Veyra will now restart.", { title: "Complete", kind: "info" });
+                            const { relaunch } = await import("@tauri-apps/plugin-process");
+                            await relaunch();
+                        }
+                    }
+                } catch (err) {
+                    if (!isExpectedUpdaterError(err)) {
+                        console.error("Failed to setup desktop updater:", err);
                     }
                 }
 
-                // 3. Deep Links
-                const { onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
-                await onOpenUrl((urls) => {
-                    console.log("Deep link received:", urls);
-                    // Handle deep links like veyra://invite/xyz
-                });
+                try {
+                    // 3. Deep Links
+                    const { onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
+                    const unlisten = await onOpenUrl((urls) => {
+                        console.log("Deep link received:", urls);
+                        // Handle deep links like veyra://invite/xyz
+                    });
+                    removeListeners.push(unlisten);
+                } catch (err) {
+                    console.error("Failed to setup deep links:", err);
+                }
 
                 // 4. File Drag and Drop logic is built-in with web, but we can prevent default redirect
-                window.addEventListener("dragover", (e) => e.preventDefault());
-                window.addEventListener("drop", (e) => {
+                const onDragOver = (e: DragEvent) => e.preventDefault();
+                const onDrop = (e: DragEvent) => {
                     e.preventDefault();
                     // Optional: open file upload modal or handle files directly
                     if (e.dataTransfer?.files.length) {
                         console.log("Files dropped:", e.dataTransfer.files);
                     }
+                };
+                window.addEventListener("dragover", onDragOver);
+                window.addEventListener("drop", onDrop);
+                removeListeners.push(() => {
+                    window.removeEventListener("dragover", onDragOver);
+                    window.removeEventListener("drop", onDrop);
                 });
-
             } catch (err) {
                 console.error("Failed to setup desktop features:", err);
             }
+
+            return () => {
+                for (const remove of removeListeners) {
+                    remove();
+                }
+            };
         };
 
-        setupDesktop();
+        let cleanup: (() => void) | undefined;
+        setupDesktop().then((result) => {
+            cleanup = result;
+        });
+
+        return () => {
+            cleanup?.();
+        };
     }, []);
 }

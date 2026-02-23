@@ -1,4 +1,5 @@
 import { ensureApiUrl } from "@/lib/endpoints";
+import type { SharedAttachment } from "@/lib/attachments";
 
 function getToken(): string | null {
     if (typeof window === "undefined") return null;
@@ -28,16 +29,25 @@ export async function api<T>(
     }
 
     let res: Response;
-    try {
-        res = await fetch(`${baseUrl}${path}`, {
-            ...options,
-            headers,
-        });
-    } catch {
-        throw new Error(
-            `Failed to reach API at ${baseUrl}. ` +
-            "Check NEXT_PUBLIC_API_URL and backend CORS settings."
-        );
+    const maxRetries = 2;
+
+    for (let attempt = 0; ; attempt++) {
+        try {
+            res = await fetch(`${baseUrl}${path}`, {
+                ...options,
+                headers,
+            });
+            break;
+        } catch {
+            if (attempt < maxRetries) {
+                await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+                continue;
+            }
+            throw new Error(
+                `Failed to reach API at ${baseUrl}. ` +
+                "The server may be waking up — please try again in a moment."
+            );
+        }
     }
 
     const contentType = res.headers.get("content-type") || "";
@@ -241,6 +251,11 @@ export interface DMConversationData {
         createdAt: string;
         author: DMParticipantData;
     } | null;
+}
+
+export interface UploadAttachmentResponse {
+    attachment: SharedAttachment;
+    maxSizeBytes: number;
 }
 
 // ─── Server API ─────────────────────────────────────────────────
@@ -477,6 +492,49 @@ export function sendDMMessage(conversationId: string, content: string) {
     });
 }
 
+export async function uploadAttachment(file: File) {
+    const baseUrl = ensureApiUrl();
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const headers: Record<string, string> = {};
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${baseUrl}/attachments`, {
+        method: "POST",
+        headers,
+        body: formData,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        const errObj = data as { error?: string; message?: string; details?: string };
+        const baseMessage =
+            errObj?.error ||
+            errObj?.message ||
+            `Request failed (${res.status})`;
+        throw new Error(errObj?.details ? `${baseMessage}: ${errObj.details}` : baseMessage);
+    }
+
+    return data as UploadAttachmentResponse;
+}
+
+export function editDMMessage(conversationId: string, messageId: string, content: string) {
+    return api<{ message: DMMessageData }>(`/dms/${conversationId}/messages/${messageId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ content }),
+    });
+}
+
+export function deleteDMMessage(conversationId: string, messageId: string) {
+    return api<{ message: string }>(`/dms/${conversationId}/messages/${messageId}`, {
+        method: "DELETE",
+    });
+}
+
 // ─── Voice API ──────────────────────────────────────────────────────────────────
 
 export interface VoiceJoinResponse {
@@ -551,5 +609,35 @@ export function joinDMCall(conversationId: string) {
 export function endDMCall(conversationId: string) {
     return api<{ message: string }>(`/dms/${conversationId}/call/end`, {
         method: "POST",
+    });
+}
+
+// ─── Stickers API ───────────────────────────────────────────────────────────────
+
+export interface StickerData {
+    id: string;
+    name: string;
+    imageData: string;
+    createdAt: string;
+}
+
+export function fetchStickers() {
+    return api<{ stickers: StickerData[] }>("/stickers");
+}
+
+export function fetchStickerById(id: string) {
+    return api<{ sticker: StickerData }>(`/stickers/${id}`);
+}
+
+export function createSticker(data: { name: string; imageData: string }) {
+    return api<{ sticker: StickerData }>("/stickers", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteSticker(id: string) {
+    return api<{ message: string }>(`/stickers/${id}`, {
+        method: "DELETE",
     });
 }

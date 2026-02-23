@@ -1,5 +1,14 @@
 import { create } from "zustand";
 
+export type ScreenShareQuality = "720p30" | "1080p30" | "1080p60" | "source";
+
+export const SCREEN_SHARE_PRESETS: Record<ScreenShareQuality, { label: string; width: number; height: number; frameRate: number } | null> = {
+    "720p30": { label: "720p 30fps", width: 1280, height: 720, frameRate: 30 },
+    "1080p30": { label: "1080p 30fps", width: 1920, height: 1080, frameRate: 30 },
+    "1080p60": { label: "1080p 60fps", width: 1920, height: 1080, frameRate: 60 },
+    "source": null, // Native resolution
+};
+
 export interface VoiceParticipant {
     userId: string;
     username: string;
@@ -31,6 +40,7 @@ interface VoiceState {
     isDeafened: boolean;
     hasVideo: boolean;
     isScreenSharing: boolean;
+    screenShareQuality: ScreenShareQuality;
     noiseSuppression: boolean;
 
     // Participants in all voice channels (for ChannelList display)
@@ -57,6 +67,7 @@ interface VoiceState {
     setLocalDeafened: (deafened: boolean) => void;
     setLocalVideo: (hasVideo: boolean) => void;
     setLocalScreenSharing: (sharing: boolean) => void;
+    setScreenShareQuality: (quality: ScreenShareQuality) => void;
     setNoiseSuppression: (enabled: boolean) => void;
     setChannelParticipants: (channelId: string, participants: VoiceParticipant[]) => void;
     addChannelParticipant: (channelId: string, participant: VoiceParticipant) => void;
@@ -78,6 +89,7 @@ export const useVoiceStore = create<VoiceState>((set) => ({
     isDeafened: false,
     hasVideo: false,
     isScreenSharing: false,
+    screenShareQuality: "1080p30" as ScreenShareQuality,
     noiseSuppression: true,
     channelParticipants: {},
 
@@ -141,6 +153,7 @@ export const useVoiceStore = create<VoiceState>((set) => ({
     setLocalDeafened: (deafened) => set({ isDeafened: deafened }),
     setLocalVideo: (hasVideo) => set({ hasVideo }),
     setLocalScreenSharing: (sharing) => set({ isScreenSharing: sharing }),
+    setScreenShareQuality: (quality) => set({ screenShareQuality: quality }),
     setNoiseSuppression: (enabled) => set({ noiseSuppression: enabled }),
 
     setChannelParticipants: (channelId, participants) =>

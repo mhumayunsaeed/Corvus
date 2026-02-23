@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { MessageSquare, Plus, Users, X } from "lucide-react";
-import type { DMConversationData, FriendListEntry } from "@/lib/api";
+import type { DMConversationData, DMParticipantData, FriendListEntry } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
+import { parseAttachmentContent } from "@/lib/attachments";
 
 interface DMSidebarProps {
     conversations: DMConversationData[];
@@ -31,6 +32,15 @@ function conversationAvatar(conversation: DMConversationData, currentUserId: str
     const peer = conversation.participants.find((p) => p.id !== currentUserId) || conversation.participants[0];
     if (!peer) return null;
     return peer.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${peer.username}`;
+}
+
+function isStickerMessage(content: string) {
+    return content.trim().startsWith("sticker:");
+}
+
+function messagePrefix(author: DMParticipantData | undefined, currentUserId: string | undefined) {
+    if (!author) return "";
+    return author.id === currentUserId ? "You" : author.displayName;
 }
 
 export function DMSidebar({
@@ -128,6 +138,22 @@ export function DMSidebar({
                             const hasDur = duration > 0;
                             const durStr = hasDur ? (mins > 0 ? `${mins}m ${secs}s` : `${secs}s`) : "0s";
                             preview = hasDur ? `Call lasted ${durStr}` : "Missed call";
+                        } else if (conversation.lastMessage?.content) {
+                            if (isStickerMessage(conversation.lastMessage.content)) {
+                                preview = "[Sticker]";
+                            } else {
+                                const attachment = parseAttachmentContent(conversation.lastMessage.content);
+                                if (attachment) {
+                                    preview = `[Attachment] ${attachment.name}`;
+                                }
+                            }
+                        }
+
+                        if (conversation.lastMessage) {
+                            const prefix = messagePrefix(conversation.lastMessage.author, currentUserId);
+                            if (prefix) {
+                                preview = `${prefix}: ${preview}`;
+                            }
                         }
 
                         const avatar = conversationAvatar(conversation, currentUserId);

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, LogOut, Pencil } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, LogOut, Pencil, Upload } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
 
 interface UserSettingsModalProps {
@@ -24,6 +24,7 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
     const [pushToTalk, setPushToTalk] = useState(false);
 
     const [isHoveringAvatar, setIsHoveringAvatar] = useState(false);
+    const avatarInputRef = useRef<HTMLInputElement>(null);
 
     // Initial load
     useEffect(() => {
@@ -60,10 +61,57 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
     };
 
     const handleChangeAvatar = () => {
-        const newUrl = window.prompt("Enter new avatar URL:");
-        if (newUrl) {
-            updateUser({ avatar: newUrl });
+        avatarInputRef.current?.click();
+    };
+
+    const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type and size
+        if (!file.type.startsWith("image/")) {
+            alert("Please select an image file.");
+            return;
         }
+        if (file.size > 5 * 1024 * 1024) {
+            alert("Image must be under 5MB.");
+            return;
+        }
+
+        // Resize and compress the image
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                const maxSize = 256;
+                let w = img.width;
+                let h = img.height;
+
+                if (w > maxSize || h > maxSize) {
+                    if (w > h) {
+                        h = Math.round((h * maxSize) / w);
+                        w = maxSize;
+                    } else {
+                        w = Math.round((w * maxSize) / h);
+                        h = maxSize;
+                    }
+                }
+
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext("2d")!;
+                ctx.drawImage(img, 0, 0, w, h);
+
+                const dataUrl = canvas.toDataURL("image/webp", 0.85);
+                updateUser({ avatar: dataUrl });
+            };
+            img.src = event.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+
+        // Reset input so same file can be selected again
+        e.target.value = "";
     };
 
     const handleRemoveAvatar = () => {
@@ -88,6 +136,15 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
 
     return (
         <div className="fixed inset-0 z-[100] flex bg-background">
+            {/* Hidden file input for avatar */}
+            <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarFileChange}
+            />
+
             {/* Sidebar */}
             <div className="w-[30%] max-w-[280px] min-w-[218px] bg-surface flex justify-end">
                 <div className="w-full max-w-[218px] py-14 pr-4 pl-4 space-y-5">
@@ -245,13 +302,26 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                     <div className="space-y-2 border-t border-border pt-6">
                                         <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Avatar</label>
                                         <div className="flex items-center gap-4">
-                                            <button onClick={handleChangeAvatar} className="px-4 py-2 bg-accent-violet text-white text-sm font-medium rounded-md hover:bg-accent-violet/90 transition-colors">
-                                                Change Avatar
-                                            </button>
-                                            <button onClick={handleRemoveAvatar} className="px-4 py-2 font-medium text-sm text-text-primary hover:underline">
-                                                Remove Avatar
-                                            </button>
+                                            <div className="relative group cursor-pointer" onClick={handleChangeAvatar}>
+                                                <img
+                                                    src={avatarUrl}
+                                                    alt="Current avatar"
+                                                    className="w-20 h-20 rounded-full bg-surface-raised object-cover"
+                                                />
+                                                <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Upload className="w-6 h-6 text-white" />
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <button onClick={handleChangeAvatar} className="px-4 py-2 bg-accent-violet text-white text-sm font-medium rounded-md hover:bg-accent-violet/90 transition-colors">
+                                                    Upload Image
+                                                </button>
+                                                <button onClick={handleRemoveAvatar} className="px-4 py-2 font-medium text-sm text-text-muted hover:text-danger transition-colors">
+                                                    Remove Avatar
+                                                </button>
+                                            </div>
                                         </div>
+                                        <p className="text-micro text-text-muted">Recommended: 256x256px. Max 5MB.</p>
                                     </div>
                                 </div>
 

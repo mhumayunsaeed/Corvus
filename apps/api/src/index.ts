@@ -13,6 +13,8 @@ import dms from "./routes/dms.js";
 import voice from "./routes/voice.js";
 import calls from "./routes/calls.js";
 import stage from "./routes/stage.js";
+import stickerRoutes from "./routes/stickers.js";
+import attachmentRoutes from "./routes/attachments.js";
 import { setupWebSocket } from "./ws.js";
 
 const app = new Hono();
@@ -24,8 +26,9 @@ app.use("*", logger());
 const localOrigins = [
     "http://localhost:3000", // Next.js dev
     "http://localhost:1420", // Tauri dev
-    "tauri://localhost", // Tauri production
-    "https://tauri.localhost", // Tauri production (Windows)
+    "tauri://localhost", // Tauri production (macOS/Linux)
+    "http://tauri.localhost", // Tauri production (Windows)
+    "https://tauri.localhost", // Tauri production (Windows HTTPS)
 ];
 
 function normalizeOrigin(value: string) {
@@ -78,6 +81,7 @@ app.get("/healthz", (c) => {
     });
 });
 app.route("/auth", auth);
+app.route("/", attachmentRoutes); // routes are /attachments and /uploads/*
 app.route("/servers", servers);
 app.route("/", channels); // routes are /servers/:serverId/channels and /channels/:id
 app.route("/", messages);  // routes are /channels/:channelId/messages and /messages/:id
@@ -88,6 +92,7 @@ app.route("/", dms);       // routes are /dms and /dms/:id/messages
 app.route("/", voice);     // routes are /channels/:channelId/voice/* and /servers/:serverId/voice/*
 app.route("/", calls);     // routes are /dms/:conversationId/call/*
 app.route("/", stage);     // routes are /channels/:channelId/stage/*
+app.route("/", stickerRoutes); // routes are /stickers/*
 
 // Health check
 app.get("/", (c) => {

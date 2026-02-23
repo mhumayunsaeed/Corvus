@@ -37,6 +37,7 @@ model User {
   dmConversationsCreated DMConversation[] @relation("DMConversationCreator")
   dmParticipations       DMParticipant[]
   dmMessages             DMMessage[]
+  stickers               Sticker[]
 
   @@map("users")
 }
@@ -202,6 +203,19 @@ model Block {
   @@unique([blockerId, blockedId])
   @@index([blockedId])
   @@map("user_blocks")
+}
+
+model Sticker {
+  id        String   @id @default(cuid())
+  name      String
+  imageData String   @map("image_data") // base64 data URI
+  creatorId String   @map("creator_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  creator User @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+  @@map("stickers")
 }
 
 model DMConversation {
