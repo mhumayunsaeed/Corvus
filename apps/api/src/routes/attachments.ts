@@ -93,6 +93,22 @@ function isSafeFileName(fileName: string): boolean {
     return /^[A-Za-z0-9._-]+$/.test(fileName);
 }
 
+function getPublicOrigin(requestUrl: string, forwardedHost?: string | null, forwardedProto?: string | null) {
+    const explicit = process.env.PUBLIC_API_URL?.trim() || process.env.API_PUBLIC_URL?.trim();
+    if (explicit) {
+        return explicit.replace(/\/+$/, "");
+    }
+
+    const host = forwardedHost?.split(",")[0]?.trim();
+    const proto = forwardedProto?.split(",")[0]?.trim();
+    if (host) {
+        const safeProto = proto || (host.includes("localhost") ? "http" : "https");
+        return `${safeProto}://${host}`;
+    }
+
+    return new URL(requestUrl).origin;
+}
+
 attachments.post("/attachments", authMiddleware, async (c) => {
     const formData = await c.req.formData();
     const fileField = formData.get("file");
@@ -143,7 +159,11 @@ attachments.post("/attachments", authMiddleware, async (c) => {
     const bytes = Buffer.from(await uploadedFile.arrayBuffer());
     await writeFile(filePath, bytes);
 
-    const origin = new URL(c.req.url).origin;
+    const origin = getPublicOrigin(
+        c.req.url,
+        c.req.header("x-forwarded-host"),
+        c.req.header("x-forwarded-proto")
+    );
     const mimeType = uploadedFile.type || EXT_TO_MIME[ext] || "application/octet-stream";
 
     return c.json(
@@ -177,9 +197,12 @@ attachments.get("/uploads/:fileName", async (c) => {
         const data = await readFile(resolved);
         const ext = path.extname(fileName).toLowerCase();
         const mimeType = EXT_TO_MIME[ext] || "application/octet-stream";
+        const isRenderable = mimeType.startsWith("image/") || mimeType.startsWith("video/");
+        const disposition = isRenderable ? "inline" : `attachment; filename="${fileName}"`;
         return new Response(data, {
             headers: {
                 "Content-Type": mimeType,
+                "Content-Disposition": disposition,
                 "Cache-Control": "public, max-age=31536000, immutable",
             },
         });

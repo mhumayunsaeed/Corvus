@@ -22,6 +22,7 @@ import { LinkEmbed } from "./LinkEmbed";
 import { EmojiPicker } from "./EmojiPicker";
 import { GifPicker } from "./GifPicker";
 import { StickerPicker } from "./StickerPicker";
+import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useChatStore } from "@/stores/chat-store";
 import { useAuthStore } from "@/stores/auth-store";
 import {
@@ -32,8 +33,10 @@ import {
     removeReaction,
     fetchMessages,
     fetchStickerById,
+    fetchLinkPreview,
     uploadAttachment,
     type MessageData,
+    type MessageEmbedData,
     type StickerData,
 } from "@/lib/api";
 import {
@@ -41,9 +44,17 @@ import {
     formatAttachmentSize,
     FREE_ATTACHMENT_MAX_LABEL,
     parseAttachmentContent,
+    resolveAttachmentUrl,
     validateAttachmentFile,
     ATTACHMENT_INPUT_ACCEPT,
 } from "@/lib/attachments";
+import { API_URL } from "@/lib/endpoints";
+import { extractMessageUrls, linkifyMessageText } from "@/lib/link-utils";
+import {
+    extractSlashQuery,
+    filterSlashCommands,
+    formatSlashCommandInput,
+} from "@/lib/slash-commands";
 
 interface ChatViewProps {
     channelId: string;
@@ -86,7 +97,9 @@ export function ChatView({
     const [showStickerPicker, setShowStickerPicker] = useState(false);
     const [uploadingAttachment, setUploadingAttachment] = useState(false);
     const [stickerCache, setStickerCache] = useState<Record<string, StickerData | null>>({});
+    const [previewCache, setPreviewCache] = useState<Record<string, MessageEmbedData | null>>({});
     const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
+    const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const attachmentInputRef = useRef<HTMLInputElement>(null);
@@ -102,6 +115,12 @@ export function ChatView({
     const setMessages = useChatStore((s) => s.setMessages);
     const prependMessages = useChatStore((s) => s.prependMessages);
     const userId = useAuthStore((s) => s.user?.id);
+    const slashQuery = useMemo(() => extractSlashQuery(messageInput), [messageInput]);
+    const filteredSlashCommands = useMemo(
+        () => filterSlashCommands(slashQuery),
+        [slashQuery]
+    );
+    const showSlashCommandMenu = slashQuery !== null && filteredSlashCommands.length > 0;
     const stickerIdsInMessages = useMemo(() => {
         const ids = new Set<string>();
         for (const message of messages) {
@@ -110,6 +129,10 @@ export function ChatView({
         }
         return Array.from(ids);
     }, [messages]);
+
+    useEffect(() => {
+        setSelectedSlashIndex(0);
+    }, [slashQuery]);
 
     // Subscribe/unsubscribe to channel & load initial messages
     useEffect(() => {
@@ -191,6 +214,64 @@ export function ChatView({
         };
     }, [stickerIdsInMessages, stickerCache]);
 
+    const previewUrls = useMemo(() => {
+        const urls = new Set<string>();
+        for (const message of messages) {
+            if (getStickerId(message.content) || parseAttachmentContent(message.content)) {
+                continue;
+            }
+
+            const existingEmbedUrls = new Set((message.embeds || []).map((embed) => embed.url));
+            for (const url of extractMessageUrls(message.content)) {
+                if (!existingEmbedUrls.has(url)) {
+                    urls.add(url);
+                }
+            }
+        }
+        return Array.from(urls);
+    }, [messages]);
+
+    useEffect(() => {
+        const missing = previewUrls.filter(
+            (url) => !Object.prototype.hasOwnProperty.call(previewCache, url)
+        );
+        if (missing.length === 0) return;
+
+        let cancelled = false;
+
+        (async () => {
+            const fetched = await Promise.all(
+                missing.map(async (url) => {
+                    try {
+                        const result = await fetchLinkPreview(url);
+                        if (!result.embed) return [url, null] as const;
+                        const embed: MessageEmbedData = {
+                            id: `preview:${url}`,
+                            ...result.embed,
+                        };
+                        return [url, embed] as const;
+                    } catch {
+                        return [url, null] as const;
+                    }
+                })
+            );
+
+            if (cancelled) return;
+
+            setPreviewCache((prev) => {
+                const next = { ...prev };
+                for (const [url, embed] of fetched) {
+                    next[url] = embed;
+                }
+                return next;
+            });
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [previewUrls, previewCache]);
+
     // Load older messages
     const loadOlderMessages = useCallback(async () => {
         if (loadingOlder || !hasMore) return;
@@ -241,6 +322,9 @@ export function ChatView({
             setReplyTo(null);
         } catch (err) {
             console.error("Failed to send message:", err);
+            if (err instanceof Error) {
+                alert(err.message);
+            }
             setMessageInput(content); // Restore input on error
         }
     };
@@ -292,7 +376,42 @@ export function ChatView({
         [channelId, replyTo?.id]
     );
 
+    const applySlashSelection = useCallback(
+        (index: number) => {
+            const command = filteredSlashCommands[index];
+            if (!command) return;
+            setMessageInput(formatSlashCommandInput(command));
+            setSelectedSlashIndex(0);
+        },
+        [filteredSlashCommands]
+    );
+
     const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (showSlashCommandMenu) {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setSelectedSlashIndex((prev) => (prev + 1) % filteredSlashCommands.length);
+                return;
+            }
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setSelectedSlashIndex((prev) =>
+                    (prev - 1 + filteredSlashCommands.length) % filteredSlashCommands.length
+                );
+                return;
+            }
+            if (e.key === "Tab") {
+                e.preventDefault();
+                applySlashSelection(selectedSlashIndex);
+                return;
+            }
+            if (e.key === "Enter" && !e.shiftKey && /^\s*\/\S*$/.test(messageInput)) {
+                e.preventDefault();
+                applySlashSelection(selectedSlashIndex);
+                return;
+            }
+        }
+
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             handleSend();
@@ -351,6 +470,20 @@ export function ChatView({
         }
     };
 
+    const getCombinedEmbeds = useCallback(
+        (message: MessageData) => {
+            const existing = message.embeds || [];
+            const existingUrls = new Set(existing.map((embed) => embed.url));
+            const fallback = extractMessageUrls(message.content)
+                .filter((url) => !existingUrls.has(url))
+                .map((url) => previewCache[url])
+                .filter((embed): embed is MessageEmbedData => !!embed);
+
+            return [...existing, ...fallback];
+        },
+        [previewCache]
+    );
+
     /* Format relative time */
     const formatTime = (dateStr: string) => {
         const date = new Date(dateStr);
@@ -369,6 +502,11 @@ export function ChatView({
         return /^https?:\/\/.*\.(gif|webp)(\?.*)?$/i.test(trimmed) ||
             trimmed.includes("tenor.com/") ||
             trimmed.includes("giphy.com/");
+    };
+
+    const isDirectVideoUrl = (content: string) => {
+        const trimmed = content.trim();
+        return /^https?:\/\/.*\.(mp4|webm|mov|m4v|ogg)(\?.*)?$/i.test(trimmed);
     };
 
     /* Render message content with code blocks and GIFs */
@@ -396,10 +534,12 @@ export function ChatView({
 
         const attachment = parseAttachmentContent(content);
         if (attachment) {
+            const attachmentUrl = resolveAttachmentUrl(attachment.url, API_URL);
+
             if (attachment.kind === "image") {
                 return (
                     <img
-                        src={attachment.url}
+                        src={attachmentUrl}
                         alt={attachment.name}
                         className="max-w-[360px] max-h-[280px] rounded-lg mt-1"
                         loading="lazy"
@@ -410,7 +550,7 @@ export function ChatView({
             if (attachment.kind === "video") {
                 return (
                     <video
-                        src={attachment.url}
+                        src={attachmentUrl}
                         controls
                         className="max-w-[420px] max-h-[320px] rounded-lg mt-1 bg-black"
                     />
@@ -419,9 +559,8 @@ export function ChatView({
 
             return (
                 <a
-                    href={attachment.url}
-                    target="_blank"
-                    rel="noreferrer"
+                    href={attachmentUrl}
+                    download={attachment.name}
                     className="mt-1 inline-flex items-center gap-2 rounded-lg border border-border bg-surface-raised px-3 py-2 text-body text-text-primary hover:bg-hover-row"
                 >
                     <FileText className="w-4 h-4 text-text-muted" />
@@ -444,6 +583,16 @@ export function ChatView({
             );
         }
 
+        if (isDirectVideoUrl(content.trim())) {
+            return (
+                <video
+                    src={content.trim()}
+                    controls
+                    className="max-w-[420px] max-h-[320px] rounded-lg mt-1 bg-black"
+                />
+            );
+        }
+
         const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
         const parts: React.ReactNode[] = [];
         let lastIndex = 0;
@@ -452,7 +601,7 @@ export function ChatView({
         while ((match = codeBlockRegex.exec(content)) !== null) {
             if (match.index > lastIndex) {
                 parts.push(
-                    <span key={lastIndex}>{content.substring(lastIndex, match.index)}</span>
+                    <span key={lastIndex}>{linkifyMessageText(content.substring(lastIndex, match.index))}</span>
                 );
             }
             const code = match[2];
@@ -470,9 +619,9 @@ export function ChatView({
         }
 
         if (lastIndex < content.length) {
-            parts.push(<span key={lastIndex}>{content.substring(lastIndex)}</span>);
+            parts.push(<span key={lastIndex}>{linkifyMessageText(content.substring(lastIndex))}</span>);
         }
-        return parts.length > 0 ? parts : content;
+        return parts.length > 0 ? parts : linkifyMessageText(content);
     };
 
     const formatReplyContent = (content: string) => {
@@ -512,19 +661,36 @@ export function ChatView({
 
     /* Action pill buttons */
     const ActionPill = ({ message }: { message: MessageData }) => (
-        <div className="absolute -top-4 right-4 flex items-center gap-0.5 bg-surface border border-border rounded-lg px-1 py-1 shadow-lg z-20">
+        <div className="absolute -top-4 right-4 flex items-center gap-0.5 bg-[#1A1D28] border border-[#2A2F3F] rounded-lg px-1 py-1 shadow-lg z-20">
+            {["👍", "❤️", "😂"].map((emoji) => (
+                <button
+                    key={`${message.id}-quick-${emoji}`}
+                    onClick={() =>
+                        handleReaction(
+                            message.id,
+                            emoji,
+                            message.reactions.some((r) => r.emoji === emoji && r.reacted)
+                        )
+                    }
+                    className="min-w-7 h-7 px-1 rounded-md hover:bg-[#272B39] flex items-center justify-center text-[13px] transition-colors"
+                    title={`React with ${emoji}`}
+                >
+                    {emoji}
+                </button>
+            ))}
+            <div className="w-px h-4 bg-border mx-0.5" />
             <div className="relative">
                 <button
                     onClick={() => setReactionPickerMessageId(
                         reactionPickerMessageId === message.id ? null : message.id
                     )}
-                    className="w-7 h-7 rounded-md hover:bg-surface-raised flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                    className="w-7 h-7 rounded-md hover:bg-[#272B39] flex items-center justify-center text-[#AAB1C0] hover:text-text-primary transition-colors"
                     title="Add Reaction"
                 >
                     <Smile className="w-[14px] h-[14px]" />
                 </button>
                 {reactionPickerMessageId === message.id && (
-                    <div className="absolute bottom-full right-0 mb-2">
+                    <div className="absolute top-full right-0 mt-2">
                         <EmojiPicker
                             onSelect={(emoji) => {
                                 handleReaction(message.id, emoji, message.reactions.some(r => r.emoji === emoji && r.reacted));
@@ -537,7 +703,7 @@ export function ChatView({
             </div>
             <button
                 onClick={() => setReplyTo(message)}
-                className="w-7 h-7 rounded-md hover:bg-surface-raised flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                className="w-7 h-7 rounded-md hover:bg-[#272B39] flex items-center justify-center text-[#AAB1C0] hover:text-text-primary transition-colors"
                 title="Reply"
             >
                 <Reply className="w-[14px] h-[14px]" />
@@ -548,7 +714,7 @@ export function ChatView({
                         setEditingMessageId(message.id);
                         setEditContent(message.content);
                     }}
-                    className="w-7 h-7 rounded-md hover:bg-surface-raised flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                    className="w-7 h-7 rounded-md hover:bg-[#272B39] flex items-center justify-center text-[#AAB1C0] hover:text-text-primary transition-colors"
                     title="Edit"
                 >
                     <Pencil className="w-[14px] h-[14px]" />
@@ -566,17 +732,17 @@ export function ChatView({
     );
 
     return (
-        <div className="flex-1 flex flex-col bg-background min-w-0">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col bg-[#111318]">
             {/* Top bar */}
-            <div className="h-12 border-b border-border flex items-center px-4 gap-3 flex-shrink-0">
-                <Hash className="w-5 h-5 text-text-muted flex-shrink-0" />
+            <div className="h-12 border-b border-[#1F2330] flex items-center px-4 gap-3 flex-shrink-0">
+                <Hash className="w-5 h-5 text-[#8E93A3] flex-shrink-0" />
                 <span className="text-emphasis font-semibold text-text-primary">
                     {channelName}
                 </span>
                 {channelDescription && (
                     <>
-                        <div className="w-px h-5 bg-border" />
-                        <span className="text-body text-text-muted truncate">
+                        <div className="w-px h-5 bg-[#2A2F3F]" />
+                        <span className="text-body text-[#8E93A3] truncate">
                             {channelDescription}
                         </span>
                     </>
@@ -585,7 +751,7 @@ export function ChatView({
                     {[Search, Users, Bookmark].map((Icon, i) => (
                         <button
                             key={i}
-                            className="w-8 h-8 rounded-md hover:bg-surface-raised flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                            className="w-8 h-8 rounded-md hover:bg-[#202432] flex items-center justify-center text-[#AAB1C0] hover:text-text-primary transition-colors"
                         >
                             <Icon className="w-[18px] h-[18px]" />
                         </button>
@@ -641,7 +807,7 @@ export function ChatView({
                             <img
                                 src={avatarUrl}
                                 alt={author.displayName}
-                                className="w-10 h-10 rounded-full flex-shrink-0 mt-0.5 bg-surface"
+                                className="w-10 h-10 rounded-full flex-shrink-0 mt-0.5 bg-[#232734]"
                             />
 
                             <div className="flex-1 min-w-0">
@@ -683,7 +849,7 @@ export function ChatView({
                                             <textarea
                                                 value={editContent}
                                                 onChange={(e) => setEditContent(e.target.value)}
-                                                className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
+                                                className="w-full px-3 py-2 bg-[#1A1D28] border border-[#2A2F3F] rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
                                                 rows={2}
                                                 autoFocus
                                                 onKeyDown={(e) => {
@@ -713,9 +879,9 @@ export function ChatView({
                                     )}
 
                                     {/* Link embeds */}
-                                    {firstMessage.embeds?.length > 0 && (
+                                    {getCombinedEmbeds(firstMessage).length > 0 && (
                                         <div className="mt-1">
-                                            {firstMessage.embeds.map((embed) => (
+                                            {getCombinedEmbeds(firstMessage).map((embed) => (
                                                 <LinkEmbed key={embed.id} embed={embed} />
                                             ))}
                                         </div>
@@ -731,7 +897,7 @@ export function ChatView({
                                                     className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${
                                                         reaction.reacted
                                                             ? "bg-reaction-own border border-accent-violet"
-                                                            : "bg-surface-raised border border-border hover:border-accent-violet/40"
+                                                            : "bg-[#1A1D28] border border-[#2A2F3F] hover:border-accent-violet/40"
                                                     }`}
                                                 >
                                                     <span>{reaction.emoji}</span>
@@ -743,12 +909,12 @@ export function ChatView({
                                                     onClick={() => setReactionPickerMessageId(
                                                         reactionPickerMessageId === firstMessage.id ? null : firstMessage.id
                                                     )}
-                                                    className="flex items-center justify-center w-6 h-6 rounded-md bg-surface-raised border border-border hover:border-accent-violet/40 transition-all"
+                                                    className="flex items-center justify-center w-6 h-6 rounded-md bg-[#1A1D28] border border-[#2A2F3F] hover:border-accent-violet/40 transition-all"
                                                 >
                                                     <Plus className="w-3 h-3 text-text-muted" />
                                                 </button>
                                                 {reactionPickerMessageId === firstMessage.id && (
-                                                    <div className="absolute bottom-full left-0 mb-2 z-50">
+                                                    <div className="absolute top-full left-0 mt-2 z-50">
                                                         <EmojiPicker
                                                             onSelect={(emoji) => {
                                                                 handleReaction(firstMessage.id, emoji, firstMessage.reactions.some(r => r.emoji === emoji && r.reacted));
@@ -782,7 +948,7 @@ export function ChatView({
                                                 <textarea
                                                     value={editContent}
                                                     onChange={(e) => setEditContent(e.target.value)}
-                                                    className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
+                                                    className="w-full px-3 py-2 bg-[#1A1D28] border border-[#2A2F3F] rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
                                                     rows={2}
                                                     autoFocus
                                                     onKeyDown={(e) => {
@@ -809,9 +975,9 @@ export function ChatView({
                                         )}
 
                                         {/* Link embeds */}
-                                        {message.embeds?.length > 0 && (
+                                        {getCombinedEmbeds(message).length > 0 && (
                                             <div className="mt-1">
-                                                {message.embeds.map((embed) => (
+                                                {getCombinedEmbeds(message).map((embed) => (
                                                     <LinkEmbed key={embed.id} embed={embed} />
                                                 ))}
                                             </div>
@@ -826,7 +992,7 @@ export function ChatView({
                                                         className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${
                                                             reaction.reacted
                                                                 ? "bg-reaction-own border border-accent-violet"
-                                                                : "bg-surface-raised border border-border hover:border-accent-violet/40"
+                                                                : "bg-[#1A1D28] border border-[#2A2F3F] hover:border-accent-violet/40"
                                                         }`}
                                                     >
                                                         <span>{reaction.emoji}</span>
@@ -851,11 +1017,11 @@ export function ChatView({
             {/* Typing indicator */}
             {typingUsers.length > 0 && (
                 <div className="px-4 py-1">
-                    <div className="flex items-center gap-2 text-micro text-text-muted">
+                    <div className="flex items-center gap-2 text-micro text-[#8E93A3]">
                         <div className="flex gap-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-text-muted animate-bounce" style={{ animationDelay: "0ms" }} />
-                            <span className="w-1.5 h-1.5 rounded-full bg-text-muted animate-bounce" style={{ animationDelay: "150ms" }} />
-                            <span className="w-1.5 h-1.5 rounded-full bg-text-muted animate-bounce" style={{ animationDelay: "300ms" }} />
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#8E93A3] animate-bounce" style={{ animationDelay: "0ms" }} />
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#8E93A3] animate-bounce" style={{ animationDelay: "150ms" }} />
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#8E93A3] animate-bounce" style={{ animationDelay: "300ms" }} />
                         </div>
                         <span>
                             {typingUsers.length === 1
@@ -872,18 +1038,18 @@ export function ChatView({
             {/* Reply preview */}
             {replyTo && (
                 <div className="px-4 pt-2">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-surface-raised border border-border rounded-t-xl">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-[#1A1D28] border border-[#2A2F3F] rounded-t-xl">
                         <Reply className="w-4 h-4 text-accent-violet flex-shrink-0" />
-                        <span className="text-micro text-text-muted">Replying to</span>
+                        <span className="text-micro text-[#8E93A3]">Replying to</span>
                         <span className="text-micro text-accent-violet font-medium">
                             {replyTo.author.displayName}
                         </span>
-                        <span className="text-micro text-text-muted truncate flex-1">
+                        <span className="text-micro text-[#8E93A3] truncate flex-1">
                             {formatReplyContent(replyTo.content)}
                         </span>
                         <button
                             onClick={() => setReplyTo(null)}
-                            className="w-5 h-5 rounded hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                            className="w-5 h-5 rounded hover:bg-[#272B39] flex items-center justify-center text-[#8E93A3] hover:text-text-primary transition-colors"
                         >
                             <X className="w-3.5 h-3.5" />
                         </button>
@@ -893,14 +1059,22 @@ export function ChatView({
 
             {/* Message input */}
             <div className={`px-4 pb-4 ${replyTo ? "pt-0" : "pt-2"}`}>
-                <div className={`bg-surface-raised border border-border focus-within:border-accent-violet/40 focus-within:shadow-[0_0_0_1px_rgba(124,106,247,0.15)] transition-all ${
+                <div className={`relative bg-[#1A1D28] border border-[#2A2F3F] focus-within:border-accent-violet/40 focus-within:shadow-[0_0_0_1px_rgba(124,106,247,0.15)] transition-all ${
                     replyTo ? "rounded-b-xl" : "rounded-xl"
                 }`}>
+                    {showSlashCommandMenu && (
+                        <SlashCommandMenu
+                            commands={filteredSlashCommands}
+                            selectedIndex={selectedSlashIndex}
+                            onSelect={(command) => setMessageInput(formatSlashCommandInput(command))}
+                            onHover={setSelectedSlashIndex}
+                        />
+                    )}
                     <div className="flex items-center gap-2 p-3">
                         <button
                             onClick={() => attachmentInputRef.current?.click()}
                             disabled={uploadingAttachment}
-                            className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors flex-shrink-0 disabled:opacity-50"
+                            className="w-8 h-8 rounded-lg hover:bg-[#272B39] flex items-center justify-center text-[#AAB1C0] hover:text-text-primary transition-colors flex-shrink-0 disabled:opacity-50"
                             title="Upload file"
                         >
                             {uploadingAttachment ? (
@@ -934,7 +1108,7 @@ export function ChatView({
                                         setShowGifPicker(false);
                                         setShowEmojiPicker(false);
                                     }}
-                                    className={`w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showStickerPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                                    className={`w-8 h-8 rounded-lg hover:bg-[#272B39] flex items-center justify-center transition-colors ${showStickerPicker ? "text-accent-violet" : "text-[#AAB1C0] hover:text-text-primary"}`}
                                     title="Sticker"
                                 >
                                     <ImageIcon className="w-[18px] h-[18px]" />
@@ -955,7 +1129,7 @@ export function ChatView({
                                         setShowEmojiPicker(false);
                                         setShowStickerPicker(false);
                                     }}
-                                    className={`w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showGifPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                                    className={`w-8 h-8 rounded-lg hover:bg-[#272B39] flex items-center justify-center transition-colors ${showGifPicker ? "text-accent-violet" : "text-[#AAB1C0] hover:text-text-primary"}`}
                                     title="GIF"
                                 >
                                     <span className="text-[11px] font-bold leading-none">GIF</span>
@@ -980,7 +1154,7 @@ export function ChatView({
                                         setShowGifPicker(false);
                                         setShowStickerPicker(false);
                                     }}
-                                    className={`w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showEmojiPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                                    className={`w-8 h-8 rounded-lg hover:bg-[#272B39] flex items-center justify-center transition-colors ${showEmojiPicker ? "text-accent-violet" : "text-[#AAB1C0] hover:text-text-primary"}`}
                                     title="Emoji"
                                 >
                                     <Smile className="w-[18px] h-[18px]" />
@@ -1001,7 +1175,7 @@ export function ChatView({
                     </div>
                 </div>
 
-                <div className="mt-1.5 flex items-center justify-between text-micro text-text-muted px-1">
+                <div className="mt-1.5 flex items-center justify-between text-micro text-[#8E93A3] px-1">
                     <span>Press Enter to send, Shift+Enter for new line</span>
                     <span>Free uploads: {FREE_ATTACHMENT_MAX_LABEL} per file</span>
                 </div>

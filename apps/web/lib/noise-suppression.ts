@@ -51,10 +51,17 @@ export async function createNoiseSuppressor(
 
     // Residual buffer for samples that don't fill a complete frame
     let residual = new Float32Array(0);
+    let destroyed = false;
 
     processor.onaudioprocess = (event) => {
         const input = event.inputBuffer.getChannelData(0);
         const output = event.outputBuffer.getChannelData(0);
+
+        // Guard: ScriptProcessorNode fires async — may arrive after destroy()
+        if (destroyed) {
+            output.set(input);
+            return;
+        }
 
         // RNNoise expects 16-bit PCM scale values
         // Combine residual with new input
@@ -108,6 +115,7 @@ export async function createNoiseSuppressor(
     return {
         track: outputTrack,
         destroy: () => {
+            destroyed = true;
             processor.disconnect();
             source.disconnect();
             denoiseState.destroy();

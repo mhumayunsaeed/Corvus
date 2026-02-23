@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
     LiveKitRoom,
     RoomAudioRenderer,
@@ -15,6 +15,8 @@ import type { Participant } from "livekit-client";
 import { SCREEN_SHARE_PRESETS } from "@/stores/voice-store";
 import { Mic, MicOff, Video, VideoOff, MonitorUp, Wifi } from "lucide-react";
 import { useVoiceStore } from "@/stores/voice-store";
+import { createRoomOptions } from "@/lib/livekit-config";
+import { useNoiseSuppression } from "@/hooks/useNoiseSuppression";
 
 function getGridClass(count: number): string {
     if (count <= 1) return "grid-cols-1 max-w-[400px] mx-auto";
@@ -141,7 +143,7 @@ function LatencyIndicator() {
         };
 
         measure();
-        const interval = setInterval(measure, 3000);
+        const interval = setInterval(measure, 1000);
         return () => clearInterval(interval);
     }, [room]);
 
@@ -163,6 +165,7 @@ function RoomContent() {
     const participants = useParticipants();
     const room = useRoomContext();
     const updateParticipant = useVoiceStore((s) => s.updateParticipant);
+    useNoiseSuppression();
     const isMuted = useVoiceStore((s) => s.isMuted);
     const isDeafened = useVoiceStore((s) => s.isDeafened);
     const hasVideo = useVoiceStore((s) => s.hasVideo);
@@ -194,6 +197,8 @@ function RoomContent() {
         lp.setCameraEnabled(hasVideo).catch(console.error);
     }, [hasVideo, room]);
 
+    const setLocalScreenSharing = useVoiceStore((s) => s.setLocalScreenSharing);
+
     // Sync screen sharing state with quality options
     useEffect(() => {
         const lp = room.localParticipant;
@@ -204,11 +209,26 @@ function RoomContent() {
                 resolution: { width: preset.width, height: preset.height, frameRate: preset.frameRate },
                 contentHint: "detail" as const,
             } : undefined;
-            lp.setScreenShareEnabled(true, opts).catch(console.error);
+            lp.setScreenShareEnabled(true, opts).catch((err) => {
+                console.error("Screen share failed:", err);
+                setLocalScreenSharing(false);
+            });
         } else {
             lp.setScreenShareEnabled(false).catch(console.error);
         }
-    }, [isScreenSharing, screenShareQuality, room]);
+    }, [isScreenSharing, screenShareQuality, room, setLocalScreenSharing]);
+
+    // Listen for LiveKit screen share track ending (user clicks browser "stop sharing")
+    useEffect(() => {
+        const onTrackUnpublished = () => {
+            const lp = room.localParticipant;
+            if (lp && !lp.isScreenShareEnabled) {
+                setLocalScreenSharing(false);
+            }
+        };
+        room.on(RoomEvent.LocalTrackUnpublished, onTrackUnpublished);
+        return () => { room.off(RoomEvent.LocalTrackUnpublished, onTrackUnpublished); };
+    }, [room, setLocalScreenSharing]);
 
     // Sync speaking states to the store
     useEffect(() => {
@@ -256,6 +276,8 @@ export function VoiceChannelView() {
     const livekitUrl = useVoiceStore((s) => s.livekitUrl);
     const channelName = useVoiceStore((s) => s.currentChannelName);
 
+    const roomOptions = useMemo(() => createRoomOptions(), []);
+
     if (!livekitToken || !livekitUrl) {
         return (
             <div className="flex-1 flex items-center justify-center bg-background">
@@ -293,6 +315,7 @@ export function VoiceChannelView() {
                 connect={true}
                 audio={true}
                 video={false}
+                options={roomOptions}
                 className="flex-1 flex flex-col"
             >
                 {/* Latency in top-right */}

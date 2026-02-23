@@ -65,7 +65,17 @@ export function useDesktop() {
                     console.error("Failed to setup deep links:", err);
                 }
 
-                // 4. File Drag and Drop logic is built-in with web, but we can prevent default redirect
+                // 4. Show window once web content is ready (window starts hidden to prevent white flash)
+                try {
+                    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+                    const appWindow = getCurrentWindow();
+                    await appWindow.show();
+                    await appWindow.setFocus();
+                } catch (err) {
+                    console.error("Failed to show window:", err);
+                }
+
+                // 5. File Drag and Drop logic is built-in with web, but we can prevent default redirect
                 const onDragOver = (e: DragEvent) => e.preventDefault();
                 const onDrop = (e: DragEvent) => {
                     e.preventDefault();

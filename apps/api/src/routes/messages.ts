@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
 import { broadcastToChannel } from "../ws.js";
 import { extractUrls, unfurlUrl } from "../lib/unfurl.js";
+import { executeSlashCommand } from "../lib/slash-commands.js";
 
 const messages = new Hono<AuthEnv>();
 
@@ -21,6 +22,10 @@ const updateMessageSchema = z.object({
     content: z.string().min(1).max(4000),
 });
 
+const unfurlQuerySchema = z.object({
+    url: z.string().url("Invalid URL"),
+});
+
 // ─── Helper: verify channel membership ──────────────────────────
 
 async function verifyChannelAccess(channelId: string, userId: string) {
@@ -36,6 +41,32 @@ async function verifyChannelAccess(channelId: string, userId: string) {
 
     return { channel, membership };
 }
+
+messages.get("/unfurl", async (c) => {
+    const parsed = unfurlQuerySchema.safeParse({
+        url: c.req.query("url"),
+    });
+
+    if (!parsed.success) {
+        return c.json({ error: parsed.error.errors[0]?.message || "Invalid URL" }, 400);
+    }
+
+    const embed = await unfurlUrl(parsed.data.url);
+    if (!embed) {
+        return c.json({ embed: null });
+    }
+
+    return c.json({
+        embed: {
+            url: embed.url,
+            siteName: embed.siteName,
+            title: embed.title,
+            description: embed.description,
+            imageUrl: embed.imageUrl,
+            faviconUrl: embed.faviconUrl,
+        },
+    });
+});
 
 // ─── GET /channels/:channelId/messages — List messages (paginated) ──
 
@@ -153,6 +184,7 @@ messages.get("/channels/:channelId/messages", async (c) => {
 
 messages.post("/channels/:channelId/messages", async (c) => {
     const userId = c.get("userId");
+    const username = c.get("username");
     const channelId = c.req.param("channelId");
 
     const access = await verifyChannelAccess(channelId, userId);
@@ -168,13 +200,26 @@ messages.post("/channels/:channelId/messages", async (c) => {
     }
 
     const { content, type, replyToId } = result.data;
+    let resolvedContent = content;
+    let resolvedType: "default" | "reply" | "system" = replyToId ? "reply" : type;
+
+    const slash = executeSlashCommand(content, { username });
+    if (slash.kind === "error") {
+        return c.json({ error: slash.error }, 400);
+    }
+    if (slash.kind === "ok") {
+        resolvedContent = slash.content;
+        resolvedType = slash.type === "system" ? "system" : replyToId ? "reply" : "default";
+    } else {
+        resolvedContent = slash.content;
+    }
 
     const message = await prisma.message.create({
         data: {
             channelId,
             authorId: userId,
-            content,
-            type: replyToId ? "reply" : type,
+            content: resolvedContent,
+            type: resolvedType,
             replyToId,
         },
         include: {
@@ -223,7 +268,7 @@ messages.post("/channels/:channelId/messages", async (c) => {
     });
 
     // Async embed unfurling (fire-and-forget)
-    const urls = extractUrls(content);
+    const urls = extractUrls(resolvedContent);
     if (urls.length > 0) {
         processMessageEmbeds(message.id, channelId, urls).catch(console.error);
     }

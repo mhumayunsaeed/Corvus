@@ -40,7 +40,7 @@ export async function api<T>(
             break;
         } catch {
             if (attempt < maxRetries) {
-                await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+                await new Promise((r) => setTimeout(r, 750 * (attempt + 1)));
                 continue;
             }
             throw new Error(
@@ -128,6 +128,15 @@ export interface MessageReplyTo {
 
 export interface MessageEmbedData {
     id: string;
+    url: string;
+    siteName: string | null;
+    title: string | null;
+    description: string | null;
+    imageUrl: string | null;
+    faviconUrl: string | null;
+}
+
+export interface UnfurledEmbedData {
     url: string;
     siteName: string | null;
     title: string | null;
@@ -225,12 +234,19 @@ export interface DMParticipantData {
     status: string;
 }
 
+export interface DMMessageReaction {
+    emoji: string;
+    count: number;
+    reacted: boolean;
+}
+
 export interface DMMessageData {
     id: string;
     conversationId: string;
     content: string;
     type?: string;
     metadata?: string | null;
+    reactions: DMMessageReaction[];
     createdAt: string;
     editedAt: string | null;
     author: DMParticipantData;
@@ -335,6 +351,12 @@ export function editMessage(id: string, content: string) {
 
 export function deleteMessageApi(id: string) {
     return api<{ message: string }>(`/messages/${id}`, { method: "DELETE" });
+}
+
+export function fetchLinkPreview(url: string) {
+    return api<{ embed: UnfurledEmbedData | null }>(
+        `/unfurl?url=${encodeURIComponent(url)}`
+    );
 }
 
 // ─── Reaction API ───────────────────────────────────────────────
@@ -533,6 +555,25 @@ export function deleteDMMessage(conversationId: string, messageId: string) {
     return api<{ message: string }>(`/dms/${conversationId}/messages/${messageId}`, {
         method: "DELETE",
     });
+}
+
+export function addDMReaction(conversationId: string, messageId: string, emoji: string) {
+    return api<{ message: string }>(
+        `/dms/${conversationId}/messages/${messageId}/reactions`,
+        {
+            method: "POST",
+            body: JSON.stringify({ emoji }),
+        }
+    );
+}
+
+export function removeDMReaction(conversationId: string, messageId: string, emoji: string) {
+    return api<{ message: string }>(
+        `/dms/${conversationId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+        {
+            method: "DELETE",
+        }
+    );
 }
 
 // ─── Voice API ──────────────────────────────────────────────────────────────────

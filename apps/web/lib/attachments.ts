@@ -100,3 +100,47 @@ export function formatAttachmentSize(bytes: number): string {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+export function resolveAttachmentUrl(rawUrl: string, apiBaseUrl?: string): string {
+    if (!rawUrl) return rawUrl;
+
+    const normalizedBase = apiBaseUrl?.trim().replace(/\/+$/, "");
+    const fallbackBase = normalizedBase ? new URL(normalizedBase) : null;
+
+    try {
+        const parsed = fallbackBase
+            ? new URL(rawUrl, `${fallbackBase.origin}/`)
+            : new URL(rawUrl);
+
+        if (!fallbackBase) {
+            return parsed.toString();
+        }
+
+        const isLoopbackHost =
+            parsed.hostname === "localhost" ||
+            parsed.hostname === "127.0.0.1" ||
+            parsed.hostname === "[::1]";
+
+        const shouldUseApiHost =
+            isLoopbackHost && fallbackBase.hostname !== parsed.hostname;
+
+        const shouldUpgradeProtocol =
+            parsed.protocol === "http:" &&
+            fallbackBase.protocol === "https:" &&
+            parsed.hostname === fallbackBase.hostname;
+
+        if (shouldUseApiHost || shouldUpgradeProtocol) {
+            const upgraded = new URL(parsed.pathname + parsed.search + parsed.hash, fallbackBase.origin);
+            return upgraded.toString();
+        }
+
+        return parsed.toString();
+    } catch {
+        if (!normalizedBase) return rawUrl;
+        try {
+            return new URL(rawUrl.replace(/^\/+/, ""), `${normalizedBase}/`).toString();
+        } catch {
+            return rawUrl;
+        }
+    }
+}

@@ -49,11 +49,64 @@ function resolveUrl(base: string, relative: string | null | undefined): string |
     }
 }
 
+// Twitter/X returns garbage HTML to bots — build a synthetic embed instead
+function buildTwitterEmbed(url: string): EmbedMetadata {
+    try {
+        const parsed = new URL(url);
+        const parts = parsed.pathname.split("/").filter(Boolean);
+        // Extract @username from /username/status/123 pattern
+        const username = parts.length > 0 ? parts[0] : null;
+        const isStatus = parts.includes("status");
+
+        return {
+            url,
+            siteName: "X (formerly Twitter)",
+            title: isStatus && username
+                ? `${username.startsWith("@") ? username : `@${username}`} on X`
+                : "X (formerly Twitter)",
+            description: null,
+            imageUrl: null,
+            faviconUrl: "https://abs.twimg.com/favicons/twitter.3.ico",
+        };
+    } catch {
+        return {
+            url,
+            siteName: "X (formerly Twitter)",
+            title: "Post on X",
+            description: null,
+            imageUrl: null,
+            faviconUrl: "https://abs.twimg.com/favicons/twitter.3.ico",
+        };
+    }
+}
+
+function isTwitterUrl(url: string): boolean {
+    try {
+        const parsed = new URL(url);
+        return parsed.hostname === "x.com"
+            || parsed.hostname === "www.x.com"
+            || parsed.hostname === "twitter.com"
+            || parsed.hostname === "www.twitter.com"
+            || parsed.hostname === "mobile.twitter.com"
+            || parsed.hostname === "mobile.x.com";
+    } catch {
+        return false;
+    }
+}
+
 export async function unfurlUrl(url: string): Promise<EmbedMetadata | null> {
     // Check cache
     const cached = cache.get(url);
     if (cached && cached.expiresAt > Date.now()) {
         return cached.data;
+    }
+
+    // Twitter/X is hostile to bot scraping — return synthetic embed
+    if (isTwitterUrl(url)) {
+        const result = buildTwitterEmbed(url);
+        cache.set(url, { data: result, expiresAt: Date.now() + CACHE_TTL });
+        cleanCache();
+        return result;
     }
 
     try {

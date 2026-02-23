@@ -1,16 +1,20 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, FileText, Hash, Image as ImageIcon, Loader2, Pencil, Phone, Plus, Send, Smile, Trash2, Video } from "lucide-react";
+import { Download, FileText, Image as ImageIcon, Loader2, Pencil, Phone, PhoneOff, Plus, Search, Send, Smile, Trash2, UserPlus, Users, Video } from "lucide-react";
 import {
+    addDMReaction,
     fetchDMMessages,
+    fetchLinkPreview,
     sendDMMessage,
     editDMMessage,
     deleteDMMessage,
     fetchStickerById,
+    removeDMReaction,
     uploadAttachment,
     type DMConversationData,
     type DMMessageData,
+    type MessageEmbedData,
     type StickerData,
 } from "@/lib/api";
 import {
@@ -18,15 +22,25 @@ import {
     formatAttachmentSize,
     FREE_ATTACHMENT_MAX_LABEL,
     parseAttachmentContent,
+    resolveAttachmentUrl,
     validateAttachmentFile,
     ATTACHMENT_INPUT_ACCEPT,
 } from "@/lib/attachments";
+import { API_URL } from "@/lib/endpoints";
 import { useAuthStore } from "@/stores/auth-store";
 import { useDMStore } from "@/stores/dm-store";
 import { EmojiPicker } from "./EmojiPicker";
 import { GifPicker } from "./GifPicker";
 import { StickerPicker } from "./StickerPicker";
 import { CallModal } from "./CallModal";
+import { LinkEmbed } from "./LinkEmbed";
+import { SlashCommandMenu } from "./SlashCommandMenu";
+import { extractMessageUrls, linkifyMessageText } from "@/lib/link-utils";
+import {
+    extractSlashQuery,
+    filterSlashCommands,
+    formatSlashCommandInput,
+} from "@/lib/slash-commands";
 
 interface DMChatViewProps {
     conversation: DMConversationData;
@@ -44,6 +58,13 @@ interface DMChatViewProps {
 
 const EMPTY_DM_MESSAGES: DMMessageData[] = [];
 const STICKER_PREFIX = "sticker:";
+const DM_STATUS_COLORS: Record<string, string> = {
+    online: "#23A55A",
+    idle: "#F0B232",
+    dnd: "#F23F43",
+    invisible: "#80848E",
+    offline: "#80848E",
+};
 
 function conversationTitle(conversation: DMConversationData, currentUserId: string | undefined) {
     if (conversation.type === "group") {
@@ -87,6 +108,9 @@ export function DMChatView({
     const [showStickerPicker, setShowStickerPicker] = useState(false);
     const [uploadingAttachment, setUploadingAttachment] = useState(false);
     const [stickerCache, setStickerCache] = useState<Record<string, StickerData | null>>({});
+    const [previewCache, setPreviewCache] = useState<Record<string, MessageEmbedData | null>>({});
+    const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
+    const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
     const [endingCall, setEndingCall] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const endRef = useRef<HTMLDivElement>(null);
@@ -98,11 +122,35 @@ export function DMChatView({
     const setStoreMessages = useDMStore((s) => s.setMessages);
     const prependStoreMessages = useDMStore((s) => s.prependMessages);
     const addStoreMessage = useDMStore((s) => s.addMessage);
+    const updateStoreMessage = useDMStore((s) => s.updateMessage);
+    const deleteStoreMessage = useDMStore((s) => s.deleteMessage);
 
     const title = useMemo(
         () => conversationTitle(conversation, currentUserId),
         [conversation, currentUserId]
     );
+    const peer = useMemo(
+        () =>
+            conversation.participants.find((participant) => participant.id !== currentUserId) ||
+            conversation.participants[0] ||
+            null,
+        [conversation.participants, currentUserId]
+    );
+    const members = useMemo(() => {
+        const sorted = [...conversation.participants];
+        sorted.sort((a, b) => {
+            if (a.id === currentUserId) return 1;
+            if (b.id === currentUserId) return -1;
+            return a.displayName.localeCompare(b.displayName);
+        });
+        return sorted;
+    }, [conversation.participants, currentUserId]);
+    const slashQuery = useMemo(() => extractSlashQuery(messageInput), [messageInput]);
+    const filteredSlashCommands = useMemo(
+        () => filterSlashCommands(slashQuery),
+        [slashQuery]
+    );
+    const showSlashCommandMenu = slashQuery !== null && filteredSlashCommands.length > 0;
 
     const stickerIdsInMessages = useMemo(() => {
         const ids = new Set<string>();
@@ -112,6 +160,10 @@ export function DMChatView({
         }
         return Array.from(ids);
     }, [messages]);
+
+    useEffect(() => {
+        setSelectedSlashIndex(0);
+    }, [slashQuery]);
 
     useEffect(() => {
         const unresolved = stickerIdsInMessages.filter(
@@ -149,6 +201,62 @@ export function DMChatView({
             cancelled = true;
         };
     }, [stickerIdsInMessages, stickerCache]);
+
+    const previewUrls = useMemo(() => {
+        const urls = new Set<string>();
+        for (const message of messages) {
+            if (getStickerId(message.content) || parseAttachmentContent(message.content)) {
+                continue;
+            }
+            for (const url of extractMessageUrls(message.content)) {
+                urls.add(url);
+            }
+        }
+        return Array.from(urls);
+    }, [messages]);
+
+    useEffect(() => {
+        const missing = previewUrls.filter(
+            (url) => !Object.prototype.hasOwnProperty.call(previewCache, url)
+        );
+        if (missing.length === 0) return;
+
+        let cancelled = false;
+
+        (async () => {
+            const fetched = await Promise.all(
+                missing.map(async (url) => {
+                    try {
+                        const result = await fetchLinkPreview(url);
+                        if (!result.embed) return [url, null] as const;
+                        return [
+                            url,
+                            {
+                                id: `preview:${url}`,
+                                ...result.embed,
+                            } as MessageEmbedData,
+                        ] as const;
+                    } catch {
+                        return [url, null] as const;
+                    }
+                })
+            );
+
+            if (cancelled) return;
+
+            setPreviewCache((prev) => {
+                const next = { ...prev };
+                for (const [url, embed] of fetched) {
+                    next[url] = embed;
+                }
+                return next;
+            });
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [previewUrls, previewCache]);
 
     useEffect(() => {
         let mounted = true;
@@ -258,37 +366,161 @@ export function DMChatView({
             setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 20);
         } catch (err) {
             console.error("Failed to send DM message:", err);
+            if (err instanceof Error) {
+                alert(err.message);
+            }
             setMessageInput(content);
         } finally {
             setSending(false);
         }
     }, [messageInput, sending, conversation.id, addStoreMessage, syncConversationFromMessage]);
 
+    const applySlashSelection = useCallback(
+        (index: number) => {
+            const command = filteredSlashCommands[index];
+            if (!command) return;
+            setMessageInput(formatSlashCommandInput(command));
+            setSelectedSlashIndex(0);
+        },
+        [filteredSlashCommands]
+    );
+
+    const handleComposerKeyDown = useCallback(
+        (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+            if (showSlashCommandMenu) {
+                if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setSelectedSlashIndex((prev) => (prev + 1) % filteredSlashCommands.length);
+                    return;
+                }
+                if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setSelectedSlashIndex((prev) =>
+                        (prev - 1 + filteredSlashCommands.length) % filteredSlashCommands.length
+                    );
+                    return;
+                }
+                if (e.key === "Tab") {
+                    e.preventDefault();
+                    applySlashSelection(selectedSlashIndex);
+                    return;
+                }
+                if (e.key === "Enter" && !e.shiftKey && /^\s*\/\S*$/.test(messageInput)) {
+                    e.preventDefault();
+                    applySlashSelection(selectedSlashIndex);
+                    return;
+                }
+            }
+
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+            }
+        },
+        [
+            applySlashSelection,
+            filteredSlashCommands.length,
+            handleSend,
+            messageInput,
+            selectedSlashIndex,
+            showSlashCommandMenu,
+        ]
+    );
+
     const handleEdit = async (messageId: string) => {
         const content = editContent.trim();
         if (!content) return;
+
+        const targetMessage = messages.find((msg) => msg.id === messageId);
+        const targetConversationId = targetMessage?.conversationId || conversation.id;
+
         try {
-            await editDMMessage(conversation.id, messageId, content);
+            const result = await editDMMessage(targetConversationId, messageId, content);
+            updateStoreMessage(targetConversationId, messageId, {
+                content: result.message.content,
+                editedAt: result.message.editedAt || new Date().toISOString(),
+            });
+            if (conversation.lastMessage?.id === messageId) {
+                onConversationUpdated({
+                    ...conversation,
+                    lastMessage: {
+                        ...conversation.lastMessage,
+                        content: result.message.content,
+                    },
+                });
+            }
             setEditingMessageId(null);
             setEditContent("");
         } catch (err) {
             console.error("Failed to edit DM message:", err);
+            if (err instanceof Error && /message not found/i.test(err.message)) {
+                deleteStoreMessage(targetConversationId, messageId);
+                setEditingMessageId(null);
+                setEditContent("");
+                return;
+            }
+            if (err instanceof Error) {
+                alert(err.message);
+            }
         }
     };
 
     const handleDelete = async (messageId: string) => {
+        const targetMessage = messages.find((msg) => msg.id === messageId);
+        const targetConversationId = targetMessage?.conversationId || conversation.id;
+
         try {
-            await deleteDMMessage(conversation.id, messageId);
+            await deleteDMMessage(targetConversationId, messageId);
+            deleteStoreMessage(targetConversationId, messageId);
+            if (conversation.lastMessage?.id === messageId) {
+                onConversationUpdated({
+                    ...conversation,
+                    lastMessage: null,
+                });
+            }
         } catch (err) {
             console.error("Failed to delete DM message:", err);
+            if (err instanceof Error && /message not found/i.test(err.message)) {
+                // If it was already removed remotely, keep local state in sync.
+                deleteStoreMessage(targetConversationId, messageId);
+                return;
+            }
+            if (err instanceof Error) {
+                alert(err.message);
+            }
         }
     };
+
+    const handleReaction = async (messageId: string, emoji: string, alreadyReacted: boolean) => {
+        try {
+            if (alreadyReacted) {
+                await removeDMReaction(conversation.id, messageId, emoji);
+            } else {
+                await addDMReaction(conversation.id, messageId, emoji);
+            }
+        } catch (err) {
+            console.error("Failed to toggle DM reaction:", err);
+        }
+    };
+
+    const getMessageEmbeds = useCallback(
+        (content: string) =>
+            extractMessageUrls(content)
+                .map((url) => previewCache[url])
+                .filter((embed): embed is MessageEmbedData => !!embed),
+        [previewCache]
+    );
 
     const isGifUrl = (content: string) => {
         const trimmed = content.trim();
         return /^https?:\/\/.*\.(gif|webp)(\?.*)?$/i.test(trimmed) ||
             trimmed.includes("tenor.com/") ||
             trimmed.includes("giphy.com/");
+    };
+
+    const isDirectVideoUrl = (content: string) => {
+        const trimmed = content.trim();
+        return /^https?:\/\/.*\.(mp4|webm|mov|m4v|ogg)(\?.*)?$/i.test(trimmed);
     };
 
     const renderContent = (content: string) => {
@@ -315,10 +547,12 @@ export function DMChatView({
 
         const attachment = parseAttachmentContent(content);
         if (attachment) {
+            const attachmentUrl = resolveAttachmentUrl(attachment.url, API_URL);
+
             if (attachment.kind === "image") {
                 return (
                     <img
-                        src={attachment.url}
+                        src={attachmentUrl}
                         alt={attachment.name}
                         className="max-w-[360px] max-h-[280px] rounded-lg mt-1"
                         loading="lazy"
@@ -329,7 +563,7 @@ export function DMChatView({
             if (attachment.kind === "video") {
                 return (
                     <video
-                        src={attachment.url}
+                        src={attachmentUrl}
                         controls
                         className="max-w-[420px] max-h-[320px] rounded-lg mt-1 bg-black"
                     />
@@ -338,9 +572,8 @@ export function DMChatView({
 
             return (
                 <a
-                    href={attachment.url}
-                    target="_blank"
-                    rel="noreferrer"
+                    href={attachmentUrl}
+                    download={attachment.name}
                     className="mt-1 inline-flex items-center gap-2 rounded-lg border border-border bg-surface-raised px-3 py-2 text-body text-text-primary hover:bg-hover-row"
                 >
                     <FileText className="w-4 h-4 text-text-muted" />
@@ -361,11 +594,94 @@ export function DMChatView({
                 />
             );
         }
-        return content;
+
+        if (isDirectVideoUrl(content.trim())) {
+            return (
+                <video
+                    src={content.trim()}
+                    controls
+                    className="max-w-[420px] max-h-[320px] rounded-lg mt-1 bg-black"
+                />
+            );
+        }
+        return linkifyMessageText(content);
     };
 
     const formatTime = (value: string) =>
         new Date(value).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+    const ActionPill = ({ message, isOwn }: { message: DMMessageData; isOwn: boolean }) => (
+        <div className="absolute -top-3 right-2 flex items-center gap-0.5 bg-surface border border-border rounded-lg px-1 py-1 shadow-lg z-20">
+            {["👍", "❤️", "😂"].map((emoji) => (
+                <button
+                    key={`${message.id}-quick-${emoji}`}
+                    onClick={() =>
+                        handleReaction(
+                            message.id,
+                            emoji,
+                            message.reactions.some((reaction) => reaction.emoji === emoji && reaction.reacted)
+                        )
+                    }
+                    className="min-w-7 h-7 px-1 rounded-md hover:bg-surface-raised flex items-center justify-center text-[13px] transition-colors"
+                    title={`React with ${emoji}`}
+                >
+                    {emoji}
+                </button>
+            ))}
+            <div className="relative">
+                <button
+                    onClick={() =>
+                        setReactionPickerMessageId(
+                            reactionPickerMessageId === message.id ? null : message.id
+                        )
+                    }
+                    className="w-7 h-7 rounded-md hover:bg-surface-raised flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                    title="Add reaction"
+                >
+                    <Smile className="w-[14px] h-[14px]" />
+                </button>
+                {reactionPickerMessageId === message.id && (
+                    <div className="absolute top-full right-0 mt-2 z-50">
+                        <EmojiPicker
+                            onSelect={(emoji) => {
+                                handleReaction(
+                                    message.id,
+                                    emoji,
+                                    message.reactions.some(
+                                        (reaction) => reaction.emoji === emoji && reaction.reacted
+                                    )
+                                );
+                                setReactionPickerMessageId(null);
+                            }}
+                            onClose={() => setReactionPickerMessageId(null)}
+                        />
+                    </div>
+                )}
+            </div>
+            {isOwn && (
+                <>
+                    <button
+                        onClick={() => {
+                            setEditingMessageId(message.id);
+                            setEditContent(message.content);
+                        }}
+                        className="w-7 h-7 rounded-md hover:bg-surface-raised flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                        title="Edit"
+                    >
+                        <Pencil className="w-[14px] h-[14px]" />
+                    </button>
+                    <div className="w-px h-4 bg-border mx-0.5" />
+                    <button
+                        onClick={() => handleDelete(message.id)}
+                        className="w-7 h-7 rounded-md hover:bg-danger/10 flex items-center justify-center text-text-muted hover:text-danger transition-colors"
+                        title="Delete"
+                    >
+                        <Trash2 className="w-[14px] h-[14px]" />
+                    </button>
+                </>
+            )}
+        </div>
+    );
 
     const handleStartCall = useCallback(
         async (withVideo: boolean) => {
@@ -443,48 +759,81 @@ export function DMChatView({
     );
 
     return (
-        <div className="flex-1 flex flex-col bg-background min-w-0">
-            <div className="h-12 border-b border-border flex items-center px-4 gap-3 flex-shrink-0">
-                <Hash className="w-5 h-5 text-text-muted" />
-                <span className="text-emphasis font-semibold text-text-primary truncate">{title}</span>
-                {activeCall && (
-                    <span className="text-micro text-accent-teal font-medium">In call</span>
-                )}
-                <div className="ml-auto flex items-center gap-1.5">
-                    <button
-                        onClick={() => handleStartCall(false)}
-                        disabled={startingCall || !!activeCall}
-                        title={activeCall ? "Call already active" : "Start voice call"}
-                        className="w-8 h-8 rounded-md text-text-muted hover:text-text-primary hover:bg-hover-row disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-                    >
-                        <Phone className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={() => handleStartCall(true)}
-                        disabled={startingCall || !!activeCall}
-                        title={activeCall ? "Call already active" : "Start video call"}
-                        className="w-8 h-8 rounded-md text-text-muted hover:text-text-primary hover:bg-hover-row disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-                    >
-                        <Video className="w-4 h-4" />
-                    </button>
+        <div className="flex-1 min-w-0 min-h-0 bg-[#111318] flex">
+            <div className="flex-1 min-w-0 flex flex-col border-r border-[#1F2330]">
+                <div className="h-12 border-b border-[#1F2330] flex items-center px-4 gap-3 flex-shrink-0">
+                    <div className="w-7 h-7 rounded-full overflow-hidden bg-[#232734] flex items-center justify-center text-[#CDD3DF]">
+                        {conversation.type === "group" || !peer ? (
+                            <Users className="w-4 h-4" />
+                        ) : (
+                            <img
+                                src={peer.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${peer.username}`}
+                                alt={peer.displayName}
+                                className="w-full h-full object-cover"
+                            />
+                        )}
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-body font-semibold text-text-primary truncate">{title}</p>
+                        <p className="text-micro text-[#8E93A3] truncate">
+                            {conversation.type === "group"
+                                ? `${conversation.participants.length} members`
+                                : peer?.status || "offline"}
+                        </p>
+                    </div>
+                    {activeCall && (
+                        <span className="text-micro text-accent-teal font-medium">In call</span>
+                    )}
+                    <div className="ml-auto flex items-center gap-1">
+                        <button
+                            onClick={() => handleStartCall(false)}
+                            disabled={startingCall || !!activeCall}
+                            title={activeCall ? "Call already active" : "Start voice call"}
+                            className="w-8 h-8 rounded-md text-[#AAB1C0] hover:text-text-primary hover:bg-[#202432] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                        >
+                            <Phone className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => handleStartCall(true)}
+                            disabled={startingCall || !!activeCall}
+                            title={activeCall ? "Call already active" : "Start video call"}
+                            className="w-8 h-8 rounded-md text-[#AAB1C0] hover:text-text-primary hover:bg-[#202432] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                        >
+                            <Video className="w-4 h-4" />
+                        </button>
+                        <button
+                            type="button"
+                            title="Search"
+                            className="w-8 h-8 rounded-md text-[#AAB1C0] hover:text-text-primary hover:bg-[#202432] transition-colors flex items-center justify-center"
+                        >
+                            <Search className="w-4 h-4" />
+                        </button>
+                        <button
+                            type="button"
+                            title="Add Friend"
+                            className="w-8 h-8 rounded-md text-[#AAB1C0] hover:text-text-primary hover:bg-[#202432] transition-colors flex items-center justify-center"
+                        >
+                            <UserPlus className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
-            </div>
 
-            {activeCall && (
-                <CallModal
-                    onClose={handleEndCall}
-                    token={activeCall.token}
-                    url={activeCall.url}
-                    initialVideo={activeCall.initialVideo}
-                    className={endingCall ? "opacity-70" : ""}
-                />
-            )}
+                {activeCall && (
+                    <CallModal
+                        onClose={handleEndCall}
+                        token={activeCall.token}
+                        url={activeCall.url}
+                        initialVideo={activeCall.initialVideo}
+                        participants={conversation.participants}
+                        className={endingCall ? "opacity-70" : ""}
+                    />
+                )}
 
-            <div
-                ref={containerRef}
-                onScroll={handleScroll}
-                className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
-            >
+                <div
+                    ref={containerRef}
+                    onScroll={handleScroll}
+                    className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+                >
                 {loadingOlder && (
                     <div className="flex justify-center py-2">
                         <Loader2 className="w-5 h-5 text-text-muted animate-spin" />
@@ -524,20 +873,72 @@ export function DMChatView({
                         const secs = duration % 60;
                         const hasDur = duration > 0;
                         const durStr = hasDur ? (mins > 0 ? `${mins}m ${secs}s` : `${secs}s`) : "0s";
+                        const callTitle = hasDur
+                            ? `${message.author.displayName} started a call`
+                            : `Missed call from ${message.author.displayName}`;
+                        const callSubtitle = hasDur
+                            ? `Call lasted ${durStr}`
+                            : "You missed this call";
 
                         return (
-                            <div key={message.id} className="flex gap-3 my-4 items-center px-4 py-3 mx-2 bg-surface-raised border border-border rounded-xl shadow-sm">
-                                <div className="w-10 h-10 rounded-full bg-accent-violet/15 flex items-center justify-center text-accent-violet border border-accent-violet/30 flex-shrink-0">
-                                    <Phone className="w-5 h-5" />
-                                </div>
-                                <div className="min-w-0">
-                                    <div className="text-body font-semibold text-text-primary">
-                                        {message.author.displayName} started a call
+                            <div
+                                key={message.id}
+                                className={`relative my-1 px-1 py-2 pl-4 ${
+                                    hasDur ? "border-b border-[#262B39]" : "border-b border-[#4A232C]/70"
+                                }`}
+                            >
+                                <span
+                                    className={`absolute left-0 top-2 bottom-2 w-[2px] rounded-full ${
+                                        hasDur ? "bg-[#5865F2]/70" : "bg-[#F75F6E]"
+                                    }`}
+                                />
+
+                                <div
+                                    className={`flex items-center gap-2 ${
+                                        hasDur ? "text-[#C8CDDA]" : "text-[#F1B5BD]"
+                                    }`}
+                                >
+                                    <div
+                                        className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                            hasDur
+                                                ? "bg-[#1E2534] text-[#9DB0FF]"
+                                                : "bg-[#3A1B22] text-[#F97B8E]"
+                                        }`}
+                                    >
+                                        {hasDur ? (
+                                            <Phone className="w-3.5 h-3.5" />
+                                        ) : (
+                                            <PhoneOff className="w-3.5 h-3.5" />
+                                        )}
                                     </div>
-                                    <div className={`text-micro flex items-center gap-1.5 mt-0.5 ${hasDur ? "text-accent-teal" : "text-danger"}`}>
-                                        <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                                        {hasDur ? `Call lasted ${durStr}` : "Missed call"} • {formatTime(message.createdAt)}
+
+                                    <div className="min-w-0 flex-1">
+                                        <div
+                                            className={`text-[13px] font-semibold truncate ${
+                                                hasDur ? "text-[#E6E9F3]" : "text-[#FFC8CF]"
+                                            }`}
+                                        >
+                                            {callTitle}
+                                        </div>
+                                        <div className="text-[12px] flex items-center gap-1.5">
+                                            <span className={hasDur ? "text-[#8E93A3]" : "text-[#E98D9A]"}>
+                                                {callSubtitle}
+                                            </span>
+                                            <span className={hasDur ? "text-[#8E93A3]" : "text-[#D87886]"}>
+                                                • {formatTime(message.createdAt)}
+                                            </span>
+                                        </div>
                                     </div>
+
+                                    <span
+                                        className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                            hasDur
+                                                ? "bg-[#232A3A] text-[#AEB7CF]"
+                                                : "bg-[#4A232C] text-[#FFB0BC]"
+                                        }`}
+                                    >
+                                        {hasDur ? "Connected" : "Missed"}
+                                    </span>
                                 </div>
                             </div>
                         );
@@ -547,6 +948,7 @@ export function DMChatView({
                         message.author.avatarUrl ||
                         `https://api.dicebear.com/9.x/avataaars/svg?seed=${message.author.username}`;
                     const isOwn = message.author.id === currentUserId;
+                    const messageEmbeds = getMessageEmbeds(message.content);
 
                     return (
                         <div
@@ -604,33 +1006,71 @@ export function DMChatView({
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-body text-text-primary whitespace-pre-wrap break-words">
-                                        {renderContent(message.content)}
+                                    <>
+                                        <div className="text-body text-text-primary whitespace-pre-wrap break-words">
+                                            {renderContent(message.content)}
+                                        </div>
+                                        {messageEmbeds.length > 0 && (
+                                            <div className="mt-1">
+                                                {messageEmbeds.map((embed) => (
+                                                    <LinkEmbed key={embed.id} embed={embed} />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {message.reactions.length > 0 && (
+                                    <div className="flex gap-1.5 mt-2">
+                                        {message.reactions.map((reaction, idx) => (
+                                            <button
+                                                key={`${message.id}-reaction-${idx}`}
+                                                onClick={() => handleReaction(message.id, reaction.emoji, reaction.reacted)}
+                                                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${reaction.reacted
+                                                    ? "bg-reaction-own border border-accent-violet"
+                                                    : "bg-surface-raised border border-border hover:border-accent-violet/40"
+                                                    }`}
+                                            >
+                                                <span>{reaction.emoji}</span>
+                                                <span className="text-text-muted">{reaction.count}</span>
+                                            </button>
+                                        ))}
+                                        <div className="relative">
+                                            <button
+                                                onClick={() =>
+                                                    setReactionPickerMessageId(
+                                                        reactionPickerMessageId === message.id ? null : message.id
+                                                    )
+                                                }
+                                                className="flex items-center justify-center w-6 h-6 rounded-md bg-surface-raised border border-border hover:border-accent-violet/40 transition-all"
+                                            >
+                                                <Plus className="w-3 h-3 text-text-muted" />
+                                            </button>
+                                            {reactionPickerMessageId === message.id && (
+                                                <div className="absolute top-full left-0 mt-2 z-50">
+                                                    <EmojiPicker
+                                                        onSelect={(emoji) => {
+                                                            handleReaction(
+                                                                message.id,
+                                                                emoji,
+                                                                message.reactions.some(
+                                                                    (reaction) =>
+                                                                        reaction.emoji === emoji && reaction.reacted
+                                                                )
+                                                            );
+                                                            setReactionPickerMessageId(null);
+                                                        }}
+                                                        onClose={() => setReactionPickerMessageId(null)}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>
 
-                            {hoveredMessage === message.id && editingMessageId !== message.id && isOwn && (
-                                <div className="absolute -top-3 right-2 flex items-center gap-0.5 bg-surface border border-border rounded-lg px-1 py-1 shadow-lg z-20">
-                                    <button
-                                        onClick={() => {
-                                            setEditingMessageId(message.id);
-                                            setEditContent(message.content);
-                                        }}
-                                        className="w-7 h-7 rounded-md hover:bg-surface-raised flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
-                                        title="Edit"
-                                    >
-                                        <Pencil className="w-[14px] h-[14px]" />
-                                    </button>
-                                    <div className="w-px h-4 bg-border mx-0.5" />
-                                    <button
-                                        onClick={() => handleDelete(message.id)}
-                                        className="w-7 h-7 rounded-md hover:bg-danger/10 flex items-center justify-center text-text-muted hover:text-danger transition-colors"
-                                        title="Delete"
-                                    >
-                                        <Trash2 className="w-[14px] h-[14px]" />
-                                    </button>
-                                </div>
+                            {hoveredMessage === message.id && editingMessageId !== message.id && (
+                                <ActionPill message={message} isOwn={isOwn} />
                             )}
                         </div>
                     );
@@ -639,12 +1079,20 @@ export function DMChatView({
                 <div ref={endRef} />
             </div>
 
-            <div className="p-4 border-t border-border">
-                <div className="flex items-center gap-2 bg-surface-raised border border-border rounded-xl px-3 py-2">
+                <div className="p-4 border-t border-[#1F2330]">
+                    <div className="relative flex items-center gap-2 bg-[#1A1D28] border border-[#2A2F3F] rounded-lg px-3 py-2">
+                    {showSlashCommandMenu && (
+                        <SlashCommandMenu
+                            commands={filteredSlashCommands}
+                            selectedIndex={selectedSlashIndex}
+                            onSelect={(command) => setMessageInput(formatSlashCommandInput(command))}
+                            onHover={setSelectedSlashIndex}
+                        />
+                    )}
                     <button
                         onClick={() => attachmentInputRef.current?.click()}
                         disabled={uploadingAttachment}
-                        className="w-8 h-8 rounded-md flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-hover-row transition-colors disabled:opacity-50"
+                        className="w-8 h-8 rounded-md flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-[#272B39] transition-colors disabled:opacity-50"
                         title="Upload file"
                     >
                         {uploadingAttachment ? (
@@ -666,12 +1114,7 @@ export function DMChatView({
                         placeholder={`Message ${title}`}
                         className="flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted outline-none resize-none max-h-36 min-h-[22px] py-1 leading-[1.45]"
                         rows={1}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSend();
-                            }
-                        }}
+                        onKeyDown={handleComposerKeyDown}
                     />
                     <div className="flex items-center gap-0.5 flex-shrink-0">
                         <div className="relative">
@@ -681,7 +1124,7 @@ export function DMChatView({
                                     setShowGifPicker(false);
                                     setShowEmojiPicker(false);
                                 }}
-                                className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${showStickerPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                                className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${showStickerPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary hover:bg-[#272B39]"}`}
                                 title="Sticker"
                             >
                                 <ImageIcon className="w-4 h-4" />
@@ -702,7 +1145,7 @@ export function DMChatView({
                                     setShowEmojiPicker(false);
                                     setShowStickerPicker(false);
                                 }}
-                                className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${showGifPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                                className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${showGifPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary hover:bg-[#272B39]"}`}
                                 title="GIF"
                             >
                                 <span className="text-[11px] font-bold leading-none">GIF</span>
@@ -732,7 +1175,7 @@ export function DMChatView({
                                     setShowGifPicker(false);
                                     setShowStickerPicker(false);
                                 }}
-                                className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${showEmojiPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                                className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${showEmojiPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary hover:bg-[#272B39]"}`}
                                 title="Emoji"
                             >
                                 <Smile className="w-4 h-4" />
@@ -758,10 +1201,55 @@ export function DMChatView({
                         <Send className="w-4 h-4" />
                     </button>
                 </div>
-                <div className="mt-1.5 px-1 text-micro text-text-muted">
-                    Free uploads: {FREE_ATTACHMENT_MAX_LABEL} per file
+                    <div className="mt-1.5 px-1 text-micro text-[#8E93A3]">
+                        Free uploads: {FREE_ATTACHMENT_MAX_LABEL} per file
+                    </div>
                 </div>
+
             </div>
+
+            <aside className="hidden xl:flex w-[240px] flex-col bg-[#0E1016]">
+                <div className="h-12 border-b border-[#1F2330] px-4 flex items-center text-[12px] font-semibold tracking-wide uppercase text-[#8E93A3]">
+                    Members - {members.length}
+                </div>
+                <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
+                    {members.map((member) => {
+                        const avatar =
+                            member.avatarUrl ||
+                            `https://api.dicebear.com/9.x/avataaars/svg?seed=${member.username}`;
+                        const statusColor = DM_STATUS_COLORS[member.status] || DM_STATUS_COLORS.offline;
+                        const isYou = member.id === currentUserId;
+
+                        return (
+                            <div
+                                key={member.id}
+                                className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-[#1A1E2B] transition-colors"
+                            >
+                                <div className="relative">
+                                    <img
+                                        src={avatar}
+                                        alt={member.displayName}
+                                        className="w-8 h-8 rounded-full bg-[#222633]"
+                                    />
+                                    <span
+                                        className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-[#0E1016]"
+                                        style={{ backgroundColor: statusColor }}
+                                    />
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="text-body text-[#D2D7E2] truncate">
+                                        {member.displayName}
+                                        {isYou ? " (You)" : ""}
+                                    </div>
+                                    <div className="text-micro text-[#8E93A3] truncate capitalize">
+                                        {member.status || "offline"}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </aside>
         </div>
     );
 }

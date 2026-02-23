@@ -22,3 +22,10 @@ tauri-plugin-fs = "2.4.5"
 tauri-plugin-deep-link = "2.4.7"
 tauri-plugin-os = "2.3.2"
 tauri-plugin-process = "2.3.1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

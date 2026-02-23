@@ -1,15 +1,42 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, LogOut, Pencil, Upload } from "lucide-react";
+import { X, LogOut, Pencil, Upload, Bell, MessageSquare, AtSign, AppWindow, Volume2, Sparkles } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
+import { useNotificationStore } from "@/stores/notification-store";
+import { useVoiceStore } from "@/stores/voice-store";
+import { playNotificationTone } from "@/lib/notifications";
 
 interface UserSettingsModalProps {
     open: boolean;
     onClose: () => void;
 }
 
-type Tab = "My Account" | "Profiles" | "Appearance" | "Voice & Video";
+type Tab = "My Account" | "Profiles" | "Appearance" | "Notifications" | "Voice & Video";
+
+function NoiseSuppressionSection() {
+    const noiseSuppression = useVoiceStore((s) => s.noiseSuppression);
+    const setNoiseSuppression = useVoiceStore((s) => s.setNoiseSuppression);
+
+    return (
+        <div className="pt-6 border-t border-border">
+            <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">Audio Processing</h3>
+            <label className="flex items-center gap-3 cursor-pointer" onClick={() => setNoiseSuppression(!noiseSuppression)}>
+                <div
+                    role="switch"
+                    aria-checked={noiseSuppression}
+                    className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${noiseSuppression ? "bg-accent-violet" : "bg-surface-raised"}`}
+                >
+                    <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${noiseSuppression ? "translate-x-5" : "translate-x-0"}`} />
+                </div>
+                <div>
+                    <span className="text-body text-text-primary block">Noise Suppression</span>
+                    <span className="text-xs text-text-muted">Reduces background noise using RNNoise</span>
+                </div>
+            </label>
+        </div>
+    );
+}
 
 export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
     const { user, logout, updateUser } = useAuthStore();
@@ -22,6 +49,8 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
     const [audioInputId, setAudioInputId] = useState("default");
     const [audioOutputId, setAudioOutputId] = useState("default");
     const [pushToTalk, setPushToTalk] = useState(false);
+    const notificationPrefs = useNotificationStore((s) => s.preferences);
+    const setNotificationPreference = useNotificationStore((s) => s.setPreference);
 
     const [isHoveringAvatar, setIsHoveringAvatar] = useState(false);
     const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -134,6 +163,35 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
     const audioInputs = devices.filter(d => d.kind === "audioinput");
     const audioOutputs = devices.filter(d => d.kind === "audiooutput");
 
+    const playPreviewTone = (kind: "message" | "mention" | "other") => {
+        playNotificationTone(kind, notificationPrefs.soundVolume).catch(() => {
+            // Ignore playback errors from restricted autoplay contexts.
+        });
+    };
+
+    const requestDesktopNotificationPermission = async () => {
+        if (typeof window === "undefined") return;
+
+        if ("__TAURI_INTERNALS__" in window) {
+            try {
+                const { isPermissionGranted, requestPermission } = await import("@tauri-apps/plugin-notification");
+                const granted = await isPermissionGranted();
+                if (!granted) {
+                    await requestPermission();
+                }
+            } catch (err) {
+                console.error("Failed to request desktop notification permission:", err);
+            }
+            return;
+        }
+
+        if ("Notification" in window && Notification.permission === "default") {
+            await Notification.requestPermission().catch(() => {
+                // Ignore browser permission prompt failures.
+            });
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-[100] flex bg-background">
             {/* Hidden file input for avatar */}
@@ -186,6 +244,15 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                 }`}
                         >
                             Appearance
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("Notifications")}
+                            className={`w-full text-left px-3 py-2 rounded-md transition-colors text-body ${activeTab === "Notifications"
+                                    ? "bg-surface-raised text-text-primary font-medium"
+                                    : "text-text-muted hover:bg-hover-row hover:text-text-primary"
+                                }`}
+                        >
+                            Notifications
                         </button>
                         <button
                             onClick={() => setActiveTab("Voice & Video")}
@@ -386,6 +453,265 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                         </div>
                     )}
 
+                    {activeTab === "Notifications" && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <h2 className="text-xl font-bold text-text-primary mb-6">Notifications</h2>
+                            <div className="space-y-6">
+                                <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <Bell className="w-4 h-4 text-accent-violet" />
+                                        <h3 className="text-sm font-bold text-text-primary">Desktop Alerts</h3>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-body text-text-primary">Enable desktop notifications</p>
+                                            <p className="text-micro text-text-muted">
+                                                Show native notification popups for new activity.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() =>
+                                                setNotificationPreference(
+                                                    "enableDesktopNotifications",
+                                                    !notificationPrefs.enableDesktopNotifications
+                                                )
+                                            }
+                                            className={`w-11 h-6 rounded-full transition-colors p-0.5 ${notificationPrefs.enableDesktopNotifications ? "bg-accent-violet" : "bg-surface-raised border border-border"}`}
+                                        >
+                                            <span
+                                                className={`block w-5 h-5 rounded-full bg-white transition-transform ${notificationPrefs.enableDesktopNotifications ? "translate-x-5" : "translate-x-0"}`}
+                                            />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-body text-text-primary">Show alerts while app is focused</p>
+                                            <p className="text-micro text-text-muted">
+                                                Keep popups on even when you are already looking at Veyra.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() =>
+                                                setNotificationPreference(
+                                                    "showDesktopWhenFocused",
+                                                    !notificationPrefs.showDesktopWhenFocused
+                                                )
+                                            }
+                                            className={`w-11 h-6 rounded-full transition-colors p-0.5 ${notificationPrefs.showDesktopWhenFocused ? "bg-accent-violet" : "bg-surface-raised border border-border"}`}
+                                        >
+                                            <span
+                                                className={`block w-5 h-5 rounded-full bg-white transition-transform ${notificationPrefs.showDesktopWhenFocused ? "translate-x-5" : "translate-x-0"}`}
+                                            />
+                                        </button>
+                                    </div>
+
+                                    <button
+                                        onClick={requestDesktopNotificationPermission}
+                                        className="px-3 py-2 bg-surface-raised border border-border rounded-md text-sm text-text-primary hover:bg-hover-row transition-colors"
+                                    >
+                                        Request Notification Permission
+                                    </button>
+                                </div>
+
+                                <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <MessageSquare className="w-4 h-4 text-accent-violet" />
+                                        <h3 className="text-sm font-bold text-text-primary">Event Types</h3>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-body text-text-primary">Messages received</p>
+                                            <p className="text-micro text-text-muted">
+                                                Notify for channel and DM messages from other people.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() =>
+                                                setNotificationPreference(
+                                                    "enableMessageNotifications",
+                                                    !notificationPrefs.enableMessageNotifications
+                                                )
+                                            }
+                                            className={`w-11 h-6 rounded-full transition-colors p-0.5 ${notificationPrefs.enableMessageNotifications ? "bg-accent-violet" : "bg-surface-raised border border-border"}`}
+                                        >
+                                            <span
+                                                className={`block w-5 h-5 rounded-full bg-white transition-transform ${notificationPrefs.enableMessageNotifications ? "translate-x-5" : "translate-x-0"}`}
+                                            />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-body text-text-primary">Mentions and tags</p>
+                                            <p className="text-micro text-text-muted">
+                                                Highlight @username, @everyone, and @here mentions.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() =>
+                                                setNotificationPreference(
+                                                    "enableMentionNotifications",
+                                                    !notificationPrefs.enableMentionNotifications
+                                                )
+                                            }
+                                            className={`w-11 h-6 rounded-full transition-colors p-0.5 ${notificationPrefs.enableMentionNotifications ? "bg-accent-violet" : "bg-surface-raised border border-border"}`}
+                                        >
+                                            <span
+                                                className={`block w-5 h-5 rounded-full bg-white transition-transform ${notificationPrefs.enableMentionNotifications ? "translate-x-5" : "translate-x-0"}`}
+                                            />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-body text-text-primary">Other activity</p>
+                                            <p className="text-micro text-text-muted">
+                                                Incoming call alerts and other non-message events.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() =>
+                                                setNotificationPreference(
+                                                    "enableOtherNotifications",
+                                                    !notificationPrefs.enableOtherNotifications
+                                                )
+                                            }
+                                            className={`w-11 h-6 rounded-full transition-colors p-0.5 ${notificationPrefs.enableOtherNotifications ? "bg-accent-violet" : "bg-surface-raised border border-border"}`}
+                                        >
+                                            <span
+                                                className={`block w-5 h-5 rounded-full bg-white transition-transform ${notificationPrefs.enableOtherNotifications ? "translate-x-5" : "translate-x-0"}`}
+                                            />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <Volume2 className="w-4 h-4 text-accent-violet" />
+                                        <h3 className="text-sm font-bold text-text-primary">Sound</h3>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-body text-text-primary">Enable calming sound cues</p>
+                                            <p className="text-micro text-text-muted">
+                                                Play subtle sounds for messages, mentions, and call alerts.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() =>
+                                                setNotificationPreference(
+                                                    "enableSound",
+                                                    !notificationPrefs.enableSound
+                                                )
+                                            }
+                                            className={`w-11 h-6 rounded-full transition-colors p-0.5 ${notificationPrefs.enableSound ? "bg-accent-violet" : "bg-surface-raised border border-border"}`}
+                                        >
+                                            <span
+                                                className={`block w-5 h-5 rounded-full bg-white transition-transform ${notificationPrefs.enableSound ? "translate-x-5" : "translate-x-0"}`}
+                                            />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-body text-text-primary">Play sounds while focused</p>
+                                            <p className="text-micro text-text-muted">
+                                                Keep sound cues enabled while Veyra is the active window.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() =>
+                                                setNotificationPreference(
+                                                    "playSoundWhenFocused",
+                                                    !notificationPrefs.playSoundWhenFocused
+                                                )
+                                            }
+                                            className={`w-11 h-6 rounded-full transition-colors p-0.5 ${notificationPrefs.playSoundWhenFocused ? "bg-accent-violet" : "bg-surface-raised border border-border"}`}
+                                        >
+                                            <span
+                                                className={`block w-5 h-5 rounded-full bg-white transition-transform ${notificationPrefs.playSoundWhenFocused ? "translate-x-5" : "translate-x-0"}`}
+                                            />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-body text-text-primary">Volume</label>
+                                            <span className="text-micro text-text-muted">{notificationPrefs.soundVolume}%</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={100}
+                                            value={notificationPrefs.soundVolume}
+                                            onChange={(e) =>
+                                                setNotificationPreference("soundVolume", Number(e.target.value))
+                                            }
+                                            className="w-full accent-accent-violet"
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            onClick={() => playPreviewTone("message")}
+                                            className="px-3 py-2 rounded-md bg-surface-raised border border-border text-micro text-text-primary hover:bg-hover-row transition-colors inline-flex items-center gap-1.5"
+                                        >
+                                            <MessageSquare className="w-3.5 h-3.5" />
+                                            Test Message Sound
+                                        </button>
+                                        <button
+                                            onClick={() => playPreviewTone("mention")}
+                                            className="px-3 py-2 rounded-md bg-surface-raised border border-border text-micro text-text-primary hover:bg-hover-row transition-colors inline-flex items-center gap-1.5"
+                                        >
+                                            <AtSign className="w-3.5 h-3.5" />
+                                            Test Mention Sound
+                                        </button>
+                                        <button
+                                            onClick={() => playPreviewTone("other")}
+                                            className="px-3 py-2 rounded-md bg-surface-raised border border-border text-micro text-text-primary hover:bg-hover-row transition-colors inline-flex items-center gap-1.5"
+                                        >
+                                            <Sparkles className="w-3.5 h-3.5" />
+                                            Test Other Sound
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <AppWindow className="w-4 h-4 text-accent-violet" />
+                                        <h3 className="text-sm font-bold text-text-primary">Taskbar Badge</h3>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-body text-text-primary">Show unread count on app icon</p>
+                                            <p className="text-micro text-text-muted">
+                                                Mirrors unread activity on your taskbar icon similar to Discord.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() =>
+                                                setNotificationPreference(
+                                                    "enableTaskbarBadge",
+                                                    !notificationPrefs.enableTaskbarBadge
+                                                )
+                                            }
+                                            className={`w-11 h-6 rounded-full transition-colors p-0.5 ${notificationPrefs.enableTaskbarBadge ? "bg-accent-violet" : "bg-surface-raised border border-border"}`}
+                                        >
+                                            <span
+                                                className={`block w-5 h-5 rounded-full bg-white transition-transform ${notificationPrefs.enableTaskbarBadge ? "translate-x-5" : "translate-x-0"}`}
+                                            />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {activeTab === "Voice & Video" && (
                         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <h2 className="text-xl font-bold text-text-primary mb-6">Voice & Video</h2>
@@ -432,6 +758,8 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                         </label>
                                     </div>
                                 </div>
+
+                                <NoiseSuppressionSection />
                             </div>
                         </div>
                     )}

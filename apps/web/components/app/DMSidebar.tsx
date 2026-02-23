@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { MessageSquare, Plus, Users, X } from "lucide-react";
+import { MessageSquare, Plus, Search, Users, X } from "lucide-react";
 import type { DMConversationData, DMParticipantData, FriendListEntry } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
+import { useNotificationStore } from "@/stores/notification-store";
 import { parseAttachmentContent } from "@/lib/attachments";
+import { UserDock } from "./UserDock";
 
 interface DMSidebarProps {
     conversations: DMConversationData[];
@@ -12,6 +14,7 @@ interface DMSidebarProps {
     activeConversationId: string | null;
     onSelectConversation: (conversationId: string | null) => void;
     onCreateGroup: (participantIds: string[], name?: string) => Promise<void>;
+    onOpenSettings: () => void;
 }
 
 function conversationTitle(conversation: DMConversationData, currentUserId: string | undefined) {
@@ -49,8 +52,11 @@ export function DMSidebar({
     activeConversationId,
     onSelectConversation,
     onCreateGroup,
+    onOpenSettings,
 }: DMSidebarProps) {
     const currentUserId = useAuthStore((s) => s.user?.id);
+    const dmUnread = useNotificationStore((s) => s.dmUnread);
+    const markDMRead = useNotificationStore((s) => s.markDMRead);
     const [showGroupModal, setShowGroupModal] = useState(false);
     const [groupName, setGroupName] = useState("");
     const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
@@ -89,24 +95,20 @@ export function DMSidebar({
 
     return (
         <>
-            <div className="w-full lg:w-[240px] max-h-[42vh] lg:max-h-none bg-channel-sidebar border-b lg:border-b-0 lg:border-r border-border flex flex-col flex-shrink-0">
-                <div className="h-12 border-b border-border px-3 flex items-center justify-between">
-                    <span className="text-emphasis font-semibold text-text-primary">Direct Messages</span>
-                    <button
-                        onClick={() => setShowGroupModal(true)}
-                        className="w-8 h-8 rounded-md hover:bg-hover-row text-text-muted hover:text-text-primary flex items-center justify-center transition-colors"
-                        title="Create Group DM"
-                    >
-                        <Plus className="w-4 h-4" />
+            <div className="w-full lg:w-[300px] max-h-[42vh] lg:max-h-none bg-[#111318] border-b lg:border-b-0 lg:border-r border-[#1F2330] flex flex-col flex-shrink-0">
+                <div className="h-12 border-b border-[#1F2330] px-3 flex items-center">
+                    <button className="w-full h-8 rounded-md bg-[#1C1F2A] hover:bg-[#202432] text-text-muted text-body flex items-center gap-2 px-3 text-left transition-colors">
+                        <Search className="w-4 h-4" />
+                        Find or start a conversation
                     </button>
                 </div>
 
-                <div className="p-2 border-b border-border">
+                <div className="px-2 py-2 border-b border-[#1F2330]">
                     <button
                         onClick={() => onSelectConversation(null)}
-                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-body transition-colors ${activeConversationId === null
-                                ? "bg-surface-raised text-text-primary"
-                                : "text-text-muted hover:text-text-primary hover:bg-hover-row"
+                        className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-body transition-colors ${activeConversationId === null
+                                ? "bg-[#353844] text-text-primary"
+                                : "text-[#B7BCCB] hover:text-text-primary hover:bg-[#202432]"
                             }`}
                     >
                         <Users className="w-4 h-4" />
@@ -114,7 +116,20 @@ export function DMSidebar({
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                <div className="px-3 pt-3 pb-1 flex items-center justify-between">
+                    <span className="text-[12px] font-semibold tracking-wide uppercase text-[#8E93A3]">
+                        Direct Messages
+                    </span>
+                    <button
+                        onClick={() => setShowGroupModal(true)}
+                        className="w-7 h-7 rounded-md hover:bg-[#202432] text-[#8E93A3] hover:text-text-primary flex items-center justify-center transition-colors"
+                        title="Create Group DM"
+                    >
+                        <Plus className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
                     {conversations.length === 0 && (
                         <div className="px-2 py-3 text-micro text-text-muted">
                             No DMs yet. Start one from Friends.
@@ -158,19 +173,23 @@ export function DMSidebar({
 
                         const avatar = conversationAvatar(conversation, currentUserId);
                         const isActive = conversation.id === activeConversationId;
+                        const unreadCount = dmUnread[conversation.id] || 0;
 
                         return (
                             <button
                                 key={conversation.id}
-                                onClick={() => onSelectConversation(conversation.id)}
-                                className={`w-full text-left px-2 py-2 rounded-md transition-colors ${isActive
-                                        ? "bg-surface-raised"
-                                        : "hover:bg-hover-row"
+                                onClick={() => {
+                                    markDMRead(conversation.id);
+                                    onSelectConversation(conversation.id);
+                                }}
+                                className={`w-full text-left px-2.5 py-2 rounded-md transition-colors ${isActive
+                                        ? "bg-[#353844]"
+                                        : "hover:bg-[#202432]"
                                     }`}
                             >
                                 <div className="flex items-center gap-2.5">
                                     {conversation.type === "group" ? (
-                                        <div className="w-9 h-9 rounded-full bg-surface-raised border border-border flex items-center justify-center text-text-muted">
+                                        <div className="w-9 h-9 rounded-full bg-[#202432] border border-[#30374A] flex items-center justify-center text-[#AEB4C2]">
                                             <Users className="w-4 h-4" />
                                         </div>
                                     ) : avatar ? (
@@ -180,23 +199,30 @@ export function DMSidebar({
                                             className="w-9 h-9 rounded-full bg-surface"
                                         />
                                     ) : (
-                                        <div className="w-9 h-9 rounded-full bg-surface-raised border border-border flex items-center justify-center text-text-muted">
+                                        <div className="w-9 h-9 rounded-full bg-[#202432] border border-[#30374A] flex items-center justify-center text-[#AEB4C2]">
                                             <MessageSquare className="w-4 h-4" />
                                         </div>
                                     )}
                                     <div className="min-w-0">
-                                        <div className={`text-body truncate ${isActive ? "text-text-primary" : "text-text-primary"}`}>
+                                        <div className={`text-body truncate ${isActive ? "text-text-primary" : "text-[#D2D7E2]"}`}>
                                             {title}
                                         </div>
-                                        <div className="text-micro text-text-muted truncate">
+                                        <div className="text-micro text-[#8E93A3] truncate">
                                             {preview}
                                         </div>
                                     </div>
+                                    {unreadCount > 0 && (
+                                        <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full bg-accent-violet text-white text-[11px] font-semibold leading-5 text-center">
+                                            {unreadCount > 99 ? "99+" : unreadCount}
+                                        </span>
+                                    )}
                                 </div>
                             </button>
                         );
                     })}
                 </div>
+
+                <UserDock onOpenSettings={onOpenSettings} />
             </div>
 
             {showGroupModal && (

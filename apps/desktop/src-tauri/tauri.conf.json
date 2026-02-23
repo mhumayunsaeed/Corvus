@@ -23,11 +23,12 @@
         "minWidth": 940,
         "minHeight": 600,
         "decorations": false,
-        "center": true
+        "center": true,
+        "visible": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:* https://* ws://* wss://*; img-src 'self' data: https://*"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:* https://* ws://* wss://*; img-src 'self' data: https://* http://localhost:*; media-src 'self' data: blob: https://* http://localhost:*; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://twitframe.com https://platform.twitter.com;"
     }
   },
   "plugins": {

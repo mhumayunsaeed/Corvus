@@ -6,7 +6,13 @@ import { useChatStore } from "@/stores/chat-store";
 import { useDMStore } from "@/stores/dm-store";
 import { useAppStore } from "@/stores/app-store";
 import { useVoiceStore } from "@/stores/voice-store";
+import { useNotificationStore } from "@/stores/notification-store";
 import { ensureWsUrl } from "@/lib/endpoints";
+import {
+    playNotificationTone,
+    showSystemNotification,
+    summarizeNotificationBody,
+} from "@/lib/notifications";
 
 let globalWs: WebSocket | null = null;
 let globalReconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -15,9 +21,82 @@ const MAX_RECONNECT_DELAY = 30000;
 const globalSubscribedChannels = new Set<string>();
 const globalSubscribedDMConversations = new Set<string>();
 
+const TAG_TARGET_PATTERN = /@(everyone|here)\b/i;
+
+function escapeRegExp(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isMessageTaggingUser(
+    content: string,
+    username: string | undefined,
+    displayName: string | undefined
+) {
+    if (!content.trim()) return false;
+    if (TAG_TARGET_PATTERN.test(content)) return true;
+
+    const targets = [username, displayName]
+        .filter((value): value is string => !!value)
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0);
+
+    for (const target of targets) {
+        const normalized = target.toLowerCase().replace(/\s+/g, "\\s+");
+        const mentionRegex = new RegExp(`(^|\\s)@${normalized}(\\b|$)`, "i");
+        if (mentionRegex.test(content)) {
+            return true;
+        }
+
+        const escaped = escapeRegExp(target.toLowerCase());
+        const exactRegex = new RegExp(`(^|\\s)@${escaped}(\\b|$)`, "i");
+        if (exactRegex.test(content)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function isWindowFocused() {
+    if (typeof document === "undefined") return true;
+    return document.hasFocus();
+}
+
+function shouldShowForegroundNotification(allowWhenFocused: boolean) {
+    if (allowWhenFocused) return true;
+    return !isWindowFocused();
+}
+
+function getConversationTitle(
+    conversationId: string,
+    currentUserId: string,
+    conversations: Array<{
+        id: string;
+        type: "direct" | "group";
+        name: string | null;
+        participants: Array<{ id: string; displayName: string }>;
+    }>
+) {
+    const conversation = conversations.find((item) => item.id === conversationId);
+    if (!conversation) return "Direct Message";
+
+    if (conversation.type === "group") {
+        if (conversation.name?.trim()) return conversation.name.trim();
+        return "Group DM";
+    }
+
+    const peer =
+        conversation.participants.find((participant) => participant.id !== currentUserId) ||
+        conversation.participants[0];
+
+    return peer?.displayName || "Direct Message";
+}
+
 export function useWebSocket() {
     const token = useAuthStore((s) => s.token);
     const userId = useAuthStore((s) => s.user?.id);
+    const username = useAuthStore((s) => s.user?.username);
+    const displayName = useAuthStore((s) => s.user?.displayName);
     const addMessage = useChatStore((s) => s.addMessage);
     const updateMessage = useChatStore((s) => s.updateMessage);
     const deleteMessage = useChatStore((s) => s.deleteMessage);
@@ -28,7 +107,13 @@ export function useWebSocket() {
     const addDMMessage = useDMStore((s) => s.addMessage);
     const updateDMMessage = useDMStore((s) => s.updateMessage);
     const deleteDMMessage = useDMStore((s) => s.deleteMessage);
+    const addDMReaction = useDMStore((s) => s.addReaction);
+    const removeDMReaction = useDMStore((s) => s.removeReaction);
     const upsertDMConversation = useAppStore((s) => s.upsertDMConversation);
+    const activeChannelId = useAppStore((s) => s.activeChannelId);
+    const activeDMConversationId = useAppStore((s) => s.activeDMConversationId);
+    const channels = useAppStore((s) => s.channels);
+    const dmConversations = useAppStore((s) => s.dmConversations);
     const addVoiceChannelParticipant = useVoiceStore((s) => s.addChannelParticipant);
     const removeVoiceChannelParticipant = useVoiceStore((s) => s.removeChannelParticipant);
     const addVoiceParticipant = useVoiceStore((s) => s.addParticipant);
@@ -46,8 +131,16 @@ export function useWebSocket() {
         addDMMessage,
         updateDMMessage,
         deleteDMMessage,
+        addDMReaction,
+        removeDMReaction,
         upsertDMConversation,
         userId,
+        username,
+        displayName,
+        activeChannelId,
+        activeDMConversationId,
+        channels,
+        dmConversations,
         addVoiceChannelParticipant,
         removeVoiceChannelParticipant,
         addVoiceParticipant,
@@ -66,8 +159,16 @@ export function useWebSocket() {
         addDMMessage,
         updateDMMessage,
         deleteDMMessage,
+        addDMReaction,
+        removeDMReaction,
         upsertDMConversation,
         userId,
+        username,
+        displayName,
+        activeChannelId,
+        activeDMConversationId,
+        channels,
+        dmConversations,
         addVoiceChannelParticipant,
         removeVoiceChannelParticipant,
         addVoiceParticipant,
@@ -105,18 +206,72 @@ export function useWebSocket() {
                     const currentUserId = h.userId || "";
 
                     switch (msg.type) {
-                        case "new_message":
+                        case "new_message": {
                             h.addMessage(msg.data.channelId, msg.data);
-                            if (msg.data.author.id !== currentUserId && typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
-                                import("@tauri-apps/plugin-notification").then(({ isPermissionGranted, sendNotification }) => {
-                                    isPermissionGranted().then(granted => {
-                                        if (granted) {
-                                            sendNotification({ title: `#${msg.data.channelId} - ${msg.data.author.displayName}`, body: msg.data.content });
-                                        }
-                                    });
+
+                            if (msg.data.author.id === currentUserId) {
+                                break;
+                            }
+
+                            const notificationStore = useNotificationStore.getState();
+                            const prefs = notificationStore.preferences;
+                            const focused = isWindowFocused();
+                            const isActiveChannel = h.activeChannelId === msg.data.channelId;
+                            const isTag = isMessageTaggingUser(
+                                msg.data.content,
+                                h.username,
+                                h.displayName
+                            );
+
+                            if (!isActiveChannel || !focused) {
+                                notificationStore.incrementChannelUnread(msg.data.channelId, {
+                                    mention: isTag,
                                 });
                             }
+
+                            const typeEnabled = isTag
+                                ? prefs.enableMentionNotifications
+                                : prefs.enableMessageNotifications;
+
+                            if (!typeEnabled) {
+                                break;
+                            }
+
+                            const canPlaySound =
+                                prefs.enableSound &&
+                                shouldShowForegroundNotification(prefs.playSoundWhenFocused);
+                            const canShowDesktop =
+                                prefs.enableDesktopNotifications &&
+                                shouldShowForegroundNotification(prefs.showDesktopWhenFocused);
+
+                            const channelName =
+                                h.channels.find((channel) => channel.id === msg.data.channelId)?.name ||
+                                msg.data.channelId;
+                            const preview = summarizeNotificationBody(msg.data.content);
+
+                            if (canPlaySound) {
+                                playNotificationTone(
+                                    isTag ? "mention" : "message",
+                                    prefs.soundVolume
+                                ).catch(() => {
+                                    // Ignore autoplay / audio context errors.
+                                });
+                            }
+
+                            if (canShowDesktop) {
+                                const title = isTag
+                                    ? `Tagged in #${channelName}`
+                                    : `#${channelName}`;
+                                showSystemNotification(
+                                    title,
+                                    `${msg.data.author.displayName}: ${preview}`
+                                ).catch(() => {
+                                    // Ignore desktop notification errors.
+                                });
+                            }
+
                             break;
+                        }
 
                         case "message_update":
                             h.updateMessage(msg.data.channelId, msg.data.id, {
@@ -176,21 +331,91 @@ export function useWebSocket() {
                             h.deleteDMMessage(msg.data.conversationId, msg.data.id);
                             break;
 
-                        case "new_dm_message":
+                        case "dm_reaction_add":
+                            h.addDMReaction(
+                                msg.data.conversationId,
+                                msg.data.messageId,
+                                msg.data.emoji,
+                                msg.data.userId,
+                                currentUserId
+                            );
+                            break;
+
+                        case "dm_reaction_remove":
+                            h.removeDMReaction(
+                                msg.data.conversationId,
+                                msg.data.messageId,
+                                msg.data.emoji,
+                                msg.data.userId,
+                                currentUserId
+                            );
+                            break;
+
+                        case "new_dm_message": {
                             h.addDMMessage(msg.data.conversationId, msg.data.message);
                             if (msg.data.conversation) {
                                 h.upsertDMConversation(msg.data.conversation);
                             }
-                            if (msg.data.message.author.id !== currentUserId && typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
-                                import("@tauri-apps/plugin-notification").then(({ isPermissionGranted, sendNotification }) => {
-                                    isPermissionGranted().then(granted => {
-                                        if (granted) {
-                                            sendNotification({ title: msg.data.message.author.displayName, body: msg.data.message.content });
-                                        }
-                                    });
+
+                            if (msg.data.message.author.id === currentUserId) {
+                                break;
+                            }
+
+                            const notificationStore = useNotificationStore.getState();
+                            const prefs = notificationStore.preferences;
+                            const focused = isWindowFocused();
+                            const isActiveConversation =
+                                h.activeDMConversationId === msg.data.conversationId;
+
+                            if (!isActiveConversation || !focused) {
+                                notificationStore.incrementDMUnread(msg.data.conversationId);
+                            }
+
+                            if (!prefs.enableMessageNotifications) {
+                                break;
+                            }
+
+                            const canPlaySound =
+                                prefs.enableSound &&
+                                shouldShowForegroundNotification(prefs.playSoundWhenFocused);
+                            const canShowDesktop =
+                                prefs.enableDesktopNotifications &&
+                                shouldShowForegroundNotification(prefs.showDesktopWhenFocused);
+
+                            if (canPlaySound) {
+                                playNotificationTone("message", prefs.soundVolume).catch(() => {
+                                    // Ignore autoplay / audio context errors.
                                 });
                             }
+
+                            if (canShowDesktop) {
+                                const mergedConversations = msg.data.conversation
+                                    ? [
+                                          msg.data.conversation,
+                                          ...h.dmConversations.filter(
+                                              (conversation) =>
+                                                  conversation.id !== msg.data.conversation.id
+                                          ),
+                                      ]
+                                    : h.dmConversations;
+
+                                const conversationTitle = getConversationTitle(
+                                    msg.data.conversationId,
+                                    currentUserId,
+                                    mergedConversations
+                                );
+
+                                const preview = summarizeNotificationBody(msg.data.message.content);
+                                showSystemNotification(
+                                    conversationTitle,
+                                    `${msg.data.message.author.displayName}: ${preview}`
+                                ).catch(() => {
+                                    // Ignore desktop notification errors.
+                                });
+                            }
+
                             break;
+                        }
 
                         case "voice_participant_join":
                             h.addVoiceChannelParticipant(msg.data.channelId, {
@@ -221,12 +446,41 @@ export function useWebSocket() {
                             }
                             break;
 
-                        case "incoming_call":
+                        case "incoming_call": {
+                            const notificationStore = useNotificationStore.getState();
+                            const prefs = notificationStore.preferences;
+
+                            if (prefs.enableOtherNotifications) {
+                                const canPlaySound =
+                                    prefs.enableSound &&
+                                    shouldShowForegroundNotification(prefs.playSoundWhenFocused);
+                                const canShowDesktop =
+                                    prefs.enableDesktopNotifications &&
+                                    shouldShowForegroundNotification(prefs.showDesktopWhenFocused);
+
+                                if (canPlaySound) {
+                                    playNotificationTone("other", prefs.soundVolume).catch(() => {
+                                        // Ignore autoplay / audio context errors.
+                                    });
+                                }
+
+                                if (canShowDesktop) {
+                                    const callerName = msg.data.callerName || "Someone";
+                                    showSystemNotification(
+                                        "Incoming call",
+                                        `${callerName} is calling you.`
+                                    ).catch(() => {
+                                        // Ignore desktop notification errors.
+                                    });
+                                }
+                            }
+
                             // Handle incoming DM call - dispatch custom event
                             window.dispatchEvent(
                                 new CustomEvent("veyra:incoming_call", { detail: msg.data })
                             );
                             break;
+                        }
 
                         case "call_ended":
                             window.dispatchEvent(

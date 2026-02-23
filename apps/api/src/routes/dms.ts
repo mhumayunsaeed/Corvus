@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
 import { broadcastToDMConversation } from "../ws.js";
+import { executeSlashCommand } from "../lib/slash-commands.js";
 
 const dms = new Hono<AuthEnv>();
 const db = prisma as any;
@@ -36,6 +37,10 @@ const sendDMMessageSchema = z.object({
     content: z.string().min(1, "Message cannot be empty").max(4000),
 });
 
+const dmReactionSchema = z.object({
+    emoji: z.string().min(1).max(32),
+});
+
 const userSelect = {
     id: true,
     displayName: true,
@@ -43,6 +48,83 @@ const userSelect = {
     avatarUrl: true,
     status: true,
 };
+
+interface DMReactionEntry {
+    emoji: string;
+    userIds: string[];
+}
+
+type DMMetadata = Record<string, unknown> & {
+    reactions?: DMReactionEntry[];
+};
+
+function parseDMMetadata(metadata: string | null | undefined): DMMetadata {
+    if (!metadata) return {};
+
+    try {
+        const parsed = JSON.parse(metadata);
+        if (parsed && typeof parsed === "object") {
+            return parsed as DMMetadata;
+        }
+    } catch {
+        // Ignore malformed JSON metadata.
+    }
+
+    return {};
+}
+
+function sanitizeReactionEntries(input: unknown): DMReactionEntry[] {
+    if (!Array.isArray(input)) return [];
+
+    const sanitized: DMReactionEntry[] = [];
+    for (const value of input) {
+        if (!value || typeof value !== "object") continue;
+        const candidate = value as { emoji?: unknown; userIds?: unknown };
+        if (typeof candidate.emoji !== "string" || candidate.emoji.length === 0) continue;
+        if (!Array.isArray(candidate.userIds)) continue;
+
+        const uniqueUserIds = Array.from(
+            new Set(candidate.userIds.filter((id): id is string => typeof id === "string"))
+        );
+        if (uniqueUserIds.length === 0) continue;
+
+        sanitized.push({
+            emoji: candidate.emoji,
+            userIds: uniqueUserIds,
+        });
+    }
+
+    return sanitized;
+}
+
+function buildDMReactions(metadata: string | null | undefined, currentUserId: string) {
+    const parsed = parseDMMetadata(metadata);
+    const entries = sanitizeReactionEntries(parsed.reactions);
+
+    return entries
+        .map((entry) => ({
+            emoji: entry.emoji,
+            count: entry.userIds.length,
+            reacted: entry.userIds.includes(currentUserId),
+        }))
+        .filter((entry) => entry.count > 0);
+}
+
+function writeDMReactionsMetadata(
+    metadata: string | null | undefined,
+    reactions: DMReactionEntry[]
+): string | null {
+    const parsed = parseDMMetadata(metadata);
+    const next = { ...parsed } as DMMetadata;
+
+    if (reactions.length > 0) {
+        next.reactions = reactions;
+    } else {
+        delete next.reactions;
+    }
+
+    return Object.keys(next).length > 0 ? JSON.stringify(next) : null;
+}
 
 function buildDirectKey(a: string, b: string) {
     return [a, b].sort().join(":");
@@ -296,6 +378,7 @@ dms.get("/dms/:id/messages", async (c) => {
             content: m.content,
             type: m.type,
             metadata: m.metadata,
+            reactions: buildDMReactions(m.metadata, userId),
             createdAt: m.createdAt,
             editedAt: m.editedAt,
             author: m.author,
@@ -315,6 +398,7 @@ dms.get("/dms/:id/messages", async (c) => {
 // POST /dms/:id/messages
 dms.post("/dms/:id/messages", async (c) => {
     const userId = c.get("userId");
+    const username = c.get("username");
     const conversationId = c.req.param("id");
 
     const isMember = await verifyConversationMembership(conversationId, userId);
@@ -329,12 +413,27 @@ dms.post("/dms/:id/messages", async (c) => {
         return c.json({ error: parsed.error.errors[0].message }, 400);
     }
 
+    let resolvedContent = parsed.data.content;
+    let resolvedType = "default";
+
+    const slash = executeSlashCommand(parsed.data.content, { username });
+    if (slash.kind === "error") {
+        return c.json({ error: slash.error }, 400);
+    }
+    if (slash.kind === "ok") {
+        resolvedContent = slash.content;
+        resolvedType = slash.type;
+    } else {
+        resolvedContent = slash.content;
+    }
+
     const message = await db.$transaction(async (tx: any) => {
         const created = await tx.dMMessage.create({
             data: {
                 conversationId,
                 authorId: userId,
-                content: parsed.data.content,
+                content: resolvedContent,
+                type: resolvedType,
             },
             include: {
                 author: { select: userSelect },
@@ -373,6 +472,7 @@ dms.post("/dms/:id/messages", async (c) => {
         content: message.content,
         type: message.type,
         metadata: message.metadata,
+        reactions: [],
         createdAt: message.createdAt,
         editedAt: message.editedAt,
         author: message.author,
@@ -462,6 +562,7 @@ dms.patch("/dms/:conversationId/messages/:messageId", async (c) => {
             content: updated.content,
             type: updated.type,
             metadata: updated.metadata,
+            reactions: buildDMReactions(updated.metadata, userId),
             createdAt: updated.createdAt,
             editedAt: updated.editedAt,
             author: updated.author,
@@ -470,6 +571,115 @@ dms.patch("/dms/:conversationId/messages/:messageId", async (c) => {
 });
 
 // ─── DELETE /dms/:conversationId/messages/:messageId — Delete DM message ────
+
+dms.post("/dms/:conversationId/messages/:messageId/reactions", async (c) => {
+    const userId = c.get("userId");
+    const conversationId = c.req.param("conversationId");
+    const messageId = c.req.param("messageId");
+
+    const isMember = await verifyConversationMembership(conversationId, userId);
+    if (!isMember) {
+        return c.json({ error: "Conversation not found." }, 404);
+    }
+
+    const body = await c.req.json();
+    const parsed = dmReactionSchema.safeParse(body);
+    if (!parsed.success) {
+        return c.json({ error: parsed.error.errors[0]?.message || "Invalid emoji." }, 400);
+    }
+
+    const emoji = parsed.data.emoji.trim();
+    if (!emoji) {
+        return c.json({ error: "Emoji is required." }, 400);
+    }
+
+    const message = await db.dMMessage.findUnique({
+        where: { id: messageId },
+    });
+
+    if (!message || message.conversationId !== conversationId) {
+        return c.json({ error: "Message not found." }, 404);
+    }
+
+    const existingReactions = sanitizeReactionEntries(
+        parseDMMetadata(message.metadata).reactions
+    );
+
+    const current = existingReactions.find((reaction) => reaction.emoji === emoji);
+    if (current && current.userIds.includes(userId)) {
+        return c.json({ message: "Already reacted." });
+    }
+
+    const nextReactions = current
+        ? existingReactions.map((reaction) =>
+            reaction.emoji === emoji
+                ? { ...reaction, userIds: Array.from(new Set([...reaction.userIds, userId])) }
+                : reaction
+        )
+        : [...existingReactions, { emoji, userIds: [userId] }];
+
+    const metadata = writeDMReactionsMetadata(message.metadata, nextReactions);
+    await db.dMMessage.update({
+        where: { id: messageId },
+        data: { metadata },
+    });
+
+    broadcastToDMConversation(conversationId, {
+        type: "dm_reaction_add",
+        data: { conversationId, messageId, userId, emoji },
+    });
+
+    return c.json({ message: "Reaction added." }, 201);
+});
+
+dms.delete("/dms/:conversationId/messages/:messageId/reactions/:emoji", async (c) => {
+    const userId = c.get("userId");
+    const conversationId = c.req.param("conversationId");
+    const messageId = c.req.param("messageId");
+    const emoji = decodeURIComponent(c.req.param("emoji"));
+
+    const isMember = await verifyConversationMembership(conversationId, userId);
+    if (!isMember) {
+        return c.json({ error: "Conversation not found." }, 404);
+    }
+
+    const message = await db.dMMessage.findUnique({
+        where: { id: messageId },
+    });
+
+    if (!message || message.conversationId !== conversationId) {
+        return c.json({ error: "Message not found." }, 404);
+    }
+
+    const existingReactions = sanitizeReactionEntries(
+        parseDMMetadata(message.metadata).reactions
+    );
+    const target = existingReactions.find((reaction) => reaction.emoji === emoji);
+    if (!target || !target.userIds.includes(userId)) {
+        return c.json({ error: "Reaction not found." }, 404);
+    }
+
+    const nextReactions = existingReactions
+        .map((reaction) =>
+            reaction.emoji === emoji
+                ? { ...reaction, userIds: reaction.userIds.filter((id) => id !== userId) }
+                : reaction
+        )
+        .filter((reaction) => reaction.userIds.length > 0);
+
+    const metadata = writeDMReactionsMetadata(message.metadata, nextReactions);
+    await db.dMMessage.update({
+        where: { id: messageId },
+        data: { metadata },
+    });
+
+    broadcastToDMConversation(conversationId, {
+        type: "dm_reaction_remove",
+        data: { conversationId, messageId, userId, emoji },
+    });
+
+    return c.json({ message: "Reaction removed." });
+});
 
 dms.delete("/dms/:conversationId/messages/:messageId", async (c) => {
     const userId = c.get("userId");

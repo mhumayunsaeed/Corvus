@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Github, ArrowLeft } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
+import { API_URL } from "@/lib/endpoints";
 
 export function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
@@ -18,11 +19,37 @@ export function LoginPage() {
 
     useEffect(() => {
         const w = window as unknown as Record<string, unknown>;
-        setIsTauri(
+        const detected =
             typeof window !== "undefined" &&
             (("__TAURI__" in window && w.__TAURI__ !== undefined) ||
-                ("__TAURI_INTERNALS__" in window && w.__TAURI_INTERNALS__ !== undefined))
-        );
+                ("__TAURI_INTERNALS__" in window && w.__TAURI_INTERNALS__ !== undefined));
+        setIsTauri(detected);
+
+        // Show the window once login page is rendered (window starts hidden to prevent white flash)
+        if (detected) {
+            import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+                const appWindow = getCurrentWindow();
+                appWindow.show().catch(() => {});
+                appWindow.setFocus().catch(() => {});
+            }).catch(() => {});
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!API_URL) return;
+        const controller = new AbortController();
+
+        fetch(`${API_URL}/healthz`, {
+            method: "GET",
+            cache: "no-store",
+            signal: controller.signal,
+        }).catch(() => {
+            // Best-effort warmup for cold starts.
+        });
+
+        return () => {
+            controller.abort();
+        };
     }, []);
 
     // refs for staggered GSAP entrance

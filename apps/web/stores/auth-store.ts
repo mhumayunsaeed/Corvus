@@ -55,7 +55,7 @@ async function api<T>(
         } catch {
             if (attempt < maxRetries) {
                 // Wait before retrying (handles Render cold starts)
-                await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+                await new Promise((r) => setTimeout(r, 750 * (attempt + 1)));
                 continue;
             }
             throw new Error(

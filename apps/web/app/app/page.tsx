@@ -18,10 +18,12 @@ import { VoiceControlBar } from "@/components/app/VoiceControlBar";
 import { IncomingCallNotification } from "@/components/app/IncomingCallNotification";
 import { useAppStore } from "@/stores/app-store";
 import { useVoiceStore } from "@/stores/voice-store";
+import { useNotificationStore } from "@/stores/notification-store";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { usePushToTalk } from "@/hooks/usePushToTalk";
 import { useDesktop } from "@/hooks/useDesktop";
 import { useMessageCache } from "@/hooks/useMessageCache";
+import { syncNotificationBadge } from "@/lib/notifications";
 import {
     createDMConversation,
     endDMCall,
@@ -66,6 +68,14 @@ export default function AppPage() {
     const setActiveChannel = useAppStore((s) => s.setActiveChannel);
     const setActiveDMConversation = useAppStore((s) => s.setActiveDMConversation);
     const upsertDMConversation = useAppStore((s) => s.upsertDMConversation);
+    const markChannelRead = useNotificationStore((s) => s.markChannelRead);
+    const markDMRead = useNotificationStore((s) => s.markDMRead);
+    const badgeEnabled = useNotificationStore((s) => s.preferences.enableTaskbarBadge);
+    const totalUnread = useNotificationStore(
+        (s) =>
+            Object.values(s.channelUnread).reduce((sum, count) => sum + count, 0) +
+            Object.values(s.dmUnread).reduce((sum, count) => sum + count, 0)
+    );
 
     const currentVoiceChannelId = useVoiceStore((s) => s.currentChannelId);
     const setAllChannelParticipants = useVoiceStore((s) => s.setAllChannelParticipants);
@@ -159,6 +169,45 @@ export default function AppPage() {
         setDMConversations,
         setActiveDMConversation,
     ]);
+
+    useEffect(() => {
+        if (!activeChannelId) return;
+        markChannelRead(activeChannelId);
+    }, [activeChannelId, markChannelRead]);
+
+    useEffect(() => {
+        if (!activeDMConversationId) return;
+        markDMRead(activeDMConversationId);
+    }, [activeDMConversationId, markDMRead]);
+
+    useEffect(() => {
+        const onFocus = () => {
+            const state = useAppStore.getState();
+            if (state.activeChannelId) {
+                markChannelRead(state.activeChannelId);
+            }
+            if (state.activeDMConversationId) {
+                markDMRead(state.activeDMConversationId);
+            }
+        };
+
+        window.addEventListener("focus", onFocus);
+        return () => window.removeEventListener("focus", onFocus);
+    }, [markChannelRead, markDMRead]);
+
+    useEffect(() => {
+        syncNotificationBadge(totalUnread, badgeEnabled).catch((err) => {
+            console.error("Failed to sync notification badge:", err);
+        });
+    }, [totalUnread, badgeEnabled]);
+
+    useEffect(() => {
+        return () => {
+            syncNotificationBadge(0, false).catch(() => {
+                // Ignore cleanup errors on navigation.
+            });
+        };
+    }, []);
 
     const openDirectDM = async (friendUserId: string) => {
         const result = await createDMConversation({ participantIds: [friendUserId] });
@@ -295,7 +344,6 @@ export default function AppPage() {
             <ServerRail
                 onCreateServer={() => setShowCreateServer(true)}
                 onJoinServer={() => setShowInviteJoin(true)}
-                onOpenSettings={() => setShowSettings(true)}
             />
 
             {/* Channel Sidebar — only show when a server is selected */}
@@ -318,6 +366,7 @@ export default function AppPage() {
                             activeConversationId={activeDMConversationId}
                             onSelectConversation={setActiveDMConversation}
                             onCreateGroup={createGroupDM}
+                            onOpenSettings={() => setShowSettings(true)}
                         />
 
                         {activeDMConversation ? (

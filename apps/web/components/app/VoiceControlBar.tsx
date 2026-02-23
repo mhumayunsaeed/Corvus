@@ -14,6 +14,7 @@ import {
     Settings,
     ChevronUp,
     Check,
+    AudioLines,
 } from "lucide-react";
 import { useVoiceStore } from "@/stores/voice-store";
 import { SCREEN_SHARE_PRESETS, type ScreenShareQuality } from "@/stores/voice-store";
@@ -47,6 +48,8 @@ export function VoiceControlBar({
     const setLocalVideo = useVoiceStore((s) => s.setLocalVideo);
     const setLocalScreenSharing = useVoiceStore((s) => s.setLocalScreenSharing);
     const setScreenShareQuality = useVoiceStore((s) => s.setScreenShareQuality);
+    const noiseSuppression = useVoiceStore((s) => s.noiseSuppression);
+    const setNoiseSuppression = useVoiceStore((s) => s.setNoiseSuppression);
     const voiceLeave = useVoiceStore((s) => s.leaveChannel);
     const [showQualityPicker, setShowQualityPicker] = useState(false);
     const qualityPickerRef = useRef<HTMLDivElement>(null);
@@ -213,6 +216,19 @@ export function VoiceControlBar({
                     title={hasVideo ? "Turn Off Camera" : "Turn On Camera"}
                 >
                     {hasVideo ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+                </button>
+
+                {/* Noise Suppression */}
+                <button
+                    onClick={() => setNoiseSuppression(!noiseSuppression)}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                        noiseSuppression
+                            ? "bg-accent-teal/20 text-accent-teal hover:bg-accent-teal/30"
+                            : "bg-surface-raised text-text-primary hover:bg-hover-row"
+                    }`}
+                    title={noiseSuppression ? "Disable Noise Suppression" : "Enable Noise Suppression"}
+                >
+                    <AudioLines className="w-5 h-5" />
                 </button>
 
                 {/* End Call */}
