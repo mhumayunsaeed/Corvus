@@ -6,10 +6,14 @@ import {
     Upload,
     Sparkles,
     Check,
+    CheckCircle2,
+    Circle,
     ChevronLeft,
     ChevronRight,
+    Download,
     Monitor,
     Bell,
+    Rocket,
     Zap,
     Wifi,
 } from "lucide-react";
@@ -17,6 +21,26 @@ import { interestTags, discoveryServers } from "@/data/mockData";
 import { useAuthStore } from "@/stores/auth-store";
 
 type OnboardingStep = 1 | 2 | 3 | 4;
+type DesktopOS = "windows" | "mac" | "linux" | "unknown";
+
+const desktopLabelByOs: Record<DesktopOS, string> = {
+    windows: "Download for Windows",
+    mac: "Download for macOS",
+    linux: "Download for Linux",
+    unknown: "Download Veyra Desktop",
+};
+
+function detectDesktopOS(): DesktopOS {
+    if (typeof navigator === "undefined") {
+        return "unknown";
+    }
+
+    const ua = navigator.userAgent;
+    if (ua.includes("Win")) return "windows";
+    if (ua.includes("Mac")) return "mac";
+    if (ua.includes("Linux")) return "linux";
+    return "unknown";
+}
 
 export function OnboardingPage() {
     const [currentStep, setCurrentStep] = useState<OnboardingStep>(1);
@@ -28,6 +52,12 @@ export function OnboardingPage() {
     });
     const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
     const [joinedServers, setJoinedServers] = useState<string[]>([]);
+    const [desktopOS, setDesktopOS] = useState<DesktopOS>("unknown");
+    const [installFlow, setInstallFlow] = useState({
+        downloaded: false,
+        installed: false,
+        opened: false,
+    });
     const router = useRouter();
     const { completeOnboarding, updateUser } = useAuthStore();
 
@@ -49,6 +79,10 @@ export function OnboardingPage() {
     useEffect(() => {
         animateStepIn(1);
         // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        setDesktopOS(detectDesktopOS());
     }, []);
 
     const go = (dir: 1 | -1) => {
@@ -91,8 +125,26 @@ export function OnboardingPage() {
         }
     };
 
+    const handleDesktopDownload = () => {
+        setInstallFlow((prev) => ({ ...prev, downloaded: true }));
+
+        const anchor = document.createElement("a");
+        anchor.href = `/api/download?os=${desktopOS}`;
+        anchor.setAttribute("download", "");
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+    };
+
+    const toggleInstallFlowStep = (step: "installed" | "opened") => {
+        setInstallFlow((prev) => ({ ...prev, [step]: !prev[step] }));
+    };
+
     /* ── Step label map ── */
     const stepLabels = ["Profile", "Interests", "Discover", "Desktop App"];
+    const installFlowProgress = Math.round(
+        (Object.values(installFlow).filter(Boolean).length / 3) * 100
+    );
 
     return (
         <div className="h-full bg-background flex items-center justify-center px-6 py-10 relative overflow-y-auto overflow-x-hidden">
@@ -329,21 +381,40 @@ export function OnboardingPage() {
 
                     {/* Step 4 — Desktop App */}
                     {currentStep === 4 && (
-                        <div className="bg-surface/90 backdrop-blur-xl rounded-2xl border border-border p-8 shadow-2xl shadow-black/20 text-center">
-                            <div className="relative inline-block mb-6">
-                                <div className="absolute -inset-6 bg-gradient-to-br from-accent-violet/20 to-accent-teal/10 rounded-full blur-[60px]" />
-                                <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-accent-violet to-accent-teal flex items-center justify-center shadow-glow">
-                                    <span className="text-white font-bold text-3xl">V</span>
+                        <div className="bg-surface/90 backdrop-blur-xl rounded-2xl border border-border p-8 shadow-2xl shadow-black/20">
+                            <div className="mb-8 rounded-2xl border border-accent-violet/30 bg-gradient-to-br from-accent-violet/15 via-surface to-accent-teal/10 p-6">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <p className="text-micro uppercase tracking-[0.18em] text-accent-teal mb-2">
+                                            Desktop install flow
+                                        </p>
+                                        <h2 className="text-2xl font-bold text-text-primary mb-1">Install Veyra in 3 steps</h2>
+                                        <p className="text-text-muted text-sm">
+                                            Start the download, run the installer, then launch the desktop app.
+                                        </p>
+                                    </div>
+                                    <div className="w-14 h-14 rounded-xl bg-accent-violet/20 border border-accent-violet/40 flex items-center justify-center shrink-0">
+                                        <Monitor className="w-7 h-7 text-accent-violet" />
+                                    </div>
+                                </div>
+
+                                <div className="mt-5">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-micro text-text-muted uppercase tracking-wider">
+                                            Progress
+                                        </span>
+                                        <span className="text-micro font-semibold text-text-primary">{installFlowProgress}%</span>
+                                    </div>
+                                    <div className="h-2 rounded-full bg-background/70 border border-border overflow-hidden">
+                                        <div
+                                            className="h-full bg-gradient-to-r from-accent-violet to-accent-teal transition-all duration-400"
+                                            style={{ width: `${installFlowProgress}%` }}
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            <h2 className="text-2xl font-bold text-text-primary mb-2">Get the desktop app</h2>
-                            <p className="text-text-muted text-sm max-w-sm mx-auto mb-8">
-                                For the best experience, download Veyra for your desktop. Under 15MB, instant setup.
-                            </p>
-
-                            {/* Feature highlights */}
-                            <div className="grid grid-cols-2 gap-3 mb-8 max-w-sm mx-auto text-left">
+                            <div className="grid grid-cols-2 gap-3 mb-6 text-left">
                                 {[
                                     { icon: Bell, text: "Native notifications" },
                                     { icon: Zap, text: "Lightning fast" },
@@ -360,18 +431,85 @@ export function OnboardingPage() {
                                 ))}
                             </div>
 
-                            <button className="px-8 py-3.5 bg-accent-violet hover:bg-[#6B59E6] text-white rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(124,106,247,0.35)] active:scale-[0.98] inline-flex items-center gap-2">
-                                <Monitor className="w-5 h-5" />
-                                Download for Windows
-                            </button>
+                            <div className="space-y-3 mb-7">
+                                <div className="rounded-xl border border-border bg-surface-raised p-4 flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                        {installFlow.downloaded ? (
+                                            <CheckCircle2 className="w-5 h-5 text-success" />
+                                        ) : (
+                                            <Circle className="w-5 h-5 text-text-muted" />
+                                        )}
+                                        <div>
+                                            <p className="text-body font-semibold text-text-primary">1. Download installer</p>
+                                            <p className="text-micro text-text-muted">Get the latest desktop build for your operating system.</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleDesktopDownload}
+                                        className="px-4 py-2 bg-accent-violet hover:bg-[#6B59E6] text-white rounded-lg text-micro font-medium transition-colors inline-flex items-center gap-1.5 shrink-0"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        {desktopLabelByOs[desktopOS]}
+                                    </button>
+                                </div>
 
-                            <div className="mt-4">
-                                <button
-                                    onClick={handleSkip}
-                                    className="text-micro text-text-muted hover:text-text-primary transition-colors"
-                                >
-                                    Skip for now
-                                </button>
+                                <div className="rounded-xl border border-border bg-surface-raised p-4 flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                        {installFlow.installed ? (
+                                            <CheckCircle2 className="w-5 h-5 text-success" />
+                                        ) : (
+                                            <Circle className="w-5 h-5 text-text-muted" />
+                                        )}
+                                        <div>
+                                            <p className="text-body font-semibold text-text-primary">2. Run the installer</p>
+                                            <p className="text-micro text-text-muted">Open the downloaded setup file and complete installation.</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleInstallFlowStep("installed")}
+                                        disabled={!installFlow.downloaded}
+                                        className={`px-4 py-2 rounded-lg text-micro font-medium transition-colors shrink-0 ${installFlow.installed
+                                            ? "bg-success/20 text-success border border-success/40"
+                                            : "bg-surface text-text-primary border border-border hover:bg-hover-row disabled:opacity-40 disabled:cursor-not-allowed"
+                                            }`}
+                                    >
+                                        {installFlow.installed ? "Marked done" : "Mark as done"}
+                                    </button>
+                                </div>
+
+                                <div className="rounded-xl border border-border bg-surface-raised p-4 flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                        {installFlow.opened ? (
+                                            <CheckCircle2 className="w-5 h-5 text-success" />
+                                        ) : (
+                                            <Circle className="w-5 h-5 text-text-muted" />
+                                        )}
+                                        <div>
+                                            <p className="text-body font-semibold text-text-primary">3. Open Veyra desktop</p>
+                                            <p className="text-micro text-text-muted">Sign in to sync your communities and preferences.</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleInstallFlowStep("opened")}
+                                        disabled={!installFlow.downloaded || !installFlow.installed}
+                                        className={`px-4 py-2 rounded-lg text-micro font-medium transition-colors shrink-0 ${installFlow.opened
+                                            ? "bg-success/20 text-success border border-success/40"
+                                            : "bg-surface text-text-primary border border-border hover:bg-hover-row disabled:opacity-40 disabled:cursor-not-allowed"
+                                            }`}
+                                    >
+                                        {installFlow.opened ? "Marked done" : "Mark as done"}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border border-border bg-background/70 p-4 flex items-center gap-3">
+                                <Rocket className="w-5 h-5 text-accent-teal shrink-0" />
+                                <p className="text-micro text-text-muted">
+                                    Tip: keep this tab open while downloading. You can finish onboarding now and install in the background.
+                                </p>
                             </div>
                         </div>
                     )}

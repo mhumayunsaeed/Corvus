@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 
 const REPO = "Humayun-glitch/Veyra";
 const GITHUB_RELEASE_LATEST = `https://github.com/${REPO}/releases/latest`;
+const GITHUB_RELEASE_LATEST_DOWNLOAD = `https://github.com/${REPO}/releases/latest/download`;
 
 export const dynamic = "force-dynamic";
 
 type GitHubAsset = {
+    id: number;
     name: string;
     browser_download_url: string;
 };
@@ -39,6 +41,10 @@ function findAsset(assets: GitHubAsset[], os: string | null) {
     return downloadable[0];
 }
 
+function sanitizeFilename(filename: string) {
+    return filename.replace(/[^\w.\-()+ ]+/g, "_");
+}
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const os = searchParams.get("os")?.toLowerCase() ?? null;
@@ -62,7 +68,41 @@ export async function GET(request: Request) {
             return NextResponse.redirect(GITHUB_RELEASE_LATEST);
         }
 
-        return NextResponse.redirect(asset.browser_download_url);
+        const assetDownloadUrl = `${GITHUB_RELEASE_LATEST_DOWNLOAD}/${encodeURIComponent(asset.name)}`;
+        const downloadResponse = await fetch(asset.browser_download_url, {
+            headers: {
+                Accept: "application/octet-stream",
+            },
+            redirect: "follow",
+            cache: "no-store",
+        });
+
+        if (!downloadResponse.ok || !downloadResponse.body) {
+            return NextResponse.redirect(assetDownloadUrl);
+        }
+
+        const headers = new Headers();
+        headers.set(
+            "content-type",
+            downloadResponse.headers.get("content-type") ?? "application/octet-stream"
+        );
+        headers.set(
+            "content-disposition",
+            downloadResponse.headers.get("content-disposition") ??
+            `attachment; filename="${sanitizeFilename(asset.name)}"`
+        );
+
+        const contentLength = downloadResponse.headers.get("content-length");
+        if (contentLength) {
+            headers.set("content-length", contentLength);
+        }
+
+        headers.set("cache-control", "no-store");
+
+        return new NextResponse(downloadResponse.body, {
+            status: 200,
+            headers,
+        });
     } catch (error) {
         console.error("Download API error:", error);
         return NextResponse.redirect(GITHUB_RELEASE_LATEST);

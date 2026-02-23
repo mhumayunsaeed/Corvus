@@ -34,6 +34,15 @@ export function Hero() {
     setOS(detectOS());
   }, []);
 
+  const handleDownloadClick = () => {
+    const anchor = document.createElement("a");
+    anchor.href = `/api/download?os=${os}`;
+    anchor.setAttribute("download", "");
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  };
+
   // GSAP animations — imported dynamically to avoid SSR issues
   useEffect(() => {
     let ctx: { revert: () => void } | undefined;
@@ -81,6 +90,7 @@ export function Hero() {
   return (
     <section
       ref={sectionRef}
+      id="download"
       className="relative min-h-screen flex flex-col items-center justify-center pt-24 pb-16 px-6 overflow-hidden"
     >
       {/* Atmospheric gradient mesh */}
@@ -111,10 +121,14 @@ export function Hero() {
         ref={ctasRef}
         className="relative z-10 mt-10 flex flex-col sm:flex-row items-center gap-4 opacity-0"
       >
-        <a href={`/api/download?os=${os}`} className="flex items-center gap-2.5 px-7 py-3.5 bg-accent-violet text-white font-medium rounded-md shadow-glow hover:shadow-[0_0_40px_rgba(124,106,247,0.35)] hover:bg-accent-violet/90 transition-all duration-150 active:scale-[0.97]">
+        <button
+          type="button"
+          onClick={handleDownloadClick}
+          className="flex items-center gap-2.5 px-7 py-3.5 bg-accent-violet text-white font-medium rounded-md shadow-glow hover:shadow-[0_0_40px_rgba(124,106,247,0.35)] hover:bg-accent-violet/90 transition-all duration-150 active:scale-[0.97]"
+        >
           <OSIcon className="w-5 h-5" />
           {osLabel}
-        </a>
+        </button>
         <a
           href="/app"
           className="flex items-center gap-2.5 px-7 py-3.5 border border-border text-text-primary font-medium rounded-md hover:bg-surface-raised/60 transition-all duration-150 active:scale-[0.97]"
