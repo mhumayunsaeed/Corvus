@@ -20,6 +20,7 @@ interface AppState {
     setChannels: (channels: ChannelData[]) => void;
     setDMConversations: (conversations: DMConversationData[]) => void;
     upsertDMConversation: (conversation: DMConversationData) => void;
+    applyUserPresence: (userId: string, status: string) => void;
     addServer: (server: ServerData) => void;
     removeServer: (serverId: string) => void;
     addChannel: (channel: ChannelData) => void;
@@ -64,6 +65,52 @@ export const useAppStore = create<AppState>((set) => ({
                 .map((c) => (c.id === conversation.id ? conversation : c))
                 .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
             return { dmConversations: updated };
+        }),
+
+    applyUserPresence: (userId, status) =>
+        set((state) => {
+            let changed = false;
+
+            const dmConversations = state.dmConversations.map((conversation) => {
+                let conversationChanged = false;
+
+                const participants = conversation.participants.map((participant) => {
+                    if (participant.id !== userId || participant.status === status) {
+                        return participant;
+                    }
+                    conversationChanged = true;
+                    return { ...participant, status };
+                });
+
+                let lastMessage = conversation.lastMessage;
+                if (
+                    conversation.lastMessage?.author.id === userId &&
+                    conversation.lastMessage.author.status !== status
+                ) {
+                    conversationChanged = true;
+                    lastMessage = {
+                        ...conversation.lastMessage,
+                        author: {
+                            ...conversation.lastMessage.author,
+                            status,
+                        },
+                    };
+                }
+
+                if (!conversationChanged) {
+                    return conversation;
+                }
+
+                changed = true;
+                return {
+                    ...conversation,
+                    participants,
+                    lastMessage,
+                };
+            });
+
+            if (!changed) return state;
+            return { dmConversations };
         }),
 
     addServer: (server) =>

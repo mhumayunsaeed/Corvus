@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import {
     Hash,
     Volume2,
@@ -19,15 +19,24 @@ import { useVoiceStore } from "@/stores/voice-store";
 import { useNotificationStore } from "@/stores/notification-store";
 import { joinVoiceChannel } from "@/lib/api";
 import { UserDock } from "./UserDock";
+import { UserAvatar } from "./UserAvatar";
+import { getUsernameColor } from "@/lib/color-utils";
 
 interface ChannelListProps {
     serverName: string;
     onCreateChannel: () => void;
     onInvite: () => void;
     onOpenSettings: () => void;
+    panelWidth?: number;
 }
 
-export function ChannelList({ serverName, onCreateChannel, onInvite, onOpenSettings }: ChannelListProps) {
+export function ChannelList({
+    serverName,
+    onCreateChannel,
+    onInvite,
+    onOpenSettings,
+    panelWidth = 360,
+}: ChannelListProps) {
     const [collapsedCategories, setCollapsedCategories] = useState<string[]>([]);
     const [joiningChannel, setJoiningChannel] = useState<string | null>(null);
     const channels = useAppStore((s) => s.channels);
@@ -67,8 +76,7 @@ export function ChannelList({ serverName, onCreateChannel, onInvite, onOpenSetti
 
     const handleChannelClick = async (channel: { id: string; type: string; name: string }) => {
         if (channel.type === "voice" || channel.type === "stage") {
-            // Join voice channel
-            if (currentVoiceChannelId === channel.id) return; // Already connected
+            if (currentVoiceChannelId === channel.id) return;
             setJoiningChannel(channel.id);
             try {
                 const result = await joinVoiceChannel(channel.id);
@@ -95,27 +103,30 @@ export function ChannelList({ serverName, onCreateChannel, onInvite, onOpenSetti
     };
 
     return (
-        <div className="w-full lg:w-[300px] max-h-[42vh] lg:max-h-none bg-[#111318] flex flex-col border-b lg:border-b-0 lg:border-r border-[#1F2330] flex-shrink-0">
+        <div
+            className="w-full lg:[width:var(--panel-width)] max-h-[42vh] lg:max-h-none bg-channel-sidebar flex flex-col border-b lg:border-b-0 lg:border-r border-border-subtle flex-shrink-0 relative overflow-visible"
+            style={{ "--panel-width": `${panelWidth}px` } as CSSProperties}
+        >
             {/* Server Header */}
-            <button className="h-12 px-4 flex items-center justify-between border-b border-[#1F2330] hover:bg-[#202432] transition-colors group flex-shrink-0">
+            <button className="h-12 px-4 flex items-center justify-between border-b border-border-subtle hover:bg-hover-row transition-colors group flex-shrink-0">
                 <span className="text-emphasis font-semibold text-text-primary truncate">
                     {serverName}
                 </span>
-                <ChevronDown className="w-4 h-4 text-[#9EA4B4] group-hover:text-text-primary transition-colors flex-shrink-0" />
+                <ChevronDown className="w-4 h-4 text-text-muted group-hover:text-text-secondary transition-colors flex-shrink-0" />
             </button>
 
             {/* Quick actions */}
-            <div className="px-2 py-2 flex items-center gap-1 border-b border-[#1F2330]">
+            <div className="px-2 py-2 flex items-center gap-1 border-b border-border-subtle">
                 <button
                     onClick={onInvite}
-                    className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-md text-micro text-[#B7BCCB] hover:text-text-primary hover:bg-[#202432] transition-colors"
+                    className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-md text-micro text-text-muted hover:text-text-secondary hover:bg-hover-row transition-colors"
                 >
                     <UserPlus className="w-3.5 h-3.5" />
                     Invite
                 </button>
                 <button
                     onClick={onOpenSettings}
-                    className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-md text-micro text-[#B7BCCB] hover:text-text-primary hover:bg-[#202432] transition-colors"
+                    className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-md text-micro text-text-muted hover:text-text-secondary hover:bg-hover-row transition-colors"
                 >
                     <Bell className="w-3.5 h-3.5" />
                     Notifications
@@ -134,7 +145,7 @@ export function ChannelList({ serverName, onCreateChannel, onInvite, onOpenSetti
                             <div className="flex items-center justify-between pr-1">
                                 <button
                                     onClick={() => toggleCategory(category)}
-                                    className="flex-1 flex items-center gap-1 px-1 py-1 text-micro font-semibold text-[#8E93A3] hover:text-[#D2D7E2] uppercase tracking-[0.06em] transition-colors group"
+                                    className="flex-1 flex items-center gap-1 px-1 py-1 text-micro font-semibold text-text-muted hover:text-text-secondary uppercase tracking-[0.06em] transition-colors group"
                                 >
                                     <div className="transition-transform duration-150">
                                         {isCollapsed ? (
@@ -147,7 +158,7 @@ export function ChannelList({ serverName, onCreateChannel, onInvite, onOpenSetti
                                 </button>
                                 <button
                                     onClick={onCreateChannel}
-                                    className="w-4 h-4 rounded hover:bg-[#202432] flex items-center justify-center text-[#8E93A3] hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all"
+                                    className="w-4 h-4 rounded hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all"
                                     title="Create Channel"
                                 >
                                     <Plus className="w-3 h-3" />
@@ -175,21 +186,25 @@ export function ChannelList({ serverName, onCreateChannel, onInvite, onOpenSetti
                                                     onClick={() => handleChannelClick(channel)}
                                                     disabled={isJoining}
                                                     className={`w-full flex items-center gap-2 px-2 py-[6px] rounded-md transition-all duration-150 group relative ${isActive
-                                                            ? isVoice
-                                                                ? "bg-accent-teal/15 text-accent-teal"
-                                                                : "bg-[#353844] text-text-primary"
-                                                            : "text-[#B7BCCB] hover:bg-[#202432] hover:text-text-primary"
+                                                        ? isVoice
+                                                            ? "bg-accent-teal/10 text-accent-teal"
+                                                            : "bg-active-row text-text-primary"
+                                                        : "text-text-muted hover:bg-hover-row hover:text-text-secondary"
                                                         } ${isJoining ? "opacity-50" : ""}`}
                                                 >
+                                                    {/* Active indicator */}
+                                                    {isActive && !isVoice && (
+                                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-accent-violet" />
+                                                    )}
                                                     <Icon
                                                         className={`w-[18px] h-[18px] flex-shrink-0 ${isActive
-                                                                ? isVoice
-                                                                    ? "text-accent-teal"
-                                                                    : "text-[#DDE2ED]"
-                                                                : "text-[#8E93A3]"
+                                                            ? isVoice
+                                                                ? "text-accent-teal"
+                                                                : "text-text-primary"
+                                                            : "text-text-faint"
                                                             }`}
                                                     />
-                                                    <span className="text-body truncate">
+                                                    <span className={`text-body truncate ${isActive && !isVoice ? "font-medium" : ""}`}>
                                                         {channel.name}
                                                     </span>
 
@@ -200,11 +215,11 @@ export function ChannelList({ serverName, onCreateChannel, onInvite, onOpenSetti
                                                             </span>
                                                         )}
                                                         {showUnreadDot && (
-                                                            <span className="w-2 h-2 rounded-full bg-accent-violet/90" />
+                                                            <span className="w-2 h-2 rounded-full bg-accent-violet" />
                                                         )}
                                                         {isActive && !isVoice && (
                                                             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <div className="w-5 h-5 rounded hover:bg-[#272B39] flex items-center justify-center text-[#8E93A3] hover:text-text-primary">
+                                                                <div className="w-5 h-5 rounded hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary">
                                                                     <Settings className="w-3 h-3" />
                                                                 </div>
                                                             </div>
@@ -222,20 +237,20 @@ export function ChannelList({ serverName, onCreateChannel, onInvite, onOpenSetti
                                                             >
                                                                 <div
                                                                     className={`relative w-5 h-5 rounded-full overflow-hidden flex-shrink-0 ${p.isSpeaking
-                                                                            ? "ring-[2px] ring-accent-teal"
-                                                                            : ""
+                                                                        ? "ring-[2px] ring-accent-teal"
+                                                                        : ""
                                                                         }`}
                                                                 >
-                                                                    <img
-                                                                        src={
-                                                                            p.avatarUrl ||
-                                                                            `https://api.dicebear.com/9.x/avataaars/svg?seed=${p.username}`
-                                                                        }
-                                                                        alt=""
+                                                                    <UserAvatar
+                                                                        avatarUrl={p.avatarUrl}
+                                                                        username={p.username}
                                                                         className="w-full h-full"
                                                                     />
                                                                 </div>
-                                                                <span className="text-micro text-[#8E93A3] truncate flex-1">
+                                                                <span
+                                                                    className="text-micro font-semibold truncate flex-1"
+                                                                    style={{ color: getUsernameColor(p.username) }}
+                                                                >
                                                                     {p.displayName}
                                                                 </span>
                                                                 {p.isMuted && (

@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { MessageSquare, Plus, Search, Users, X } from "lucide-react";
 import type { DMConversationData, DMParticipantData, FriendListEntry } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useNotificationStore } from "@/stores/notification-store";
 import { parseAttachmentContent } from "@/lib/attachments";
 import { UserDock } from "./UserDock";
+import { UserAvatar } from "./UserAvatar";
+import { getUsernameColor } from "@/lib/color-utils";
 
 interface DMSidebarProps {
     conversations: DMConversationData[];
@@ -15,6 +17,7 @@ interface DMSidebarProps {
     onSelectConversation: (conversationId: string | null) => void;
     onCreateGroup: (participantIds: string[], name?: string) => Promise<void>;
     onOpenSettings: () => void;
+    panelWidth?: number;
 }
 
 function conversationTitle(conversation: DMConversationData, currentUserId: string | undefined) {
@@ -30,12 +33,6 @@ function conversationTitle(conversation: DMConversationData, currentUserId: stri
     return peer?.displayName || "Direct Message";
 }
 
-function conversationAvatar(conversation: DMConversationData, currentUserId: string | undefined) {
-    if (conversation.type === "group") return null;
-    const peer = conversation.participants.find((p) => p.id !== currentUserId) || conversation.participants[0];
-    if (!peer) return null;
-    return peer.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${peer.username}`;
-}
 
 function isStickerMessage(content: string) {
     return content.trim().startsWith("sticker:");
@@ -53,6 +50,7 @@ export function DMSidebar({
     onSelectConversation,
     onCreateGroup,
     onOpenSettings,
+    panelWidth = 360,
 }: DMSidebarProps) {
     const currentUserId = useAuthStore((s) => s.user?.id);
     const dmUnread = useNotificationStore((s) => s.dmUnread);
@@ -95,41 +93,47 @@ export function DMSidebar({
 
     return (
         <>
-            <div className="w-full lg:w-[300px] max-h-[42vh] lg:max-h-none bg-[#111318] border-b lg:border-b-0 lg:border-r border-[#1F2330] flex flex-col flex-shrink-0">
-                <div className="h-12 border-b border-[#1F2330] px-3 flex items-center">
-                    <button className="w-full h-8 rounded-md bg-[#1C1F2A] hover:bg-[#202432] text-text-muted text-body flex items-center gap-2 px-3 text-left transition-colors">
-                        <Search className="w-4 h-4" />
+            <div
+                className="w-full lg:[width:var(--panel-width)] max-h-[42vh] lg:max-h-none bg-channel-sidebar border-b lg:border-b-0 lg:border-r border-border-subtle flex flex-col flex-shrink-0 relative overflow-visible"
+                style={{ "--panel-width": `${panelWidth}px` } as CSSProperties}
+            >
+                <div className="h-12 border-b border-border-subtle px-3 flex items-center">
+                    <button className="w-full h-8 rounded-lg bg-surface hover:bg-surface-raised text-text-muted text-body flex items-center gap-2 px-3 text-left transition-colors border border-border-subtle">
+                        <Search className="w-4 h-4 text-text-faint" />
                         Find or start a conversation
                     </button>
                 </div>
 
-                <div className="px-2 py-2 border-b border-[#1F2330]">
+                <div className="px-2 py-2 border-b border-border-subtle">
                     <button
                         onClick={() => onSelectConversation(null)}
-                        className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-body transition-colors ${activeConversationId === null
-                                ? "bg-[#353844] text-text-primary"
-                                : "text-[#B7BCCB] hover:text-text-primary hover:bg-[#202432]"
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-body transition-all duration-150 relative ${activeConversationId === null
+                            ? "bg-active-row text-text-primary font-medium"
+                            : "text-text-muted hover:text-text-secondary hover:bg-hover-row"
                             }`}
                     >
+                        {activeConversationId === null && (
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-accent-violet" />
+                        )}
                         <Users className="w-4 h-4" />
                         Friends
                     </button>
                 </div>
 
                 <div className="px-3 pt-3 pb-1 flex items-center justify-between">
-                    <span className="text-[12px] font-semibold tracking-wide uppercase text-[#8E93A3]">
+                    <span className="text-[12px] font-semibold tracking-wide uppercase text-text-faint">
                         Direct Messages
                     </span>
                     <button
                         onClick={() => setShowGroupModal(true)}
-                        className="w-7 h-7 rounded-md hover:bg-[#202432] text-[#8E93A3] hover:text-text-primary flex items-center justify-center transition-colors"
+                        className="w-7 h-7 rounded-md hover:bg-hover-row text-text-faint hover:text-text-secondary flex items-center justify-center transition-colors"
                         title="Create Group DM"
                     >
                         <Plus className="w-4 h-4" />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
+                <div className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5">
                     {conversations.length === 0 && (
                         <div className="px-2 py-3 text-micro text-text-muted">
                             No DMs yet. Start one from Friends.
@@ -171,7 +175,9 @@ export function DMSidebar({
                             }
                         }
 
-                        const avatar = conversationAvatar(conversation, currentUserId);
+                        const peer = conversation.type !== "group"
+                            ? (conversation.participants.find((p) => p.id !== currentUserId) || conversation.participants[0])
+                            : null;
                         const isActive = conversation.id === activeConversationId;
                         const unreadCount = dmUnread[conversation.id] || 0;
 
@@ -182,32 +188,38 @@ export function DMSidebar({
                                     markDMRead(conversation.id);
                                     onSelectConversation(conversation.id);
                                 }}
-                                className={`w-full text-left px-2.5 py-2 rounded-md transition-colors ${isActive
-                                        ? "bg-[#353844]"
-                                        : "hover:bg-[#202432]"
+                                className={`w-full text-left px-2.5 py-2 rounded-md transition-all duration-150 relative ${isActive
+                                    ? "bg-active-row"
+                                    : "hover:bg-hover-row"
                                     }`}
                             >
+                                {isActive && (
+                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-accent-violet" />
+                                )}
                                 <div className="flex items-center gap-2.5">
                                     {conversation.type === "group" ? (
-                                        <div className="w-9 h-9 rounded-full bg-[#202432] border border-[#30374A] flex items-center justify-center text-[#AEB4C2]">
+                                        <div className="w-9 h-9 rounded-full bg-surface-raised border border-border flex items-center justify-center text-text-muted">
                                             <Users className="w-4 h-4" />
                                         </div>
-                                    ) : avatar ? (
-                                        <img
-                                            src={avatar}
-                                            alt={title}
-                                            className="w-9 h-9 rounded-full bg-surface"
+                                    ) : peer ? (
+                                        <UserAvatar
+                                            avatarUrl={peer.avatarUrl}
+                                            username={peer.username}
+                                            className="w-9 h-9"
                                         />
                                     ) : (
-                                        <div className="w-9 h-9 rounded-full bg-[#202432] border border-[#30374A] flex items-center justify-center text-[#AEB4C2]">
+                                        <div className="w-9 h-9 rounded-full bg-surface-raised border border-border flex items-center justify-center text-text-muted">
                                             <MessageSquare className="w-4 h-4" />
                                         </div>
                                     )}
-                                    <div className="min-w-0">
-                                        <div className={`text-body truncate ${isActive ? "text-text-primary" : "text-[#D2D7E2]"}`}>
+                                    <div className="min-w-0 flex-1">
+                                        <div
+                                            className={`text-body truncate ${isActive ? "text-text-primary font-semibold" : "font-semibold"}`}
+                                            style={{ color: peer && !isActive ? getUsernameColor(peer.username) : undefined }}
+                                        >
                                             {title}
                                         </div>
-                                        <div className="text-micro text-[#8E93A3] truncate">
+                                        <div className="text-micro text-text-faint truncate">
                                             {preview}
                                         </div>
                                     </div>
@@ -226,13 +238,13 @@ export function DMSidebar({
             </div>
 
             {showGroupModal && (
-                <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="w-full max-w-md bg-surface border border-border rounded-xl">
+                <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                    <div className="w-full max-w-md bg-surface-overlay border border-border-highlight rounded-xl shadow-float animate-scale-in">
                         <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                             <h3 className="text-emphasis font-semibold text-text-primary">Create Group DM</h3>
                             <button
                                 onClick={() => setShowGroupModal(false)}
-                                className="w-7 h-7 rounded-md hover:bg-hover-row text-text-muted hover:text-text-primary flex items-center justify-center"
+                                className="w-7 h-7 rounded-md hover:bg-hover-row text-text-muted hover:text-text-primary flex items-center justify-center transition-colors"
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -243,14 +255,14 @@ export function DMSidebar({
                                 value={groupName}
                                 onChange={(e) => setGroupName(e.target.value)}
                                 placeholder="Group name (optional)"
-                                className="w-full h-10 rounded-md border border-border bg-surface-raised px-3 text-body text-text-primary placeholder:text-text-muted outline-none focus:border-accent-violet"
+                                className="w-full h-10 rounded-lg border border-border bg-surface px-3 text-body text-text-primary placeholder:text-text-muted outline-none focus:border-accent-violet transition-colors"
                             />
 
                             <div className="text-micro text-text-muted">
                                 Select at least 2 friends
                             </div>
 
-                            <div className="max-h-64 overflow-y-auto border border-border rounded-md">
+                            <div className="max-h-64 overflow-y-auto border border-border rounded-lg">
                                 {selectableFriends.length === 0 && (
                                     <div className="px-3 py-3 text-micro text-text-muted">
                                         Add friends first to create a group DM.
@@ -259,7 +271,7 @@ export function DMSidebar({
                                 {selectableFriends.map((friend) => (
                                     <label
                                         key={friend.id}
-                                        className="flex items-center gap-3 px-3 py-2.5 border-b border-border last:border-b-0 hover:bg-hover-row cursor-pointer"
+                                        className="flex items-center gap-3 px-3 py-2.5 border-b border-border last:border-b-0 hover:bg-hover-row cursor-pointer transition-colors"
                                     >
                                         <input
                                             type="checkbox"
@@ -267,13 +279,16 @@ export function DMSidebar({
                                             onChange={() => toggleSelectedFriend(friend.id)}
                                             className="accent-accent-violet"
                                         />
-                                        <img
-                                            src={friend.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${friend.username}`}
-                                            alt={friend.displayName}
-                                            className="w-8 h-8 rounded-full bg-surface-raised"
+                                        <UserAvatar
+                                            avatarUrl={friend.avatarUrl}
+                                            username={friend.username}
+                                            className="w-8 h-8"
                                         />
                                         <div className="min-w-0">
-                                            <div className="text-body text-text-primary truncate">
+                                            <div
+                                                className="text-body font-semibold truncate"
+                                                style={{ color: getUsernameColor(friend.username) }}
+                                            >
                                                 {friend.displayName}
                                             </div>
                                             <div className="text-micro text-text-muted truncate">
@@ -290,14 +305,14 @@ export function DMSidebar({
                         <div className="px-4 py-3 border-t border-border flex justify-end gap-2">
                             <button
                                 onClick={() => setShowGroupModal(false)}
-                                className="px-4 h-9 rounded-md bg-surface-raised text-text-primary text-body hover:bg-hover-row"
+                                className="px-4 h-9 rounded-lg bg-surface text-text-primary text-body hover:bg-hover-row transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleCreateGroup}
                                 disabled={creating || selectableFriends.length < 2}
-                                className="px-4 h-9 rounded-md bg-accent-violet text-white text-body hover:bg-accent-violet/90 disabled:opacity-50"
+                                className="px-4 h-9 rounded-lg bg-accent-violet text-white text-body hover:bg-accent-violet-bright disabled:opacity-50 transition-colors"
                             >
                                 {creating ? "Creating..." : "Create Group"}
                             </button>

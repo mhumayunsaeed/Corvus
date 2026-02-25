@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { verifyToken } from "./lib/jwt.js";
+import { prisma } from "./lib/prisma.js";
 
 interface WSClient {
     ws: WebSocket;
@@ -10,10 +11,88 @@ interface WSClient {
 }
 
 const clients = new Map<WebSocket, WSClient>();
+const userConnectionCounts = new Map<string, number>();
+
+export type PresenceStatus =
+    | "online"
+    | "idle"
+    | "dnd"
+    | "invisible"
+    | "offline";
 
 // Channel → set of WebSocket connections subscribed to it
 const channelSubscriptions = new Map<string, Set<WebSocket>>();
 const dmSubscriptions = new Map<string, Set<WebSocket>>();
+
+function normalizePresenceStatus(status: string | null | undefined): PresenceStatus {
+    switch (status) {
+        case "online":
+        case "idle":
+        case "dnd":
+        case "invisible":
+        case "offline":
+            return status;
+        default:
+            return "offline";
+    }
+}
+
+export function hasActiveUserConnections(userId: string) {
+    return (userConnectionCounts.get(userId) || 0) > 0;
+}
+
+export function broadcastPresenceUpdate(userId: string, status: PresenceStatus) {
+    const payload = JSON.stringify({
+        type: "presence_update",
+        data: { userId, status },
+    });
+
+    for (const ws of clients.keys()) {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(payload);
+        }
+    }
+}
+
+async function resolveConnectedPresence(userId: string): Promise<PresenceStatus> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { status: true },
+    });
+    const currentStatus = normalizePresenceStatus(user?.status);
+    return currentStatus === "offline" ? "online" : currentStatus;
+}
+
+async function updateUserPresence(userId: string, status: PresenceStatus) {
+    try {
+        await prisma.user.update({
+            where: { id: userId },
+            data: { status },
+        });
+        broadcastPresenceUpdate(userId, status);
+    } catch (error) {
+        console.error(`Failed to set user ${userId} presence to ${status}:`, error);
+    }
+}
+
+function incrementUserConnections(userId: string) {
+    const next = (userConnectionCounts.get(userId) || 0) + 1;
+    userConnectionCounts.set(userId, next);
+    return next;
+}
+
+function decrementUserConnections(userId: string) {
+    const current = userConnectionCounts.get(userId) || 0;
+    const next = Math.max(0, current - 1);
+
+    if (next === 0) {
+        userConnectionCounts.delete(userId);
+    } else {
+        userConnectionCounts.set(userId, next);
+    }
+
+    return next;
+}
 
 // ─── Voice channel state tracking ───────────────────────────────
 
@@ -196,13 +275,41 @@ function removeClient(ws: WebSocket) {
     }
 
     clients.delete(ws);
+
+    const remainingConnections = decrementUserConnections(client.userId);
+    if (remainingConnections === 0) {
+        void updateUserPresence(client.userId, "offline");
+    }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function setupWebSocket(server: any) {
     const wss = new WebSocketServer({ server, path: "/ws" });
 
+    const heartbeatInterval = setInterval(() => {
+        for (const rawSocket of wss.clients) {
+            const socket = rawSocket as HeartbeatWebSocket;
+            if (socket.isAlive === false) {
+                socket.terminate();
+                continue;
+            }
+
+            socket.isAlive = false;
+            socket.ping();
+        }
+    }, 30000);
+
+    wss.on("close", () => {
+        clearInterval(heartbeatInterval);
+    });
+
     wss.on("connection", async (ws, req) => {
+        const socket = ws as HeartbeatWebSocket;
+        socket.isAlive = true;
+        socket.on("pong", () => {
+            socket.isAlive = true;
+        });
+
         // Authenticate via query param: ?token=xxx
         const url = new URL(req.url || "", `http://${req.headers.host}`);
         const token = url.searchParams.get("token");
@@ -224,6 +331,18 @@ export function setupWebSocket(server: any) {
             };
 
             clients.set(ws, client);
+            const activeConnections = incrementUserConnections(payload.userId);
+            if (activeConnections === 1) {
+                void resolveConnectedPresence(payload.userId)
+                    .then((status) => updateUserPresence(payload.userId, status))
+                    .catch((error) => {
+                        console.error(
+                            `Failed to resolve connected presence for ${payload.userId}:`,
+                            error
+                        );
+                        void updateUserPresence(payload.userId, "online");
+                    });
+            }
 
             ws.send(JSON.stringify({ type: "connected", data: { userId: payload.userId } }));
 
@@ -316,3 +435,5 @@ function handleClientMessage(
             break;
     }
 }
+
+type HeartbeatWebSocket = WebSocket & { isAlive?: boolean };

@@ -32,9 +32,9 @@ export function LoginPage() {
         if (detected) {
             import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
                 const appWindow = getCurrentWindow();
-                appWindow.show().catch(() => {});
-                appWindow.setFocus().catch(() => {});
-            }).catch(() => {});
+                appWindow.show().catch(() => { });
+                appWindow.setFocus().catch(() => { });
+            }).catch(() => { });
         }
     }, []);
 
@@ -151,7 +151,7 @@ export function LoginPage() {
 
         try {
             await login(email.trim(), password);
-            // AuthGuard will handle redirect to /app or /onboarding
+            // AuthGuard will handle redirect to /app
         } catch (err) {
             setError(
                 err instanceof Error

@@ -11,7 +11,7 @@ import {
     useRoomContext,
 } from "@livekit/components-react";
 import { Track, RoomEvent } from "livekit-client";
-import type { Participant } from "livekit-client";
+import type { Participant, TrackPublication } from "livekit-client";
 import {
     Mic,
     MicOff,
@@ -26,12 +26,17 @@ import {
     ChevronUp,
     Check,
     AudioLines,
+    Maximize2,
+    Minimize2,
 } from "lucide-react";
 import { useRingtone } from "@/hooks/useRingtone";
 import { useVoiceStore, SCREEN_SHARE_PRESETS, type ScreenShareQuality } from "@/stores/voice-store";
 import type { DMParticipantData } from "@/lib/api";
 import { createRoomOptions } from "@/lib/livekit-config";
 import { useNoiseSuppression } from "@/hooks/useNoiseSuppression";
+import { useLivekitLatency } from "@/hooks/useLivekitLatency";
+import { UserAvatar } from "./UserAvatar";
+import { getUsernameColor } from "@/lib/color-utils";
 
 interface CallModalProps {
     onClose: () => void;
@@ -59,37 +64,69 @@ function CallParticipantTile({
     participant,
     profile,
     trackRef,
+    isSmall = false,
 }: {
     participant: Participant;
     profile?: DMParticipantData;
     trackRef: ReturnType<typeof useTracks>[number] | undefined;
+    isSmall?: boolean;
 }) {
     const isSpeaking = useIsSpeaking(participant);
     const hasVideo = !!(trackRef?.publication && !trackRef.publication.isMuted);
     const displayName = profile?.displayName || participant.name || participant.identity;
-    const avatarUrl =
-        profile?.avatarUrl ||
-        getAvatarFromMetadata(participant) ||
-        `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(profile?.username || participant.identity)}`;
+    const username = profile?.username || participant.identity;
+    const avatarUrl = profile?.avatarUrl || getAvatarFromMetadata(participant);
+    const userColor = getUsernameColor(username);
+
+    if (isSmall) {
+        return (
+            <div className={`flex items-center gap-3 p-2 rounded-lg w-full transition-colors ${isSpeaking ? 'bg-accent-teal/10' : 'bg-surface hover:bg-surface-raised'} border ${isSpeaking ? 'border-accent-teal/30' : 'border-border/30'}`}>
+                <div className="relative shrink-0">
+                    {hasVideo && trackRef ? (
+                        <div className={`w-10 h-10 rounded-full overflow-hidden transition-all duration-200 ${isSpeaking ? "ring-2 ring-accent-teal shadow-[0_0_10px_rgba(62,207,207,0.3)]" : "ring-1 ring-border/50"}`}>
+                            <VideoTrack trackRef={trackRef} className="w-full h-full object-cover" />
+                        </div>
+                    ) : (
+                        <UserAvatar
+                            avatarUrl={avatarUrl}
+                            username={username}
+                            className={`w-10 h-10 transition-all duration-200 ${isSpeaking ? "ring-2 ring-accent-teal shadow-[0_0_10px_rgba(62,207,207,0.3)]" : "ring-1 ring-border/50"}`}
+                        />
+                    )}
+                </div>
+                <div className="flex flex-col min-w-0">
+                    <span
+                        className="text-sm font-medium truncate"
+                        style={{ color: userColor }}
+                    >
+                        {displayName}
+                    </span>
+                    {isSpeaking && <span className="text-[10px] text-accent-teal uppercase font-bold tracking-wider leading-none mt-0.5">Speaking</span>}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col items-center justify-center gap-2 py-2">
             {hasVideo && trackRef ? (
                 <div
-                    className={`w-24 h-24 rounded-full overflow-hidden transition-all duration-200 ${isSpeaking ? "ring-[3px] ring-accent-teal shadow-[0_0_14px_rgba(62,207,207,0.35)]" : "ring-1 ring-border"
+                    className={`w-24 h-24 ring-[3px] rounded-full overflow-hidden transition-all duration-200 ${isSpeaking ? "ring-accent-teal shadow-[0_0_14px_rgba(62,207,207,0.35)]" : "ring-border"
                         }`}
                 >
                     <VideoTrack trackRef={trackRef} className="w-full h-full object-cover" />
                 </div>
             ) : (
-                <img
-                    src={avatarUrl}
-                    alt={displayName}
-                    className={`w-24 h-24 rounded-full transition-all duration-200 ${isSpeaking ? "ring-[3px] ring-accent-teal shadow-[0_0_14px_rgba(62,207,207,0.35)]" : ""
-                        }`}
+                <UserAvatar
+                    avatarUrl={avatarUrl}
+                    username={username}
+                    className={`w-24 h-24 transition-all duration-200 ${isSpeaking ? "ring-[3px] ring-accent-teal shadow-[0_0_14px_rgba(62,207,207,0.35)]" : ""}`}
                 />
             )}
-            <span className="text-micro font-medium text-text-primary px-1 text-center max-w-[12rem] truncate">
+            <span
+                className="text-micro font-medium px-1 text-center truncate max-w-[12rem]"
+                style={{ color: userColor }}
+            >
                 {displayName}
             </span>
         </div>
@@ -99,33 +136,18 @@ function CallParticipantTile({
 const MemoizedCallParticipantTile = memo(CallParticipantTile);
 
 function CallLatency() {
-    const room = useRoomContext();
-    const [latency, setLatency] = useState<number | null>(null);
+    const latency = useLivekitLatency();
+    const setLiveLatency = useVoiceStore((s) => s.setLiveLatency);
 
     useEffect(() => {
-        const measure = () => {
-            try {
-                const engine = room.engine as any;
-                const rtt = engine?.latency;
-                if (typeof rtt === "number" && rtt > 0) {
-                    setLatency(Math.round(rtt * 1000));
-                    return;
-                }
-                // Fallback: estimate from connection quality
-                const lp = room.localParticipant;
-                if (lp) {
-                    const q = lp.connectionQuality;
-                    if (q === "excellent") setLatency(25);
-                    else if (q === "good") setLatency(75);
-                    else if (q === "poor") setLatency(200);
-                    else setLatency(null);
-                }
-            } catch { /* ignore */ }
+        setLiveLatency(latency);
+    }, [latency, setLiveLatency]);
+
+    useEffect(() => {
+        return () => {
+            setLiveLatency(null);
         };
-        measure();
-        const interval = setInterval(measure, 2500);
-        return () => clearInterval(interval);
-    }, [room]);
+    }, [setLiveLatency]);
 
     if (latency === null) return null;
     const color = latency < 80 ? "text-success" : latency < 150 ? "text-yellow-500" : "text-danger";
@@ -138,25 +160,53 @@ function CallLatency() {
     );
 }
 
-function CallScreenShareView() {
-    const screenTracks = useTracks([Track.Source.ScreenShare]);
+function CallScreenShareView({
+    track,
+}: {
+    track: ReturnType<typeof useTracks>[number] | undefined;
+}) {
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-    if (screenTracks.length === 0) return null;
+    const toggleFullscreen = useCallback(() => {
+        setIsFullscreen(prev => !prev);
+    }, []);
 
-    const track = screenTracks[0];
+    if (!track?.publication) return null;
+
+    const screenTrack = track as ReturnType<typeof useTracks>[number] & {
+        publication: TrackPublication;
+    };
 
     return (
-        <div className="w-full rounded-xl overflow-hidden bg-surface ring-1 ring-border mb-3">
+        <div
+            ref={containerRef}
+            className={isFullscreen
+                ? "fixed inset-0 z-[9999] bg-black flex flex-col group overflow-hidden"
+                : "w-full h-full flex-1 bg-black flex flex-col relative group overflow-hidden rounded-xl shadow-[0_0_20px_rgba(0,0,0,0.5)] border border-border/50"
+            }
+        >
             <VideoTrack
-                trackRef={track}
-                className="w-full h-auto max-h-[50vh] object-contain bg-black"
+                trackRef={screenTrack}
+                className="w-full h-full object-contain bg-black"
             />
-            <div className="px-3 py-1.5 flex items-center gap-2 bg-surface-raised">
-                <MonitorUp className="w-4 h-4 text-accent-teal" />
-                <span className="text-micro text-text-muted">
-                    {track.participant.name || track.participant.identity}&apos;s screen
-                </span>
+
+            <div className={`absolute bottom-0 left-0 right-0 p-3 pt-12 bg-gradient-to-t from-black/90 to-transparent flex items-end justify-between transition-opacity duration-300 pointer-events-none ${isFullscreen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                <div className="flex items-center gap-2 pointer-events-auto">
+                    <MonitorUp className="w-5 h-5 text-accent-teal drop-shadow-md" />
+                    <span className="text-sm font-medium text-white drop-shadow-md cursor-default">
+                        {screenTrack.participant.name || screenTrack.participant.identity}&apos;s screen
+                    </span>
+                </div>
             </div>
+
+            <button
+                onClick={toggleFullscreen}
+                className={`absolute top-4 right-4 w-9 h-9 rounded-lg bg-black/60 text-white flex flex-col items-center justify-center hover:bg-black/90 hover:scale-105 active:scale-95 backdrop-blur-sm transition-all duration-300 z-10 shadow-lg border border-white/10 ${isFullscreen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            >
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
         </div>
     );
 }
@@ -172,6 +222,7 @@ function CallContent({
 }) {
     const roomParticipants = useParticipants();
     const cameraTracks = useTracks([Track.Source.Camera]);
+    const screenTracks = useTracks([Track.Source.ScreenShare]);
     const room = useRoomContext();
     useNoiseSuppression();
 
@@ -190,10 +241,20 @@ function CallContent({
     const setNoiseSuppression = useVoiceStore((s) => s.setNoiseSuppression);
 
     const [showQualityPicker, setShowQualityPicker] = useState(false);
+    const [ringWindowOpen, setRingWindowOpen] = useState(true);
     const qualityPickerRef = useRef<HTMLDivElement>(null);
 
-    const ringing = roomParticipants.length <= 1;
-    useRingtone(ringing, "outgoing");
+    useEffect(() => {
+        const timeoutId = window.setTimeout(() => {
+            setRingWindowOpen(false);
+        }, 6000);
+        return () => {
+            window.clearTimeout(timeoutId);
+        };
+    }, []);
+
+    const ringing = ringWindowOpen && roomParticipants.length <= 1;
+    useRingtone(ringing, "outgoing", 6000);
 
     // Initialize video state from props on mount
     useEffect(() => {
@@ -269,12 +330,19 @@ function CallContent({
         onClose();
     }, [onClose]);
 
+    const activeScreenTrack = screenTracks[0];
+    const hasScreenShare = !!activeScreenTrack;
+
     const gridClass =
-        roomParticipants.length <= 1
-            ? "grid-cols-1 max-w-[320px] mx-auto"
-            : roomParticipants.length <= 4
-                ? "grid-cols-2 max-w-[720px] mx-auto"
-                : "grid-cols-3 max-w-[980px] mx-auto";
+        hasScreenShare
+            ? roomParticipants.length <= 3
+                ? "grid-cols-2 max-w-[560px] mx-auto"
+                : "grid-cols-3 max-w-[780px] mx-auto"
+            : roomParticipants.length <= 1
+                ? "grid-cols-1 max-w-[320px] mx-auto"
+                : roomParticipants.length <= 4
+                    ? "grid-cols-2 max-w-[720px] mx-auto"
+                    : "grid-cols-3 max-w-[980px] mx-auto";
 
     const profileById = new Map(participantProfiles.map((p) => [p.id, p]));
     const cameraTracksByIdentity = useMemo(() => {
@@ -286,32 +354,51 @@ function CallContent({
     }, [cameraTracks]);
 
     return (
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 min-h-0 flex flex-col">
             {/* Participants */}
-            <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-4 relative overflow-y-auto">
+            <div className="flex-1 min-h-0 flex flex-col p-3 sm:p-4 relative overflow-hidden">
                 {/* Latency display */}
-                <div className="absolute top-2 right-4 z-10">
+                <div className="absolute top-2 right-4 z-20">
                     <CallLatency />
                 </div>
 
-                <CallScreenShareView />
+                <div className={`flex-1 min-h-0 flex ${hasScreenShare ? "flex-row" : "flex-col"} gap-3 ${hasScreenShare ? "pt-1" : ""}`}>
+                    {hasScreenShare && (
+                        <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+                            <CallScreenShareView track={activeScreenTrack} />
+                        </div>
+                    )}
 
-                <div className={`grid ${gridClass} gap-8 w-full justify-items-center`}>
-                    {roomParticipants.map((p) => (
-                        <MemoizedCallParticipantTile
-                            key={p.identity}
-                            participant={p}
-                            profile={profileById.get(p.identity)}
-                            trackRef={cameraTracksByIdentity.get(p.identity)}
-                        />
-                    ))}
+                    <div
+                        className={hasScreenShare
+                            ? "w-48 sm:w-60 shrink-0 overflow-y-auto overflow-x-hidden pr-2 pl-2 pt-2 flex flex-col bg-surface-raised/20 rounded-xl border border-border/40 gap-2"
+                            : "w-full flex-1 min-h-0 flex flex-col justify-center overflow-y-auto"
+                        }
+                    >
+                        <div
+                            className={hasScreenShare
+                                ? "flex flex-col w-full gap-2 pb-2"
+                                : `grid ${gridClass} w-full justify-items-center gap-8 pb-2`
+                            }
+                        >
+                            {roomParticipants.map((p) => (
+                                <MemoizedCallParticipantTile
+                                    key={p.identity}
+                                    participant={p}
+                                    profile={profileById.get(p.identity)}
+                                    trackRef={cameraTracksByIdentity.get(p.identity)}
+                                    isSmall={hasScreenShare}
+                                />
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <RoomAudioRenderer />
 
             {/* Controls */}
-            <div className="h-16 bg-surface border-t border-border flex items-center justify-center gap-3">
+            <div className="min-h-16 shrink-0 bg-surface border-t border-border flex items-center justify-center gap-2 sm:gap-3 px-3 py-2 flex-wrap">
                 <button
                     onClick={() => setLocalMuted(!isMuted)}
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isMuted
@@ -425,9 +512,9 @@ export function CallModal({
     className = "",
 }: CallModalProps) {
     const roomOptions = useMemo(() => createRoomOptions(), []);
-    const MIN_HEIGHT = 220;
-    const DEFAULT_HEIGHT = 380;
-    const MAX_HEIGHT_RATIO = 0.78;
+    const MIN_HEIGHT = 190;
+    const DEFAULT_HEIGHT = 260;
+    const MAX_HEIGHT_RATIO = 0.62;
     const [panelHeight, setPanelHeight] = useState(DEFAULT_HEIGHT);
     const dragStartRef = useRef<{ y: number; height: number } | null>(null);
 
@@ -488,7 +575,7 @@ export function CallModal({
                 audio={true}
                 video={initialVideo}
                 options={roomOptions}
-                className="flex-1 flex flex-col"
+                className="flex-1 flex flex-col min-h-0"
             >
                 <CallContent
                     onClose={onClose}

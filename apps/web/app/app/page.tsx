@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import {
     ServerRail,
     ChannelList,
@@ -27,12 +27,12 @@ import { useMessageCache } from "@/hooks/useMessageCache";
 import { syncNotificationBadge } from "@/lib/notifications";
 import {
     createDMConversation,
-    endDMCall,
     fetchDMConversations,
     fetchFriendDashboard,
     fetchServer,
     fetchServers,
     fetchServerVoiceStates,
+    leaveDMCall,
     startDMCall,
     type FriendListEntry,
 } from "@/lib/api";
@@ -45,6 +45,8 @@ interface ActiveDMCall {
     initialVideo: boolean;
 }
 
+const MIN_LEFT_PANE_WIDTH = 280;
+
 export default function AppPage() {
     const [showCreateServer, setShowCreateServer] = useState(false);
     const [showCreateChannel, setShowCreateChannel] = useState(false);
@@ -55,6 +57,8 @@ export default function AppPage() {
     const [activeDMCall, setActiveDMCall] = useState<ActiveDMCall | null>(null);
     const [loading, setLoading] = useState(true);
     const [friendList, setFriendList] = useState<FriendListEntry[]>([]);
+    const [serverPaneWidth, setServerPaneWidth] = useState(360);
+    const [dmPaneWidth, setDmPaneWidth] = useState(360);
     const subscribedDMRef = useRef<Set<string>>(new Set());
 
     const servers = useAppStore((s) => s.servers);
@@ -172,6 +176,55 @@ export default function AppPage() {
     ]);
 
     useEffect(() => {
+        const handlePresenceUpdate = (event: Event) => {
+            const customEvent = event as CustomEvent<{
+                userId?: string;
+                status?: string;
+            }>;
+            const changedUserId = customEvent.detail?.userId;
+            const status = customEvent.detail?.status;
+
+            if (
+                typeof changedUserId !== "string" ||
+                typeof status !== "string"
+            ) {
+                return;
+            }
+
+            setFriendList((previous) => {
+                let changed = false;
+                const next = previous.map((entry) => {
+                    if (
+                        entry.user.id !== changedUserId ||
+                        entry.user.status === status
+                    ) {
+                        return entry;
+                    }
+
+                    changed = true;
+                    return {
+                        ...entry,
+                        user: {
+                            ...entry.user,
+                            status,
+                        },
+                    };
+                });
+
+                return changed ? next : previous;
+            });
+        };
+
+        window.addEventListener("corvus:presence_update", handlePresenceUpdate as EventListener);
+        return () => {
+            window.removeEventListener(
+                "corvus:presence_update",
+                handlePresenceUpdate as EventListener
+            );
+        };
+    }, []);
+
+    useEffect(() => {
         if (!activeChannelId) return;
         markChannelRead(activeChannelId);
     }, [activeChannelId, markChannelRead]);
@@ -210,6 +263,66 @@ export default function AppPage() {
         };
     }, []);
 
+    const startHorizontalResize = useCallback(
+        (
+            event: ReactPointerEvent<HTMLDivElement>,
+            startWidth: number,
+            applyWidth: (nextWidth: number) => void
+        ) => {
+            if (typeof window === "undefined" || window.innerWidth < 1024) {
+                return;
+            }
+
+            event.preventDefault();
+            const startX = event.clientX;
+            const maxWidth = Math.max(
+                MIN_LEFT_PANE_WIDTH + 80,
+                Math.min(680, Math.floor(window.innerWidth * 0.5))
+            );
+            const previousCursor = document.body.style.cursor;
+            const previousUserSelect = document.body.style.userSelect;
+
+            document.body.style.cursor = "col-resize";
+            document.body.style.userSelect = "none";
+
+            const handleMove = (moveEvent: PointerEvent) => {
+                const deltaX = moveEvent.clientX - startX;
+                const nextWidth = Math.max(
+                    MIN_LEFT_PANE_WIDTH,
+                    Math.min(maxWidth, startWidth + deltaX)
+                );
+                applyWidth(nextWidth);
+            };
+
+            const stopResize = () => {
+                document.body.style.cursor = previousCursor;
+                document.body.style.userSelect = previousUserSelect;
+                window.removeEventListener("pointermove", handleMove);
+                window.removeEventListener("pointerup", stopResize);
+                window.removeEventListener("pointercancel", stopResize);
+            };
+
+            window.addEventListener("pointermove", handleMove);
+            window.addEventListener("pointerup", stopResize);
+            window.addEventListener("pointercancel", stopResize);
+        },
+        []
+    );
+
+    const handleServerPaneResizeStart = useCallback(
+        (event: ReactPointerEvent<HTMLDivElement>) => {
+            startHorizontalResize(event, serverPaneWidth, setServerPaneWidth);
+        },
+        [serverPaneWidth, startHorizontalResize]
+    );
+
+    const handleDMPaneResizeStart = useCallback(
+        (event: ReactPointerEvent<HTMLDivElement>) => {
+            startHorizontalResize(event, dmPaneWidth, setDmPaneWidth);
+        },
+        [dmPaneWidth, startHorizontalResize]
+    );
+
     const openDirectDM = async (friendUserId: string) => {
         const result = await createDMConversation({ participantIds: [friendUserId] });
         upsertDMConversation(result.conversation);
@@ -241,9 +354,9 @@ export default function AppPage() {
         if (!conversationId) return;
 
         try {
-            await endDMCall(conversationId);
+            await leaveDMCall(conversationId);
         } catch (err) {
-            console.error("Failed to end DM call:", err);
+            console.error("Failed to leave DM call:", err);
         }
     }, [activeDMCall?.conversationId]);
 
@@ -357,6 +470,18 @@ export default function AppPage() {
                     onCreateChannel={() => setShowCreateChannel(true)}
                     onInvite={() => setShowInviteCreate(true)}
                     onOpenSettings={() => setShowSettings(true)}
+                    panelWidth={serverPaneWidth}
+                />
+            )}
+
+            {activeServerId && activeServer && (
+                <div
+                    onPointerDown={handleServerPaneResizeStart}
+                    className="hidden lg:block w-1 bg-border-subtle hover:bg-accent-violet/30 cursor-col-resize flex-shrink-0 transition-colors"
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize channel pane"
+                    title="Drag to resize"
                 />
             )}
 
@@ -381,6 +506,16 @@ export default function AppPage() {
                             onSelectConversation={setActiveDMConversation}
                             onCreateGroup={createGroupDM}
                             onOpenSettings={() => setShowSettings(true)}
+                            panelWidth={dmPaneWidth}
+                        />
+
+                        <div
+                            onPointerDown={handleDMPaneResizeStart}
+                            className="hidden lg:block w-1 bg-border-subtle hover:bg-accent-violet/30 cursor-col-resize flex-shrink-0 transition-colors"
+                            role="separator"
+                            aria-orientation="vertical"
+                            aria-label="Resize DM pane"
+                            title="Drag to resize"
                         />
 
                         {activeDMConversation ? (
@@ -388,10 +523,10 @@ export default function AppPage() {
                                 conversation={activeDMConversation}
                                 onConversationUpdated={upsertDMConversation}
                                 onSubscribeDM={subscribeDM}
-                            onUnsubscribeDM={unsubscribeDM}
-                            onStartCall={handleStartDMCall}
-                            activeCall={activeCallForConversation}
-                        />
+                                onUnsubscribeDM={unsubscribeDM}
+                                onStartCall={handleStartDMCall}
+                                activeCall={activeCallForConversation}
+                            />
                         ) : (
                             <FriendsView onMessageFriend={openDirectDM} />
                         )}

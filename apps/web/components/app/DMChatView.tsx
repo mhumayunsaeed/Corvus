@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, FileText, Image as ImageIcon, Loader2, Pencil, Phone, PhoneOff, Plus, Search, Send, Smile, Trash2, UserPlus, Users, Video } from "lucide-react";
+import { Download, FileText, Image as ImageIcon, Loader2, PanelRightClose, PanelRightOpen, Pencil, Phone, PhoneOff, Plus, Search, Send, Smile, Trash2, UserPlus, Users, Video } from "lucide-react";
 import {
     addDMReaction,
     fetchDMMessages,
@@ -42,6 +42,8 @@ import {
     filterSlashCommands,
     formatSlashCommandInput,
 } from "@/lib/slash-commands";
+import { UserAvatar } from "./UserAvatar";
+import { getUsernameColor } from "@/lib/color-utils";
 
 interface DMChatViewProps {
     conversation: DMConversationData;
@@ -141,6 +143,7 @@ export function DMChatView({
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [showGifPicker, setShowGifPicker] = useState(false);
     const [showStickerPicker, setShowStickerPicker] = useState(false);
+    const [showMembersPane, setShowMembersPane] = useState(true);
     const [uploadingAttachment, setUploadingAttachment] = useState(false);
     const [stickerCache, setStickerCache] = useState<Record<string, StickerData | null>>({});
     const [previewCache, setPreviewCache] = useState<Record<string, MessageEmbedData | null>>({});
@@ -667,7 +670,7 @@ export function DMChatView({
         new Date(value).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
     const ActionPill = ({ message, isOwn }: { message: DMMessageData; isOwn: boolean }) => (
-        <div className="absolute -top-3 right-2 flex items-center gap-0.5 bg-surface border border-border rounded-lg px-1 py-1 shadow-lg z-20">
+        <div className="absolute -top-3 right-2 flex items-center gap-0.5 bg-surface border border-border rounded-lg px-1 py-1 shadow-[0_4px_12px_rgba(0,0,0,0.2)] z-20">
             {["👍", "❤️", "😂"].map((emoji) => (
                 <button
                     key={`${message.id}-quick-${emoji}`}
@@ -678,7 +681,7 @@ export function DMChatView({
                             message.reactions.some((reaction) => reaction.emoji === emoji && reaction.reacted)
                         )
                     }
-                    className="min-w-7 h-7 px-1 rounded-md hover:bg-surface-raised flex items-center justify-center text-[13px] transition-colors"
+                    className="min-w-7 h-7 px-1 rounded-md hover:bg-hover-row flex items-center justify-center text-[13px] transition-colors"
                     title={`React with ${emoji}`}
                 >
                     {emoji}
@@ -691,7 +694,7 @@ export function DMChatView({
                             reactionPickerMessageId === message.id ? null : message.id
                         )
                     }
-                    className="w-7 h-7 rounded-md hover:bg-surface-raised flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                    className="w-7 h-7 rounded-md hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
                     title="Add reaction"
                 >
                     <Smile className="w-[14px] h-[14px]" />
@@ -721,7 +724,7 @@ export function DMChatView({
                             setEditingMessageId(message.id);
                             setEditContent(message.content);
                         }}
-                        className="w-7 h-7 rounded-md hover:bg-surface-raised flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                        className="w-7 h-7 rounded-md hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
                         title="Edit"
                     >
                         <Pencil className="w-[14px] h-[14px]" />
@@ -809,23 +812,28 @@ export function DMChatView({
     );
 
     return (
-        <div className="flex-1 min-w-0 min-h-0 bg-[#111318] flex">
-            <div className="flex-1 min-w-0 flex flex-col border-r border-[#1F2330]">
-                <div className="h-12 border-b border-[#1F2330] flex items-center px-4 gap-3 flex-shrink-0">
-                    <div className="w-7 h-7 rounded-full overflow-hidden bg-[#232734] flex items-center justify-center text-[#CDD3DF]">
+        <div className="flex-1 min-w-0 min-h-0 bg-channel-sidebar flex">
+            <div className="flex-1 min-w-0 flex flex-col border-r border-border-subtle">
+                <div className="h-12 border-b border-border-subtle flex items-center px-4 gap-3 flex-shrink-0">
+                    <div className="w-7 h-7 rounded-full overflow-hidden bg-surface-raised flex items-center justify-center text-text-secondary">
                         {conversation.type === "group" || !peer ? (
                             <Users className="w-4 h-4" />
                         ) : (
-                            <img
-                                src={peer.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${peer.username}`}
-                                alt={peer.displayName}
-                                className="w-full h-full object-cover"
+                            <UserAvatar
+                                avatarUrl={peer.avatarUrl}
+                                username={peer.username}
+                                className="w-full h-full"
                             />
                         )}
                     </div>
                     <div className="min-w-0">
-                        <p className="text-body font-semibold text-text-primary truncate">{title}</p>
-                        <p className="text-micro text-[#8E93A3] truncate">
+                        <p
+                            className="text-body font-semibold truncate"
+                            style={{ color: peer ? getUsernameColor(peer.username) : "inherit" }}
+                        >
+                            {title}
+                        </p>
+                        <p className="text-micro text-text-muted truncate">
                             {conversation.type === "group"
                                 ? `${conversation.participants.length} members`
                                 : peer?.status || "offline"}
@@ -839,7 +847,7 @@ export function DMChatView({
                             onClick={() => handleStartCall(false)}
                             disabled={startingCall || !!activeCall}
                             title={activeCall ? "Call already active" : "Start voice call"}
-                            className="w-8 h-8 rounded-md text-[#AAB1C0] hover:text-text-primary hover:bg-[#202432] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                            className="w-8 h-8 rounded-lg text-text-muted hover:text-text-primary hover:bg-hover-row disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                         >
                             <Phone className="w-4 h-4" />
                         </button>
@@ -847,23 +855,35 @@ export function DMChatView({
                             onClick={() => handleStartCall(true)}
                             disabled={startingCall || !!activeCall}
                             title={activeCall ? "Call already active" : "Start video call"}
-                            className="w-8 h-8 rounded-md text-[#AAB1C0] hover:text-text-primary hover:bg-[#202432] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                            className="w-8 h-8 rounded-lg text-text-muted hover:text-text-primary hover:bg-hover-row disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                         >
                             <Video className="w-4 h-4" />
                         </button>
                         <button
                             type="button"
                             title="Search"
-                            className="w-8 h-8 rounded-md text-[#AAB1C0] hover:text-text-primary hover:bg-[#202432] transition-colors flex items-center justify-center"
+                            className="w-8 h-8 rounded-lg text-text-muted hover:text-text-primary hover:bg-hover-row transition-colors flex items-center justify-center"
                         >
                             <Search className="w-4 h-4" />
                         </button>
                         <button
                             type="button"
                             title="Add Friend"
-                            className="w-8 h-8 rounded-md text-[#AAB1C0] hover:text-text-primary hover:bg-[#202432] transition-colors flex items-center justify-center"
+                            className="w-8 h-8 rounded-lg text-text-muted hover:text-text-primary hover:bg-hover-row transition-colors flex items-center justify-center"
                         >
                             <UserPlus className="w-4 h-4" />
+                        </button>
+                        <button
+                            type="button"
+                            title={showMembersPane ? "Hide members" : "Show members"}
+                            onClick={() => setShowMembersPane((prev) => !prev)}
+                            className="hidden xl:flex w-8 h-8 rounded-lg text-text-muted hover:text-text-primary hover:bg-hover-row transition-colors items-center justify-center"
+                        >
+                            {showMembersPane ? (
+                                <PanelRightClose className="w-4 h-4" />
+                            ) : (
+                                <PanelRightOpen className="w-4 h-4" />
+                            )}
                         </button>
                     </div>
                 </div>
@@ -873,424 +893,419 @@ export function DMChatView({
                     onScroll={handleScroll}
                     className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
                 >
-                {loadingOlder && (
-                    <div className="flex justify-center py-2">
-                        <Loader2 className="w-5 h-5 text-text-muted animate-spin" />
-                    </div>
-                )}
+                    {loadingOlder && (
+                        <div className="flex justify-center py-2">
+                            <Loader2 className="w-5 h-5 text-text-muted animate-spin" />
+                        </div>
+                    )}
 
-                {loading && (
-                    <div className="flex justify-center py-10">
-                        <Loader2 className="w-6 h-6 text-accent-violet animate-spin" />
-                    </div>
-                )}
+                    {loading && (
+                        <div className="flex justify-center py-10">
+                            <Loader2 className="w-6 h-6 text-accent-violet animate-spin" />
+                        </div>
+                    )}
 
-                {!loading && messages.length === 0 && (
-                    <div className="text-center py-10">
-                        <p className="text-heading font-bold text-text-primary mb-1">
-                            Start your conversation
-                        </p>
-                        <p className="text-body text-text-muted">
-                            Send a message to begin this DM.
-                        </p>
-                    </div>
-                )}
+                    {!loading && messages.length === 0 && (
+                        <div className="text-center py-10">
+                            <p className="text-heading font-bold text-text-primary mb-1">
+                                Start your conversation
+                            </p>
+                            <p className="text-body text-text-muted">
+                                Send a message to begin this DM.
+                            </p>
+                        </div>
+                    )}
 
-                {virtualMessages.topSpacer > 0 && (
-                    <div style={{ height: `${virtualMessages.topSpacer}px` }} />
-                )}
+                    {virtualMessages.topSpacer > 0 && (
+                        <div style={{ height: `${virtualMessages.topSpacer}px` }} />
+                    )}
 
-                {virtualMessages.items.map(({ item: message, key, measureRef }) => {
-                    if (message.type === "call") {
-                        const duration = callDurationByMessageId.get(message.id) || 0;
+                    {virtualMessages.items.map(({ item: message, key, measureRef }) => {
+                        if (message.type === "call") {
+                            const duration = callDurationByMessageId.get(message.id) || 0;
 
-                        const mins = Math.floor(duration / 60);
-                        const secs = duration % 60;
-                        const hasDur = duration > 0;
-                        const durStr = hasDur ? (mins > 0 ? `${mins}m ${secs}s` : `${secs}s`) : "0s";
-                        const callTitle = hasDur
-                            ? `${message.author.displayName} started a call`
-                            : `Missed call from ${message.author.displayName}`;
-                        const callSubtitle = hasDur
-                            ? `Call lasted ${durStr}`
-                            : "You missed this call";
+                            const mins = Math.floor(duration / 60);
+                            const secs = duration % 60;
+                            const hasDur = duration > 0;
+                            const durStr = hasDur ? (mins > 0 ? `${mins}m ${secs}s` : `${secs}s`) : "0s";
+                            const callTitle = hasDur
+                                ? `${message.author.displayName} started a call`
+                                : `Missed call from ${message.author.displayName}`;
+                            const callSubtitle = hasDur
+                                ? `Call lasted ${durStr}`
+                                : "You missed this call";
+
+                            return (
+                                <div
+                                    key={key}
+                                    ref={measureRef}
+                                    className={`relative my-2 px-3 py-3 rounded-lg border ${hasDur
+                                        ? "bg-surface border-border"
+                                        : "bg-danger/5 border-danger/10"
+                                        }`}
+                                >
+                                    <div className={`flex items-center gap-3 ${hasDur ? "text-text-primary" : "text-danger"}`}>
+                                        <div
+                                            className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${hasDur
+                                                ? "bg-surface-raised text-text-primary"
+                                                : "bg-danger/10 text-danger"
+                                                }`}
+                                        >
+                                            {hasDur ? (
+                                                <Phone className="w-5 h-5" />
+                                            ) : (
+                                                <PhoneOff className="w-5 h-5" />
+                                            )}
+                                        </div>
+
+                                        <div className="min-w-0 flex-1">
+                                            <div className="text-[14px] font-semibold truncate leading-tight">
+                                                {callTitle}
+                                            </div>
+                                            <div className="text-micro mt-0.5 flex items-center gap-1.5 opacity-80">
+                                                <span>
+                                                    {callSubtitle}
+                                                </span>
+                                                <span className="opacity-50">•</span>
+                                                <span>
+                                                    {formatTime(message.createdAt)}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            className={`px-2.5 py-1 rounded-full text-micro font-bold tracking-wide uppercase ${hasDur
+                                                ? "bg-surface-raised text-text-muted"
+                                                : "bg-danger/10 text-danger"
+                                                }`}
+                                        >
+                                            {hasDur ? "Connected" : "Missed"}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        }
+
+                        const isOwn = message.author.id === currentUserId;
+                        const messageEmbeds = getMessageEmbeds(message.content);
+                        const authorColor = getUsernameColor(message.author.username);
 
                         return (
                             <div
                                 key={key}
                                 ref={measureRef}
-                                className={`relative my-1 px-1 py-2 pl-4 ${
-                                    hasDur ? "border-b border-[#262B39]" : "border-b border-[#4A232C]/70"
-                                }`}
+                                className={`relative flex gap-3 group p-1 pl-1 -m-1 mt-[1px] rounded-md transition-colors ${hoveredMessage === message.id ? "bg-hover-row" : ""
+                                    }`}
+                                onMouseEnter={() => setHoveredMessage(message.id)}
+                                onMouseLeave={() => setHoveredMessage(null)}
                             >
-                                <span
-                                    className={`absolute left-0 top-2 bottom-2 w-[2px] rounded-full ${
-                                        hasDur ? "bg-[#5865F2]/70" : "bg-[#F75F6E]"
-                                    }`}
+                                <UserAvatar
+                                    avatarUrl={message.author.avatarUrl}
+                                    username={message.author.username}
+                                    className="w-9 h-9 mt-0.5"
                                 />
-
-                                <div
-                                    className={`flex items-center gap-2 ${
-                                        hasDur ? "text-[#C8CDDA]" : "text-[#F1B5BD]"
-                                    }`}
-                                >
-                                    <div
-                                        className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                            hasDur
-                                                ? "bg-[#1E2534] text-[#9DB0FF]"
-                                                : "bg-[#3A1B22] text-[#F97B8E]"
-                                        }`}
-                                    >
-                                        {hasDur ? (
-                                            <Phone className="w-3.5 h-3.5" />
-                                        ) : (
-                                            <PhoneOff className="w-3.5 h-3.5" />
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-baseline gap-2">
+                                        <span
+                                            className="text-[15px] font-semibold hover:underline cursor-pointer"
+                                            style={{ color: authorColor }}
+                                        >
+                                            {message.author.displayName}
+                                        </span>
+                                        <span className="text-micro text-text-muted">
+                                            {formatTime(message.createdAt)}
+                                        </span>
+                                        {message.editedAt && (
+                                            <span className="text-micro text-text-muted">(edited)</span>
                                         )}
                                     </div>
 
-                                    <div className="min-w-0 flex-1">
-                                        <div
-                                            className={`text-[13px] font-semibold truncate ${
-                                                hasDur ? "text-[#E6E9F3]" : "text-[#FFC8CF]"
-                                            }`}
-                                        >
-                                            {callTitle}
+                                    {editingMessageId === message.id ? (
+                                        <div className="space-y-2 mt-1">
+                                            <textarea
+                                                value={editContent}
+                                                onChange={(e) => setEditContent(e.target.value)}
+                                                className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
+                                                rows={2}
+                                                autoFocus
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter" && !e.shiftKey) {
+                                                        e.preventDefault();
+                                                        handleEdit(message.id);
+                                                    }
+                                                    if (e.key === "Escape") {
+                                                        setEditingMessageId(null);
+                                                    }
+                                                }}
+                                            />
+                                            <div className="flex items-center gap-2 text-micro text-text-muted">
+                                                <span>Press Enter to save, Escape to cancel</span>
+                                                <button
+                                                    onClick={() => setEditingMessageId(null)}
+                                                    className="text-danger hover:underline"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="text-[12px] flex items-center gap-1.5">
-                                            <span className={hasDur ? "text-[#8E93A3]" : "text-[#E98D9A]"}>
-                                                {callSubtitle}
-                                            </span>
-                                            <span className={hasDur ? "text-[#8E93A3]" : "text-[#D87886]"}>
-                                                • {formatTime(message.createdAt)}
-                                            </span>
+                                    ) : (
+                                        <>
+                                            <div className="text-body text-text-primary whitespace-pre-wrap break-words">
+                                                {renderContent(message.content)}
+                                            </div>
+                                            {messageEmbeds.length > 0 && (
+                                                <div className="mt-1">
+                                                    {messageEmbeds.map((embed) => (
+                                                        <LinkEmbed key={embed.id} embed={embed} />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+
+                                    {message.reactions.length > 0 && (
+                                        <div className="flex gap-1.5 mt-2">
+                                            {message.reactions.map((reaction, idx) => (
+                                                <button
+                                                    key={`${message.id}-reaction-${idx}`}
+                                                    onClick={() => handleReaction(message.id, reaction.emoji, reaction.reacted)}
+                                                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${reaction.reacted
+                                                        ? "bg-reaction-own border border-accent-violet"
+                                                        : "bg-surface-raised border border-border hover:border-accent-violet/40"
+                                                        }`}
+                                                >
+                                                    <span>{reaction.emoji}</span>
+                                                    <span className="text-text-muted">{reaction.count}</span>
+                                                </button>
+                                            ))}
+                                            <div className="relative">
+                                                <button
+                                                    onClick={() =>
+                                                        setReactionPickerMessageId(
+                                                            reactionPickerMessageId === message.id ? null : message.id
+                                                        )
+                                                    }
+                                                    className="flex items-center justify-center w-6 h-6 rounded-md bg-surface-raised border border-border hover:border-accent-violet/40 transition-all"
+                                                >
+                                                    <Plus className="w-3 h-3 text-text-muted" />
+                                                </button>
+                                                {reactionPickerMessageId === message.id && (
+                                                    <div className="absolute top-full left-0 mt-2 z-50">
+                                                        <EmojiPicker
+                                                            onSelect={(emoji) => {
+                                                                handleReaction(
+                                                                    message.id,
+                                                                    emoji,
+                                                                    message.reactions.some(
+                                                                        (reaction) =>
+                                                                            reaction.emoji === emoji && reaction.reacted
+                                                                    )
+                                                                );
+                                                                setReactionPickerMessageId(null);
+                                                            }}
+                                                            onClose={() => setReactionPickerMessageId(null)}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-
-                                    <span
-                                        className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                                            hasDur
-                                                ? "bg-[#232A3A] text-[#AEB7CF]"
-                                                : "bg-[#4A232C] text-[#FFB0BC]"
-                                        }`}
-                                    >
-                                        {hasDur ? "Connected" : "Missed"}
-                                    </span>
-                                </div>
-                            </div>
-                        );
-                    }
-
-                    const avatar =
-                        message.author.avatarUrl ||
-                        `https://api.dicebear.com/9.x/avataaars/svg?seed=${message.author.username}`;
-                    const isOwn = message.author.id === currentUserId;
-                    const messageEmbeds = getMessageEmbeds(message.content);
-
-                    return (
-                        <div
-                            key={key}
-                            ref={measureRef}
-                            className={`relative flex gap-3 group p-1 -m-1 rounded-md transition-colors ${
-                                hoveredMessage === message.id ? "bg-hover-row" : ""
-                            }`}
-                            onMouseEnter={() => setHoveredMessage(message.id)}
-                            onMouseLeave={() => setHoveredMessage(null)}
-                        >
-                            <img
-                                src={avatar}
-                                alt={message.author.displayName}
-                                className="w-9 h-9 rounded-full bg-surface-raised flex-shrink-0"
-                            />
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-body font-semibold text-text-primary">
-                                        {message.author.displayName}
-                                    </span>
-                                    <span className="text-micro text-text-muted">
-                                        {formatTime(message.createdAt)}
-                                    </span>
-                                    {message.editedAt && (
-                                        <span className="text-micro text-text-muted">(edited)</span>
                                     )}
                                 </div>
 
-                                {editingMessageId === message.id ? (
-                                    <div className="space-y-2 mt-1">
-                                        <textarea
-                                            value={editContent}
-                                            onChange={(e) => setEditContent(e.target.value)}
-                                            className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
-                                            rows={2}
-                                            autoFocus
-                                            onKeyDown={(e) => {
-                                                if (e.key === "Enter" && !e.shiftKey) {
-                                                    e.preventDefault();
-                                                    handleEdit(message.id);
-                                                }
-                                                if (e.key === "Escape") {
-                                                    setEditingMessageId(null);
-                                                }
-                                            }}
-                                        />
-                                        <div className="flex items-center gap-2 text-micro text-text-muted">
-                                            <span>Press Enter to save, Escape to cancel</span>
-                                            <button
-                                                onClick={() => setEditingMessageId(null)}
-                                                className="text-danger hover:underline"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="text-body text-text-primary whitespace-pre-wrap break-words">
-                                            {renderContent(message.content)}
-                                        </div>
-                                        {messageEmbeds.length > 0 && (
-                                            <div className="mt-1">
-                                                {messageEmbeds.map((embed) => (
-                                                    <LinkEmbed key={embed.id} embed={embed} />
-                                                ))}
-                                            </div>
-                                        )}
-                                    </>
+                                {hoveredMessage === message.id && editingMessageId !== message.id && (
+                                    <ActionPill message={message} isOwn={isOwn} />
                                 )}
+                            </div>
+                        );
+                    })}
 
-                                {message.reactions.length > 0 && (
-                                    <div className="flex gap-1.5 mt-2">
-                                        {message.reactions.map((reaction, idx) => (
-                                            <button
-                                                key={`${message.id}-reaction-${idx}`}
-                                                onClick={() => handleReaction(message.id, reaction.emoji, reaction.reacted)}
-                                                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${reaction.reacted
-                                                    ? "bg-reaction-own border border-accent-violet"
-                                                    : "bg-surface-raised border border-border hover:border-accent-violet/40"
-                                                    }`}
-                                            >
-                                                <span>{reaction.emoji}</span>
-                                                <span className="text-text-muted">{reaction.count}</span>
-                                            </button>
-                                        ))}
-                                        <div className="relative">
-                                            <button
-                                                onClick={() =>
-                                                    setReactionPickerMessageId(
-                                                        reactionPickerMessageId === message.id ? null : message.id
-                                                    )
-                                                }
-                                                className="flex items-center justify-center w-6 h-6 rounded-md bg-surface-raised border border-border hover:border-accent-violet/40 transition-all"
-                                            >
-                                                <Plus className="w-3 h-3 text-text-muted" />
-                                            </button>
-                                            {reactionPickerMessageId === message.id && (
-                                                <div className="absolute top-full left-0 mt-2 z-50">
-                                                    <EmojiPicker
-                                                        onSelect={(emoji) => {
-                                                            handleReaction(
-                                                                message.id,
-                                                                emoji,
-                                                                message.reactions.some(
-                                                                    (reaction) =>
-                                                                        reaction.emoji === emoji && reaction.reacted
-                                                                )
-                                                            );
-                                                            setReactionPickerMessageId(null);
-                                                        }}
-                                                        onClose={() => setReactionPickerMessageId(null)}
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
+                    {virtualMessages.bottomSpacer > 0 && (
+                        <div style={{ height: `${virtualMessages.bottomSpacer}px` }} />
+                    )}
+
+                    <div ref={endRef} />
+                </div>
+
+                <div className="p-4 border-t border-border-subtle">
+                    <div className="relative flex items-center gap-2 bg-surface-raised border border-border focus-within:border-accent-violet/40 focus-within:shadow-[0_0_0_1px_rgba(124,106,247,0.15)] rounded-lg px-3 py-2 transition-all">
+                        {showSlashCommandMenu && (
+                            <SlashCommandMenu
+                                commands={filteredSlashCommands}
+                                selectedIndex={selectedSlashIndex}
+                                onSelect={(command) => setMessageInput(formatSlashCommandInput(command))}
+                                onHover={setSelectedSlashIndex}
+                            />
+                        )}
+                        <button
+                            onClick={() => attachmentInputRef.current?.click()}
+                            disabled={uploadingAttachment}
+                            className="w-8 h-8 rounded-md flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-hover-row transition-colors disabled:opacity-50"
+                            title="Upload file"
+                        >
+                            {uploadingAttachment ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Plus className="w-4 h-4" />
+                            )}
+                        </button>
+                        <input
+                            ref={attachmentInputRef}
+                            type="file"
+                            className="hidden"
+                            accept={ATTACHMENT_INPUT_ACCEPT}
+                            onChange={handleAttachmentSelect}
+                        />
+                        <textarea
+                            value={messageInput}
+                            onChange={(e) => setMessageInput(e.target.value)}
+                            placeholder={`Message ${title}`}
+                            className="flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted outline-none resize-none max-h-36 min-h-[22px] py-1 leading-[1.45]"
+                            rows={1}
+                            onKeyDown={handleComposerKeyDown}
+                        />
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                            <div className="relative">
+                                <button
+                                    onClick={() => {
+                                        setShowStickerPicker(!showStickerPicker);
+                                        setShowGifPicker(false);
+                                        setShowEmojiPicker(false);
+                                    }}
+                                    className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${showStickerPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary hover:bg-hover-row"}`}
+                                    title="Sticker"
+                                >
+                                    <ImageIcon className="w-4 h-4" />
+                                </button>
+                                {showStickerPicker && (
+                                    <div className="absolute bottom-full right-0 mb-2 z-50">
+                                        <StickerPicker
+                                            onSelect={handleSendSticker}
+                                            onClose={() => setShowStickerPicker(false)}
+                                        />
                                     </div>
                                 )}
                             </div>
-
-                            {hoveredMessage === message.id && editingMessageId !== message.id && (
-                                <ActionPill message={message} isOwn={isOwn} />
-                            )}
+                            <div className="relative">
+                                <button
+                                    onClick={() => {
+                                        setShowGifPicker(!showGifPicker);
+                                        setShowEmojiPicker(false);
+                                        setShowStickerPicker(false);
+                                    }}
+                                    className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${showGifPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary hover:bg-hover-row"}`}
+                                    title="GIF"
+                                >
+                                    <span className="text-[11px] font-bold leading-none">GIF</span>
+                                </button>
+                                {showGifPicker && (
+                                    <div className="absolute bottom-full right-0 mb-2 z-50">
+                                        <GifPicker
+                                            onSelect={async (gifUrl) => {
+                                                try {
+                                                    const result = await sendDMMessage(conversation.id, gifUrl);
+                                                    addStoreMessage(conversation.id, result.message);
+                                                    syncConversationFromMessage(result.message);
+                                                    setShowGifPicker(false);
+                                                } catch (err) {
+                                                    console.error("Failed to send GIF:", err);
+                                                }
+                                            }}
+                                            onClose={() => setShowGifPicker(false)}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                            <div className="relative">
+                                <button
+                                    onClick={() => {
+                                        setShowEmojiPicker(!showEmojiPicker);
+                                        setShowGifPicker(false);
+                                        setShowStickerPicker(false);
+                                    }}
+                                    className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${showEmojiPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary hover:bg-hover-row"}`}
+                                    title="Emoji"
+                                >
+                                    <Smile className="w-4 h-4" />
+                                </button>
+                                {showEmojiPicker && (
+                                    <div className="absolute bottom-full right-0 mb-2 z-50">
+                                        <EmojiPicker
+                                            onSelect={(emoji) => {
+                                                setMessageInput((prev) => prev + emoji);
+                                                setShowEmojiPicker(false);
+                                            }}
+                                            onClose={() => setShowEmojiPicker(false)}
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    );
-                })}
-
-                {virtualMessages.bottomSpacer > 0 && (
-                    <div style={{ height: `${virtualMessages.bottomSpacer}px` }} />
-                )}
-
-                <div ref={endRef} />
-            </div>
-
-                <div className="p-4 border-t border-[#1F2330]">
-                    <div className="relative flex items-center gap-2 bg-[#1A1D28] border border-[#2A2F3F] rounded-lg px-3 py-2">
-                    {showSlashCommandMenu && (
-                        <SlashCommandMenu
-                            commands={filteredSlashCommands}
-                            selectedIndex={selectedSlashIndex}
-                            onSelect={(command) => setMessageInput(formatSlashCommandInput(command))}
-                            onHover={setSelectedSlashIndex}
-                        />
-                    )}
-                    <button
-                        onClick={() => attachmentInputRef.current?.click()}
-                        disabled={uploadingAttachment}
-                        className="w-8 h-8 rounded-md flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-[#272B39] transition-colors disabled:opacity-50"
-                        title="Upload file"
-                    >
-                        {uploadingAttachment ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                            <Plus className="w-4 h-4" />
-                        )}
-                    </button>
-                    <input
-                        ref={attachmentInputRef}
-                        type="file"
-                        className="hidden"
-                        accept={ATTACHMENT_INPUT_ACCEPT}
-                        onChange={handleAttachmentSelect}
-                    />
-                    <textarea
-                        value={messageInput}
-                        onChange={(e) => setMessageInput(e.target.value)}
-                        placeholder={`Message ${title}`}
-                        className="flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted outline-none resize-none max-h-36 min-h-[22px] py-1 leading-[1.45]"
-                        rows={1}
-                        onKeyDown={handleComposerKeyDown}
-                    />
-                    <div className="flex items-center gap-0.5 flex-shrink-0">
-                        <div className="relative">
-                            <button
-                                onClick={() => {
-                                    setShowStickerPicker(!showStickerPicker);
-                                    setShowGifPicker(false);
-                                    setShowEmojiPicker(false);
-                                }}
-                                className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${showStickerPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary hover:bg-[#272B39]"}`}
-                                title="Sticker"
-                            >
-                                <ImageIcon className="w-4 h-4" />
-                            </button>
-                            {showStickerPicker && (
-                                <div className="absolute bottom-full right-0 mb-2 z-50">
-                                    <StickerPicker
-                                        onSelect={handleSendSticker}
-                                        onClose={() => setShowStickerPicker(false)}
-                                    />
-                                </div>
-                            )}
-                        </div>
-                        <div className="relative">
-                            <button
-                                onClick={() => {
-                                    setShowGifPicker(!showGifPicker);
-                                    setShowEmojiPicker(false);
-                                    setShowStickerPicker(false);
-                                }}
-                                className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${showGifPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary hover:bg-[#272B39]"}`}
-                                title="GIF"
-                            >
-                                <span className="text-[11px] font-bold leading-none">GIF</span>
-                            </button>
-                            {showGifPicker && (
-                                <div className="absolute bottom-full right-0 mb-2 z-50">
-                                    <GifPicker
-                                        onSelect={async (gifUrl) => {
-                                            try {
-                                                const result = await sendDMMessage(conversation.id, gifUrl);
-                                                addStoreMessage(conversation.id, result.message);
-                                                syncConversationFromMessage(result.message);
-                                                setShowGifPicker(false);
-                                            } catch (err) {
-                                                console.error("Failed to send GIF:", err);
-                                            }
-                                        }}
-                                        onClose={() => setShowGifPicker(false)}
-                                    />
-                                </div>
-                            )}
-                        </div>
-                        <div className="relative">
-                            <button
-                                onClick={() => {
-                                    setShowEmojiPicker(!showEmojiPicker);
-                                    setShowGifPicker(false);
-                                    setShowStickerPicker(false);
-                                }}
-                                className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${showEmojiPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary hover:bg-[#272B39]"}`}
-                                title="Emoji"
-                            >
-                                <Smile className="w-4 h-4" />
-                            </button>
-                            {showEmojiPicker && (
-                                <div className="absolute bottom-full right-0 mb-2 z-50">
-                                    <EmojiPicker
-                                        onSelect={(emoji) => {
-                                            setMessageInput((prev) => prev + emoji);
-                                            setShowEmojiPicker(false);
-                                        }}
-                                        onClose={() => setShowEmojiPicker(false)}
-                                    />
-                                </div>
-                            )}
-                        </div>
+                        <button
+                            onClick={handleSend}
+                            disabled={sending || !messageInput.trim()}
+                            className="w-8 h-8 rounded-md bg-accent-violet text-white hover:bg-accent-violet/90 disabled:opacity-50 flex items-center justify-center"
+                        >
+                            <Send className="w-4 h-4" />
+                        </button>
                     </div>
-                    <button
-                        onClick={handleSend}
-                        disabled={sending || !messageInput.trim()}
-                        className="w-8 h-8 rounded-md bg-accent-violet text-white hover:bg-accent-violet/90 disabled:opacity-50 flex items-center justify-center"
-                    >
-                        <Send className="w-4 h-4" />
-                    </button>
-                </div>
-                    <div className="mt-1.5 px-1 text-micro text-[#8E93A3]">
+                    <div className="mt-1.5 px-1 text-micro text-text-muted">
                         Free uploads: {FREE_ATTACHMENT_MAX_LABEL} per file
                     </div>
                 </div>
 
             </div>
 
-            <aside className="hidden xl:flex w-[240px] flex-col bg-[#0E1016]">
-                <div className="h-12 border-b border-[#1F2330] px-4 flex items-center text-[12px] font-semibold tracking-wide uppercase text-[#8E93A3]">
-                    Members - {members.length}
-                </div>
-                <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
-                    {members.map((member) => {
-                        const avatar =
-                            member.avatarUrl ||
-                            `https://api.dicebear.com/9.x/avataaars/svg?seed=${member.username}`;
-                        const statusColor = DM_STATUS_COLORS[member.status] || DM_STATUS_COLORS.offline;
-                        const isYou = member.id === currentUserId;
+            {showMembersPane && (
+                <aside className="hidden xl:flex w-[240px] flex-col bg-channel-sidebar border-l border-border-subtle">
+                    <div className="h-12 border-b border-border-subtle px-4 flex items-center text-[12px] font-semibold tracking-wide uppercase text-text-faint">
+                        Members - {members.length}
+                    </div>
+                    <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
+                        {members.map((member) => {
+                            const statusColor = DM_STATUS_COLORS[member.status] || DM_STATUS_COLORS.offline;
+                            const isYou = member.id === currentUserId;
+                            const statusText =
+                                isYou && member.status === "offline"
+                                    ? ""
+                                    : member.status || "offline";
+                            const memberColor = getUsernameColor(member.username);
 
-                        return (
-                            <div
-                                key={member.id}
-                                className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-[#1A1E2B] transition-colors"
-                            >
-                                <div className="relative">
-                                    <img
-                                        src={avatar}
-                                        alt={member.displayName}
-                                        className="w-8 h-8 rounded-full bg-[#222633]"
-                                    />
-                                    <span
-                                        className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-[#0E1016]"
-                                        style={{ backgroundColor: statusColor }}
-                                    />
-                                </div>
-                                <div className="min-w-0">
-                                    <div className="text-body text-[#D2D7E2] truncate">
-                                        {member.displayName}
-                                        {isYou ? " (You)" : ""}
+                            return (
+                                <div
+                                    key={member.id}
+                                    className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-hover-row transition-colors"
+                                >
+                                    <div className="relative">
+                                        <UserAvatar
+                                            avatarUrl={member.avatarUrl}
+                                            username={member.username}
+                                            className="w-8 h-8"
+                                        />
+                                        <span
+                                            className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-channel-sidebar"
+                                            style={{ backgroundColor: statusColor }}
+                                        />
                                     </div>
-                                    <div className="text-micro text-[#8E93A3] truncate capitalize">
-                                        {member.status || "offline"}
+                                    <div className="min-w-0">
+                                        <div
+                                            className="text-[14px] font-semibold truncate"
+                                            style={{ color: memberColor }}
+                                        >
+                                            {member.displayName}
+                                            {isYou ? " (You)" : ""}
+                                        </div>
+                                        {statusText && (
+                                            <div className="text-micro text-text-muted truncate capitalize">
+                                                {statusText}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </aside>
+                            );
+                        })}
+                    </div>
+                </aside>
+            )}
         </div>
     );
 }

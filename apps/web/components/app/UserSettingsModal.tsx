@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useNotificationStore } from "@/stores/notification-store";
 import { useVoiceStore } from "@/stores/voice-store";
 import { playNotificationTone } from "@/lib/notifications";
+import { UserAvatar } from "./UserAvatar";
 
 interface UserSettingsModalProps {
     open: boolean;
@@ -75,7 +76,7 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
 
     if (!open) return null;
 
-    const avatarUrl = user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user?.username || "user"}`;
+    const avatarUrl = user?.avatar;
 
     const handleLogout = () => {
         onClose();
@@ -213,8 +214,8 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                         <button
                             onClick={() => setActiveTab("My Account")}
                             className={`w-full text-left px-3 py-2 rounded-md transition-colors text-body ${activeTab === "My Account"
-                                    ? "bg-surface-raised text-text-primary font-medium"
-                                    : "text-text-muted hover:bg-hover-row hover:text-text-primary"
+                                ? "bg-surface-raised text-text-primary font-medium"
+                                : "text-text-muted hover:bg-hover-row hover:text-text-primary"
                                 }`}
                         >
                             My Account
@@ -222,8 +223,8 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                         <button
                             onClick={() => setActiveTab("Profiles")}
                             className={`w-full text-left px-3 py-2 rounded-md transition-colors text-body ${activeTab === "Profiles"
-                                    ? "bg-surface-raised text-text-primary font-medium"
-                                    : "text-text-muted hover:bg-hover-row hover:text-text-primary"
+                                ? "bg-surface-raised text-text-primary font-medium"
+                                : "text-text-muted hover:bg-hover-row hover:text-text-primary"
                                 }`}
                         >
                             Profiles
@@ -239,8 +240,8 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                         <button
                             onClick={() => setActiveTab("Appearance")}
                             className={`w-full text-left px-3 py-2 rounded-md transition-colors text-body ${activeTab === "Appearance"
-                                    ? "bg-surface-raised text-text-primary font-medium"
-                                    : "text-text-muted hover:bg-hover-row hover:text-text-primary"
+                                ? "bg-surface-raised text-text-primary font-medium"
+                                : "text-text-muted hover:bg-hover-row hover:text-text-primary"
                                 }`}
                         >
                             Appearance
@@ -248,8 +249,8 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                         <button
                             onClick={() => setActiveTab("Notifications")}
                             className={`w-full text-left px-3 py-2 rounded-md transition-colors text-body ${activeTab === "Notifications"
-                                    ? "bg-surface-raised text-text-primary font-medium"
-                                    : "text-text-muted hover:bg-hover-row hover:text-text-primary"
+                                ? "bg-surface-raised text-text-primary font-medium"
+                                : "text-text-muted hover:bg-hover-row hover:text-text-primary"
                                 }`}
                         >
                             Notifications
@@ -257,8 +258,8 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                         <button
                             onClick={() => setActiveTab("Voice & Video")}
                             className={`w-full text-left px-3 py-2 rounded-md transition-colors text-body ${activeTab === "Voice & Video"
-                                    ? "bg-surface-raised text-text-primary font-medium"
-                                    : "text-text-muted hover:bg-hover-row hover:text-text-primary"
+                                ? "bg-surface-raised text-text-primary font-medium"
+                                : "text-text-muted hover:bg-hover-row hover:text-text-primary"
                                 }`}
                         >
                             Voice & Video
@@ -297,10 +298,10 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                             onMouseLeave={() => setIsHoveringAvatar(false)}
                                             onClick={handleChangeAvatar}
                                         >
-                                            <img
-                                                src={avatarUrl}
-                                                alt="Avatar"
-                                                className="w-20 h-20 rounded-full bg-surface-raised"
+                                            <UserAvatar
+                                                avatarUrl={avatarUrl}
+                                                username={user?.username || "user"}
+                                                className="w-20 h-20"
                                             />
                                             {isHoveringAvatar && (
                                                 <div className="absolute inset-0 bg-black/60 rounded-full flex flex-col items-center justify-center animate-in fade-in duration-100">
@@ -370,10 +371,10 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                         <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Avatar</label>
                                         <div className="flex items-center gap-4">
                                             <div className="relative group cursor-pointer" onClick={handleChangeAvatar}>
-                                                <img
-                                                    src={avatarUrl}
-                                                    alt="Current avatar"
-                                                    className="w-20 h-20 rounded-full bg-surface-raised object-cover"
+                                                <UserAvatar
+                                                    avatarUrl={avatarUrl}
+                                                    username={user?.username || "user"}
+                                                    className="w-20 h-20 object-cover"
                                                 />
                                                 <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <Upload className="w-6 h-6 text-white" />
@@ -397,10 +398,10 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                     <div className="bg-surface rounded-xl overflow-hidden border border-border shadow-lg">
                                         <div className="h-20 bg-accent-violet/30" />
                                         <div className="px-4 pb-4">
-                                            <img
-                                                src={avatarUrl}
-                                                alt="Avatar"
-                                                className="w-16 h-16 rounded-full border-4 border-surface -mt-8 bg-surface-raised relative z-10 object-cover"
+                                            <UserAvatar
+                                                avatarUrl={avatarUrl}
+                                                username={user?.username || "user"}
+                                                className="w-16 h-16 border-4 border-surface -mt-8 relative z-10 object-cover"
                                             />
                                             <div className="mt-2 bg-surface-raised p-2 rounded-lg border border-border">
                                                 <div className="font-bold text-text-primary">{displayName || user?.displayName}</div>

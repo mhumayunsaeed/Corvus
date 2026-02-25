@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useState, useMemo } from "react";
+import { memo, useEffect, useMemo } from "react";
 import {
     LiveKitRoom,
     RoomAudioRenderer,
@@ -17,6 +17,21 @@ import { Mic, MicOff, Video, VideoOff, MonitorUp, Wifi } from "lucide-react";
 import { useVoiceStore } from "@/stores/voice-store";
 import { createRoomOptions } from "@/lib/livekit-config";
 import { useNoiseSuppression } from "@/hooks/useNoiseSuppression";
+import { useLivekitLatency } from "@/hooks/useLivekitLatency";
+import { UserAvatar } from "./UserAvatar";
+import { getUsernameColor } from "@/lib/color-utils";
+
+function getAvatarFromMetadata(participant: Participant): string | null {
+    if (!participant.metadata) return null;
+    try {
+        const parsed = JSON.parse(participant.metadata) as { avatarUrl?: unknown };
+        return typeof parsed.avatarUrl === "string" && parsed.avatarUrl.trim()
+            ? parsed.avatarUrl
+            : null;
+    } catch {
+        return null;
+    }
+}
 
 function getGridClass(count: number): string {
     if (count <= 1) return "grid-cols-1 max-w-[400px] mx-auto";
@@ -39,7 +54,8 @@ function ParticipantTile({
     const hasVideo = !!(trackRef?.publication && !trackRef.publication.isMuted);
     const isMuted = participant.isMicrophoneEnabled === false;
     const displayName = participant.name || participant.identity;
-    const avatarUrl = `https://api.dicebear.com/9.x/avataaars/svg?seed=${participant.identity}`;
+    const username = participant.identity;
+    const avatarUrl = getAvatarFromMetadata(participant);
 
     return (
         <div
@@ -55,18 +71,20 @@ function ParticipantTile({
                 />
             ) : (
                 <div className="flex flex-col items-center gap-3">
-                    <img
-                        src={avatarUrl}
-                        alt={displayName}
-                        className={`w-16 h-16 rounded-full transition-all duration-200 ${isSpeaking ? "ring-[3px] ring-accent-teal" : ""
-                            }`}
+                    <UserAvatar
+                        avatarUrl={avatarUrl}
+                        username={username}
+                        className={`w-16 h-16 transition-all duration-200 ${isSpeaking ? "ring-[3px] ring-accent-teal" : ""}`}
                     />
                 </div>
             )}
 
             {/* Username + status */}
             <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-                <span className="text-micro font-medium text-text-primary bg-black/50 px-2 py-0.5 rounded-md truncate">
+                <span
+                    className="text-micro font-medium px-2 py-0.5 rounded-md truncate"
+                    style={{ backgroundColor: "rgba(0,0,0,0.5)", color: getUsernameColor(username) }}
+                >
                     {displayName}
                 </span>
                 <div className="flex items-center gap-1">
@@ -121,37 +139,18 @@ function ScreenShareView() {
 // ─── Latency Display ─────────────────────────────────────────────
 
 function LatencyIndicator() {
-    const room = useRoomContext();
-    const [latency, setLatency] = useState<number | null>(null);
+    const latency = useLivekitLatency();
+    const setLiveLatency = useVoiceStore((s) => s.setLiveLatency);
 
     useEffect(() => {
-        const measure = () => {
-            try {
-                // LiveKit exposes RTT through engine latency
-                const engine = room.engine as any;
-                const rtt = engine?.latency;
-                if (typeof rtt === "number" && rtt > 0) {
-                    setLatency(Math.round(rtt * 1000));
-                    return;
-                }
-                // Fallback: estimate from connection quality
-                const lp = room.localParticipant;
-                if (lp) {
-                    const q = lp.connectionQuality;
-                    if (q === "excellent") setLatency(25);
-                    else if (q === "good") setLatency(75);
-                    else if (q === "poor") setLatency(200);
-                    else setLatency(null);
-                }
-            } catch {
-                // ignore
-            }
-        };
+        setLiveLatency(latency);
+    }, [latency, setLiveLatency]);
 
-        measure();
-        const interval = setInterval(measure, 2500);
-        return () => clearInterval(interval);
-    }, [room]);
+    useEffect(() => {
+        return () => {
+            setLiveLatency(null);
+        };
+    }, [setLiveLatency]);
 
     if (latency === null) return null;
 

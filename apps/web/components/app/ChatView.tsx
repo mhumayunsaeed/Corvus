@@ -23,6 +23,8 @@ import { EmojiPicker } from "./EmojiPicker";
 import { GifPicker } from "./GifPicker";
 import { StickerPicker } from "./StickerPicker";
 import { SlashCommandMenu } from "./SlashCommandMenu";
+import { UserAvatar } from "./UserAvatar";
+import { getUsernameColor } from "@/lib/color-utils";
 import { useChatStore } from "@/stores/chat-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useRuntimeThrottled } from "@/hooks/useRuntimeThrottled";
@@ -646,7 +648,7 @@ export function ChatView({
             parts.push(
                 <pre
                     key={match.index}
-                    className="bg-[#0A0A0F] rounded-lg p-4 my-2 overflow-x-auto border-l-[3px] border-accent-violet"
+                    className="bg-bg-deep rounded-lg p-4 my-2 overflow-x-auto border-l-[3px] border-accent-violet"
                 >
                     <code className="text-sm font-mono text-accent-teal leading-relaxed">
                         {code}
@@ -707,7 +709,7 @@ export function ChatView({
 
     /* Action pill buttons */
     const ActionPill = ({ message }: { message: MessageData }) => (
-        <div className="absolute -top-4 right-4 flex items-center gap-0.5 bg-[#1A1D28] border border-[#2A2F3F] rounded-lg px-1 py-1 shadow-lg z-20">
+        <div className="absolute -top-4 right-4 flex items-center gap-0.5 bg-surface border border-border rounded-lg px-1 py-1 shadow-[0_4px_12px_rgba(0,0,0,0.2)] z-20">
             {["👍", "❤️", "😂"].map((emoji) => (
                 <button
                     key={`${message.id}-quick-${emoji}`}
@@ -718,7 +720,7 @@ export function ChatView({
                             message.reactions.some((r) => r.emoji === emoji && r.reacted)
                         )
                     }
-                    className="min-w-7 h-7 px-1 rounded-md hover:bg-[#272B39] flex items-center justify-center text-[13px] transition-colors"
+                    className="min-w-7 h-7 px-1 rounded-md hover:bg-hover-row flex items-center justify-center text-[13px] transition-colors"
                     title={`React with ${emoji}`}
                 >
                     {emoji}
@@ -730,13 +732,13 @@ export function ChatView({
                     onClick={() => setReactionPickerMessageId(
                         reactionPickerMessageId === message.id ? null : message.id
                     )}
-                    className="w-7 h-7 rounded-md hover:bg-[#272B39] flex items-center justify-center text-[#AAB1C0] hover:text-text-primary transition-colors"
+                    className="w-7 h-7 rounded-md hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
                     title="Add Reaction"
                 >
                     <Smile className="w-[14px] h-[14px]" />
                 </button>
                 {reactionPickerMessageId === message.id && (
-                    <div className="absolute top-full right-0 mt-2">
+                    <div className="absolute top-full right-0 mt-2 z-[60]">
                         <EmojiPicker
                             onSelect={(emoji) => {
                                 handleReaction(message.id, emoji, message.reactions.some(r => r.emoji === emoji && r.reacted));
@@ -749,7 +751,7 @@ export function ChatView({
             </div>
             <button
                 onClick={() => setReplyTo(message)}
-                className="w-7 h-7 rounded-md hover:bg-[#272B39] flex items-center justify-center text-[#AAB1C0] hover:text-text-primary transition-colors"
+                className="w-7 h-7 rounded-md hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
                 title="Reply"
             >
                 <Reply className="w-[14px] h-[14px]" />
@@ -760,7 +762,7 @@ export function ChatView({
                         setEditingMessageId(message.id);
                         setEditContent(message.content);
                     }}
-                    className="w-7 h-7 rounded-md hover:bg-[#272B39] flex items-center justify-center text-[#AAB1C0] hover:text-text-primary transition-colors"
+                    className="w-7 h-7 rounded-md hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
                     title="Edit"
                 >
                     <Pencil className="w-[14px] h-[14px]" />
@@ -778,17 +780,17 @@ export function ChatView({
     );
 
     return (
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col bg-[#111318]">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col bg-channel-sidebar">
             {/* Top bar */}
-            <div className="h-12 border-b border-[#1F2330] flex items-center px-4 gap-3 flex-shrink-0">
-                <Hash className="w-5 h-5 text-[#8E93A3] flex-shrink-0" />
+            <div className="h-12 border-b border-border-subtle flex items-center px-4 gap-3 flex-shrink-0">
+                <Hash className="w-5 h-5 text-text-muted flex-shrink-0" />
                 <span className="text-emphasis font-semibold text-text-primary">
                     {channelName}
                 </span>
                 {channelDescription && (
                     <>
-                        <div className="w-px h-5 bg-[#2A2F3F]" />
-                        <span className="text-body text-[#8E93A3] truncate">
+                        <div className="w-px h-5 bg-border" />
+                        <span className="text-body text-text-muted truncate">
                             {channelDescription}
                         </span>
                     </>
@@ -797,7 +799,7 @@ export function ChatView({
                     {[Search, Users, Bookmark].map((Icon, i) => (
                         <button
                             key={i}
-                            className="w-8 h-8 rounded-md hover:bg-[#202432] flex items-center justify-center text-[#AAB1C0] hover:text-text-primary transition-colors"
+                            className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
                         >
                             <Icon className="w-[18px] h-[18px]" />
                         </button>
@@ -850,23 +852,22 @@ export function ChatView({
                 {virtualGroups.items.map(({ item: group, key, measureRef }) => {
                     const firstMessage = group[0];
                     const author = firstMessage.author;
-                    const avatarUrl = author.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${author.username}`;
                     const firstMessageEmbeds = getCombinedEmbeds(firstMessage);
+                    const authorColor = getUsernameColor(author.username);
 
                     return (
                         <div key={key} ref={measureRef} className="flex gap-3 group/msggroup">
-                            <img
-                                src={avatarUrl}
-                                alt={author.displayName}
-                                className="w-10 h-10 rounded-full flex-shrink-0 mt-0.5 bg-[#232734]"
+                            <UserAvatar
+                                avatarUrl={author.avatarUrl}
+                                username={author.username}
+                                className="w-10 h-10 mt-0.5"
                             />
 
                             <div className="flex-1 min-w-0">
                                 {/* First message */}
                                 <div
-                                    className={`relative p-1 -m-1 rounded-md transition-colors duration-100 ${
-                                        hoveredMessage === firstMessage.id ? "bg-hover-row" : ""
-                                    }`}
+                                    className={`relative p-1 -m-1 rounded-md transition-colors duration-100 ${hoveredMessage === firstMessage.id ? "bg-hover-row" : ""
+                                        }`}
                                     onMouseEnter={() => setHoveredMessage(firstMessage.id)}
                                     onMouseLeave={() => setHoveredMessage(null)}
                                 >
@@ -884,7 +885,10 @@ export function ChatView({
                                     )}
 
                                     <div className="flex items-baseline gap-2 mb-0.5">
-                                        <span className="font-semibold text-body text-accent-violet hover:underline cursor-pointer">
+                                        <span
+                                            className="font-semibold text-[15px] hover:underline cursor-pointer"
+                                            style={{ color: authorColor }}
+                                        >
                                             {author.displayName}
                                         </span>
                                         <span className="text-micro text-text-muted">
@@ -894,13 +898,12 @@ export function ChatView({
                                             <span className="text-micro text-text-muted">(edited)</span>
                                         )}
                                     </div>
-
                                     {editingMessageId === firstMessage.id ? (
                                         <div className="space-y-2">
                                             <textarea
                                                 value={editContent}
                                                 onChange={(e) => setEditContent(e.target.value)}
-                                                className="w-full px-3 py-2 bg-[#1A1D28] border border-[#2A2F3F] rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
+                                                className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
                                                 rows={2}
                                                 autoFocus
                                                 onKeyDown={(e) => {
@@ -945,11 +948,10 @@ export function ChatView({
                                                 <button
                                                     key={idx}
                                                     onClick={() => handleReaction(firstMessage.id, reaction.emoji, reaction.reacted)}
-                                                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${
-                                                        reaction.reacted
-                                                            ? "bg-reaction-own border border-accent-violet"
-                                                            : "bg-[#1A1D28] border border-[#2A2F3F] hover:border-accent-violet/40"
-                                                    }`}
+                                                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${reaction.reacted
+                                                        ? "bg-reaction-own border border-accent-violet"
+                                                        : "bg-[#1A1D28] border border-[#2A2F3F] hover:border-accent-violet/40"
+                                                        }`}
                                                 >
                                                     <span>{reaction.emoji}</span>
                                                     <span className="text-text-muted">{reaction.count}</span>
@@ -990,18 +992,20 @@ export function ChatView({
                                     return (
                                         <div
                                             key={message.id}
-                                            className={`relative p-1 -m-1 rounded-md mt-0.5 transition-colors duration-100 ${
-                                                hoveredMessage === message.id ? "bg-hover-row" : ""
-                                            }`}
+                                            className={`relative group/msg p-1 pl-1 -m-1 rounded-md mt-[1px] transition-colors duration-100 ${hoveredMessage === message.id ? "bg-hover-row" : ""
+                                                }`}
                                             onMouseEnter={() => setHoveredMessage(message.id)}
                                             onMouseLeave={() => setHoveredMessage(null)}
                                         >
+                                            <time className="absolute -left-[45px] top-[4px] w-[35px] text-right text-[10px] text-text-muted opacity-0 group-hover/msg:opacity-100 tabular-nums cursor-default select-none pointer-events-none">
+                                                {formatTime(message.createdAt).split(' ')[0]}
+                                            </time>
                                             {editingMessageId === message.id ? (
                                                 <div className="space-y-2">
                                                     <textarea
                                                         value={editContent}
                                                         onChange={(e) => setEditContent(e.target.value)}
-                                                        className="w-full px-3 py-2 bg-[#1A1D28] border border-[#2A2F3F] rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
+                                                        className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
                                                         rows={2}
                                                         autoFocus
                                                         onKeyDown={(e) => {
@@ -1042,11 +1046,10 @@ export function ChatView({
                                                         <button
                                                             key={idx}
                                                             onClick={() => handleReaction(message.id, reaction.emoji, reaction.reacted)}
-                                                            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${
-                                                                reaction.reacted
-                                                                    ? "bg-reaction-own border border-accent-violet"
-                                                                    : "bg-[#1A1D28] border border-[#2A2F3F] hover:border-accent-violet/40"
-                                                            }`}
+                                                            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${reaction.reacted
+                                                                ? "bg-reaction-own border border-accent-violet"
+                                                                : "bg-[#1A1D28] border border-[#2A2F3F] hover:border-accent-violet/40"
+                                                                }`}
                                                         >
                                                             <span>{reaction.emoji}</span>
                                                             <span className="text-text-muted">{reaction.count}</span>
@@ -1096,18 +1099,18 @@ export function ChatView({
             {/* Reply preview */}
             {replyTo && (
                 <div className="px-4 pt-2">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[#1A1D28] border border-[#2A2F3F] rounded-t-xl">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-surface-raised border border-border rounded-t-xl">
                         <Reply className="w-4 h-4 text-accent-violet flex-shrink-0" />
-                        <span className="text-micro text-[#8E93A3]">Replying to</span>
+                        <span className="text-micro text-text-muted">Replying to</span>
                         <span className="text-micro text-accent-violet font-medium">
                             {replyTo.author.displayName}
                         </span>
-                        <span className="text-micro text-[#8E93A3] truncate flex-1">
+                        <span className="text-micro text-text-muted truncate flex-1">
                             {formatReplyContent(replyTo.content)}
                         </span>
                         <button
                             onClick={() => setReplyTo(null)}
-                            className="w-5 h-5 rounded hover:bg-[#272B39] flex items-center justify-center text-[#8E93A3] hover:text-text-primary transition-colors"
+                            className="w-5 h-5 rounded hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
                         >
                             <X className="w-3.5 h-3.5" />
                         </button>
@@ -1117,9 +1120,8 @@ export function ChatView({
 
             {/* Message input */}
             <div className={`px-4 pb-4 ${replyTo ? "pt-0" : "pt-2"}`}>
-                <div className={`relative bg-[#1A1D28] border border-[#2A2F3F] focus-within:border-accent-violet/40 focus-within:shadow-[0_0_0_1px_rgba(124,106,247,0.15)] transition-all ${
-                    replyTo ? "rounded-b-xl" : "rounded-xl"
-                }`}>
+                <div className={`relative bg-surface-raised border border-border focus-within:border-accent-violet/40 focus-within:shadow-[0_0_0_1px_rgba(124,106,247,0.15)] transition-all ${replyTo ? "rounded-b-xl" : "rounded-xl"
+                    }`}>
                     {showSlashCommandMenu && (
                         <SlashCommandMenu
                             commands={filteredSlashCommands}
@@ -1132,7 +1134,7 @@ export function ChatView({
                         <button
                             onClick={() => attachmentInputRef.current?.click()}
                             disabled={uploadingAttachment}
-                            className="w-8 h-8 rounded-lg hover:bg-[#272B39] flex items-center justify-center text-[#AAB1C0] hover:text-text-primary transition-colors flex-shrink-0 disabled:opacity-50"
+                            className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors flex-shrink-0 disabled:opacity-50"
                             title="Upload file"
                         >
                             {uploadingAttachment ? (
@@ -1166,7 +1168,7 @@ export function ChatView({
                                         setShowGifPicker(false);
                                         setShowEmojiPicker(false);
                                     }}
-                                    className={`w-8 h-8 rounded-lg hover:bg-[#272B39] flex items-center justify-center transition-colors ${showStickerPicker ? "text-accent-violet" : "text-[#AAB1C0] hover:text-text-primary"}`}
+                                    className={`w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showStickerPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
                                     title="Sticker"
                                 >
                                     <ImageIcon className="w-[18px] h-[18px]" />
@@ -1187,7 +1189,7 @@ export function ChatView({
                                         setShowEmojiPicker(false);
                                         setShowStickerPicker(false);
                                     }}
-                                    className={`w-8 h-8 rounded-lg hover:bg-[#272B39] flex items-center justify-center transition-colors ${showGifPicker ? "text-accent-violet" : "text-[#AAB1C0] hover:text-text-primary"}`}
+                                    className={`w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showGifPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
                                     title="GIF"
                                 >
                                     <span className="text-[11px] font-bold leading-none">GIF</span>
@@ -1212,7 +1214,7 @@ export function ChatView({
                                         setShowGifPicker(false);
                                         setShowStickerPicker(false);
                                     }}
-                                    className={`w-8 h-8 rounded-lg hover:bg-[#272B39] flex items-center justify-center transition-colors ${showEmojiPicker ? "text-accent-violet" : "text-[#AAB1C0] hover:text-text-primary"}`}
+                                    className={`w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showEmojiPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
                                     title="Emoji"
                                 >
                                     <Smile className="w-[18px] h-[18px]" />
@@ -1233,7 +1235,7 @@ export function ChatView({
                     </div>
                 </div>
 
-                <div className="mt-1.5 flex items-center justify-between text-micro text-[#8E93A3] px-1">
+                <div className="mt-1.5 flex items-center justify-between text-micro text-text-muted px-1">
                     <span>Press Enter to send, Shift+Enter for new line</span>
                     <span>Free uploads: {FREE_ATTACHMENT_MAX_LABEL} per file</span>
                 </div>

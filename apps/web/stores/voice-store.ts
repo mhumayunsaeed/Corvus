@@ -55,6 +55,7 @@ interface VoiceState {
     isScreenSharing: boolean;
     screenShareQuality: ScreenShareQuality;
     noiseSuppression: boolean;
+    liveLatencyMs: number | null;
 
     // Participants in all voice channels (for ChannelList display)
     channelParticipants: Record<string, VoiceParticipant[]>;
@@ -82,6 +83,7 @@ interface VoiceState {
     setLocalScreenSharing: (sharing: boolean) => void;
     setScreenShareQuality: (quality: ScreenShareQuality) => void;
     setNoiseSuppression: (enabled: boolean) => void;
+    setLiveLatency: (latencyMs: number | null) => void;
     setChannelParticipants: (channelId: string, participants: VoiceParticipant[]) => void;
     addChannelParticipant: (channelId: string, participant: VoiceParticipant) => void;
     removeChannelParticipant: (channelId: string, userId: string) => void;
@@ -102,8 +104,9 @@ export const useVoiceStore = create<VoiceState>((set) => ({
     isDeafened: false,
     hasVideo: false,
     isScreenSharing: false,
-    screenShareQuality: "1080p30" as ScreenShareQuality,
+    screenShareQuality: "720p30" as ScreenShareQuality,
     noiseSuppression: defaultNoiseSuppressionEnabled(),
+    liveLatencyMs: null,
     channelParticipants: {},
 
     joinChannel: (data) =>
@@ -121,6 +124,7 @@ export const useVoiceStore = create<VoiceState>((set) => ({
             isDeafened: false,
             hasVideo: false,
             isScreenSharing: false,
+            liveLatencyMs: null,
         }),
 
     leaveChannel: () =>
@@ -138,6 +142,7 @@ export const useVoiceStore = create<VoiceState>((set) => ({
             isDeafened: false,
             hasVideo: false,
             isScreenSharing: false,
+            liveLatencyMs: null,
         }),
 
     setParticipants: (participants) => set({ participants }),
@@ -168,6 +173,7 @@ export const useVoiceStore = create<VoiceState>((set) => ({
     setLocalScreenSharing: (sharing) => set({ isScreenSharing: sharing }),
     setScreenShareQuality: (quality) => set({ screenShareQuality: quality }),
     setNoiseSuppression: (enabled) => set({ noiseSuppression: enabled }),
+    setLiveLatency: (liveLatencyMs) => set({ liveLatencyMs }),
 
     setChannelParticipants: (channelId, participants) =>
         set((state) => ({

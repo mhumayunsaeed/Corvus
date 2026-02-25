@@ -15,7 +15,7 @@ model User {
   passwordHash         String   @map("password_hash")
   avatarUrl            String?  @map("avatar_url")
   bio                  String?
-  status               String   @default("online")
+  status               String   @default("offline")
   onboardingCompleted  Boolean  @default(false) @map("onboarding_completed")
   emailVerified        Boolean  @default(false) @map("email_verified")
   emailVerifyToken     String?  @unique @map("email_verify_token")

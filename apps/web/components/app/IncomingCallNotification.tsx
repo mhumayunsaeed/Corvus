@@ -5,6 +5,8 @@ import { Phone, PhoneOff } from "lucide-react";
 import { joinDMCall } from "@/lib/api";
 import { useRingtone } from "@/hooks/useRingtone";
 import { useAuthStore } from "@/stores/auth-store";
+import { UserAvatar } from "./UserAvatar";
+import { getUsernameColor } from "@/lib/color-utils";
 
 interface IncomingCallData {
     conversationId: string;
@@ -24,7 +26,7 @@ export function IncomingCallNotification({ onAccept, onDecline }: IncomingCallNo
     const [callData, setCallData] = useState<IncomingCallData | null>(null);
     const [accepting, setAccepting] = useState(false);
 
-    useRingtone(!!callData && !accepting, "incoming");
+    useRingtone(!!callData && !accepting, "incoming", 6000);
 
     useEffect(() => {
         const handleIncomingCall = (e: CustomEvent<IncomingCallData>) => {
@@ -72,20 +74,19 @@ export function IncomingCallNotification({ onAccept, onDecline }: IncomingCallNo
 
     if (!callData) return null;
 
-    const avatarUrl =
-        callData.callerAvatar ||
-        `https://api.dicebear.com/9.x/avataaars/svg?seed=${callData.callerId}`;
-
     return (
         <div className="fixed top-4 right-4 z-50 w-[320px] bg-surface border border-border rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-right">
             <div className="p-4 flex items-center gap-3">
-                <img
-                    src={avatarUrl}
-                    alt={callData.callerName}
-                    className="w-12 h-12 rounded-full ring-2 ring-accent-teal animate-pulse"
+                <UserAvatar
+                    avatarUrl={callData.callerAvatar}
+                    username={callData.callerName}
+                    className="w-12 h-12 ring-2 ring-accent-teal animate-pulse"
                 />
                 <div className="flex-1 min-w-0">
-                    <div className="text-body font-semibold text-text-primary truncate">
+                    <div
+                        className="text-body font-semibold truncate"
+                        style={{ color: getUsernameColor(callData.callerName) }}
+                    >
                         {callData.callerName}
                     </div>
                     <div className="text-micro text-text-muted">Incoming call...</div>

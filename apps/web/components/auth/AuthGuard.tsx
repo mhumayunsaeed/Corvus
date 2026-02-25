@@ -18,8 +18,9 @@ function matchesRoute(pathname: string, routes: string[]): boolean {
 export function AuthGuard({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { isAuthenticated, user } = useAuthStore();
+    const { isAuthenticated, user, token, refreshUser } = useAuthStore();
     const [isReady, setIsReady] = useState(false);
+    const [sessionChecked, setSessionChecked] = useState(false);
 
     useEffect(() => {
         // Wait for Zustand to hydrate from localStorage
@@ -39,29 +40,41 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (!isReady) return;
+        let cancelled = false;
+
+        (async () => {
+            if (token) {
+                await refreshUser().catch(() => {
+                    // refreshUser already handles invalid token state reset
+                });
+            }
+            if (!cancelled) {
+                setSessionChecked(true);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isReady, token, refreshUser]);
+
+    useEffect(() => {
+        if (!isReady || !sessionChecked) return;
 
         const isPublic = matchesRoute(pathname, PUBLIC_ROUTES);
         const isAuthRoute = matchesRoute(pathname, AUTH_ROUTES);
-        const isOnboarding = matchesRoute(pathname, ["/onboarding"]);
 
         if (!isAuthenticated && !isPublic) {
             // Not logged in, trying to access protected route → redirect to login
             router.replace("/login");
         } else if (isAuthenticated && isAuthRoute) {
-            // Already logged in, on login/register → redirect to app or onboarding
-            if (user && !user.onboardingCompleted) {
-                router.replace("/onboarding");
-            } else {
-                router.replace("/app");
-            }
-        } else if (isAuthenticated && isOnboarding && user?.onboardingCompleted) {
-            // Onboarding already done → redirect to app
+            // Already logged in, on login/register → redirect to app
             router.replace("/app");
         }
-    }, [isReady, isAuthenticated, user, pathname, router]);
+    }, [isReady, sessionChecked, isAuthenticated, user, pathname, router]);
 
     // Show nothing while hydrating to prevent flash
-    if (!isReady) {
+    if (!isReady || !sessionChecked) {
         return (
             <div className="h-full bg-background flex items-center justify-center">
                 <img

@@ -14,7 +14,7 @@ import type { Rnnoise, DenoiseState } from "@shiguredo/rnnoise-wasm";
 let rnnoiseInstance: Rnnoise | null = null;
 
 const WORKLET_MODULE_PATH = "/worklets/noise-gate-processor.js";
-const WORKLET_PROCESSOR_NAME = "corvus-noise-gate-processor";
+const WORKLET_PROCESSOR_NAME = "veyra-noise-gate-processor";
 
 async function getRnnoise(): Promise<Rnnoise> {
     if (!rnnoiseInstance) {
@@ -78,7 +78,8 @@ async function createLegacyRnnoiseSuppressor(
     const audioContext = new AudioContext({ sampleRate: 48000 });
     const source = audioContext.createMediaStreamSource(new MediaStream([inputTrack]));
 
-    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+    // Keep fallback buffering small to avoid noticeable end-to-end delay.
+    const processor = audioContext.createScriptProcessor(1024, 1, 1);
 
     let residual = new Float32Array(0);
     let destroyed = false;

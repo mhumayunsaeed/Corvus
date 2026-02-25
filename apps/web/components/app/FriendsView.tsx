@@ -16,6 +16,8 @@ import {
     type FriendRelationStatus,
     type FriendSearchResult,
 } from "@/lib/api";
+import { UserAvatar } from "./UserAvatar";
+import { getUsernameColor } from "@/lib/color-utils";
 
 type FriendTab = "online" | "all" | "pending" | "blocked" | "add";
 
@@ -29,10 +31,6 @@ const emptyState: FriendDashboardData = {
     pendingOutgoing: [],
     blocked: [],
 };
-
-function avatarFor(username: string, avatarUrl: string | null) {
-    return avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${username}`;
-}
 
 function relationLabel(status: FriendRelationStatus) {
     if (status === "friends") return "Friends";
@@ -74,6 +72,63 @@ export function FriendsView({ onMessageFriend }: FriendsViewProps) {
             }
         })();
     }, [loadDashboard]);
+
+    useEffect(() => {
+        const handlePresenceUpdate = (event: Event) => {
+            const customEvent = event as CustomEvent<{
+                userId?: string;
+                status?: string;
+            }>;
+            const changedUserId = customEvent.detail?.userId;
+            const status = customEvent.detail?.status;
+
+            if (
+                typeof changedUserId !== "string" ||
+                typeof status !== "string"
+            ) {
+                return;
+            }
+
+            setDashboard((previous) => {
+                const mapEntries = <
+                    T extends {
+                        user: { id: string; status: string };
+                    },
+                >(
+                    entries: T[]
+                ) =>
+                    entries.map((entry) =>
+                        entry.user.id === changedUserId
+                            ? {
+                                ...entry,
+                                user: { ...entry.user, status },
+                            }
+                            : entry
+                    );
+
+                return {
+                    friends: mapEntries(previous.friends),
+                    pendingIncoming: mapEntries(previous.pendingIncoming),
+                    pendingOutgoing: mapEntries(previous.pendingOutgoing),
+                    blocked: mapEntries(previous.blocked),
+                };
+            });
+
+            setResults((previous) =>
+                previous.map((entry) =>
+                    entry.id === changedUserId ? { ...entry, status } : entry
+                )
+            );
+        };
+
+        window.addEventListener("corvus:presence_update", handlePresenceUpdate as EventListener);
+        return () => {
+            window.removeEventListener(
+                "corvus:presence_update",
+                handlePresenceUpdate as EventListener
+            );
+        };
+    }, []);
 
     const refreshSearch = useCallback(async () => {
         const q = query.trim();
@@ -191,9 +246,14 @@ export function FriendsView({ onMessageFriend }: FriendsViewProps) {
                             const loadingRow = actionId === `friend-${entry.user.id}`;
                             return (
                                 <div key={entry.user.id} className="rounded-xl border border-border bg-surface p-3 flex items-center gap-3">
-                                    <img src={avatarFor(entry.user.username, entry.user.avatarUrl)} alt={entry.user.displayName} className="w-10 h-10 rounded-full" />
+                                    <UserAvatar avatarUrl={entry.user.avatarUrl} username={entry.user.username} className="w-10 h-10" />
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-body text-text-primary truncate">{entry.user.displayName}</p>
+                                        <p
+                                            className="text-body font-semibold truncate"
+                                            style={{ color: getUsernameColor(entry.user.username) }}
+                                        >
+                                            {entry.user.displayName}
+                                        </p>
                                         <p className="text-micro text-text-muted truncate">@{entry.user.username} • {entry.user.status}</p>
                                     </div>
                                     <button
@@ -229,9 +289,14 @@ export function FriendsView({ onMessageFriend }: FriendsViewProps) {
                         {dashboard.pendingIncoming.length === 0 && <div className="rounded-xl border border-border bg-surface p-3 text-body text-text-muted">No incoming requests.</div>}
                         {dashboard.pendingIncoming.map((entry) => (
                             <div key={entry.id} className="rounded-xl border border-border bg-surface p-3 flex items-center gap-3">
-                                <img src={avatarFor(entry.user.username, entry.user.avatarUrl)} alt={entry.user.displayName} className="w-10 h-10 rounded-full" />
+                                <UserAvatar avatarUrl={entry.user.avatarUrl} username={entry.user.username} className="w-10 h-10" />
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-body text-text-primary truncate">{entry.user.displayName}</p>
+                                    <p
+                                        className="text-body font-semibold truncate"
+                                        style={{ color: getUsernameColor(entry.user.username) }}
+                                    >
+                                        {entry.user.displayName}
+                                    </p>
                                     <p className="text-micro text-text-muted truncate">@{entry.user.username}</p>
                                 </div>
                                 <button
@@ -255,9 +320,14 @@ export function FriendsView({ onMessageFriend }: FriendsViewProps) {
                         {dashboard.pendingOutgoing.length === 0 && <div className="rounded-xl border border-border bg-surface p-3 text-body text-text-muted">No outgoing requests.</div>}
                         {dashboard.pendingOutgoing.map((entry) => (
                             <div key={entry.id} className="rounded-xl border border-border bg-surface p-3 flex items-center gap-3">
-                                <img src={avatarFor(entry.user.username, entry.user.avatarUrl)} alt={entry.user.displayName} className="w-10 h-10 rounded-full" />
+                                <UserAvatar avatarUrl={entry.user.avatarUrl} username={entry.user.username} className="w-10 h-10" />
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-body text-text-primary truncate">{entry.user.displayName}</p>
+                                    <p
+                                        className="text-body font-semibold truncate"
+                                        style={{ color: getUsernameColor(entry.user.username) }}
+                                    >
+                                        {entry.user.displayName}
+                                    </p>
                                     <p className="text-micro text-text-muted truncate">@{entry.user.username}</p>
                                 </div>
                                 <button
@@ -277,9 +347,14 @@ export function FriendsView({ onMessageFriend }: FriendsViewProps) {
                         {dashboard.blocked.length === 0 && <div className="rounded-xl border border-border bg-surface p-4 text-body text-text-muted">No blocked users.</div>}
                         {dashboard.blocked.map((entry) => (
                             <div key={entry.user.id} className="rounded-xl border border-border bg-surface p-3 flex items-center gap-3">
-                                <img src={avatarFor(entry.user.username, entry.user.avatarUrl)} alt={entry.user.displayName} className="w-10 h-10 rounded-full" />
+                                <UserAvatar avatarUrl={entry.user.avatarUrl} username={entry.user.username} className="w-10 h-10" />
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-body text-text-primary truncate">{entry.user.displayName}</p>
+                                    <p
+                                        className="text-body font-semibold truncate"
+                                        style={{ color: getUsernameColor(entry.user.username) }}
+                                    >
+                                        {entry.user.displayName}
+                                    </p>
                                     <p className="text-micro text-text-muted truncate">@{entry.user.username}</p>
                                 </div>
                                 <button
@@ -319,9 +394,14 @@ export function FriendsView({ onMessageFriend }: FriendsViewProps) {
 
                         {results.map((entry) => (
                             <div key={entry.id} className="rounded-xl border border-border bg-surface p-3 flex items-center gap-3">
-                                <img src={avatarFor(entry.username, entry.avatarUrl)} alt={entry.displayName} className="w-10 h-10 rounded-full" />
+                                <UserAvatar avatarUrl={entry.avatarUrl} username={entry.username} className="w-10 h-10" />
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-body text-text-primary truncate">{entry.displayName}</p>
+                                    <p
+                                        className="text-body font-semibold truncate"
+                                        style={{ color: getUsernameColor(entry.username) }}
+                                    >
+                                        {entry.displayName}
+                                    </p>
                                     <p className="text-micro text-text-muted truncate">@{entry.username} • {entry.email}</p>
                                 </div>
                                 <span className="text-micro text-text-muted hidden sm:block">{relationLabel(entry.relationStatus)}</span>

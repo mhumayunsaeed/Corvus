@@ -17,9 +17,17 @@ import {
 let globalWs: WebSocket | null = null;
 let globalReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let globalReconnectAttempts = 0;
+let globalShouldReconnect = false;
 const MAX_RECONNECT_DELAY = 30000;
 const globalSubscribedChannels = new Set<string>();
 const globalSubscribedDMConversations = new Set<string>();
+const PRESENCE_STATUSES = new Set([
+    "online",
+    "idle",
+    "dnd",
+    "invisible",
+    "offline",
+]);
 
 const TAG_TARGET_PATTERN = /@(everyone|here)\b/i;
 
@@ -97,6 +105,7 @@ export function useWebSocket() {
     const userId = useAuthStore((s) => s.user?.id);
     const username = useAuthStore((s) => s.user?.username);
     const displayName = useAuthStore((s) => s.user?.displayName);
+    const applyPresence = useAuthStore((s) => s.applyPresence);
     const addMessage = useChatStore((s) => s.addMessage);
     const updateMessage = useChatStore((s) => s.updateMessage);
     const deleteMessage = useChatStore((s) => s.deleteMessage);
@@ -110,6 +119,7 @@ export function useWebSocket() {
     const addDMReaction = useDMStore((s) => s.addReaction);
     const removeDMReaction = useDMStore((s) => s.removeReaction);
     const upsertDMConversation = useAppStore((s) => s.upsertDMConversation);
+    const applyUserPresence = useAppStore((s) => s.applyUserPresence);
     const activeChannelId = useAppStore((s) => s.activeChannelId);
     const activeDMConversationId = useAppStore((s) => s.activeDMConversationId);
     const channels = useAppStore((s) => s.channels);
@@ -134,6 +144,8 @@ export function useWebSocket() {
         addDMReaction,
         removeDMReaction,
         upsertDMConversation,
+        applyPresence,
+        applyUserPresence,
         userId,
         username,
         displayName,
@@ -162,6 +174,8 @@ export function useWebSocket() {
         addDMReaction,
         removeDMReaction,
         upsertDMConversation,
+        applyPresence,
+        applyUserPresence,
         userId,
         username,
         displayName,
@@ -177,10 +191,29 @@ export function useWebSocket() {
     };
 
     useEffect(() => {
-        if (!token) return;
+        if (!token) {
+            globalShouldReconnect = false;
+            if (globalReconnectTimer) {
+                clearTimeout(globalReconnectTimer);
+                globalReconnectTimer = null;
+            }
+            if (globalWs) {
+                globalWs.close();
+                globalWs = null;
+            }
+            globalReconnectAttempts = 0;
+            globalSubscribedChannels.clear();
+            globalSubscribedDMConversations.clear();
+            return;
+        }
+
+        globalShouldReconnect = true;
         const wsUrl = ensureWsUrl();
 
         function connect() {
+            if (!globalShouldReconnect) {
+                return;
+            }
             if (globalWs?.readyState === WebSocket.OPEN || globalWs?.readyState === WebSocket.CONNECTING) {
                 return;
             }
@@ -206,6 +239,45 @@ export function useWebSocket() {
                     const currentUserId = h.userId || "";
 
                     switch (msg.type) {
+                        case "presence_update": {
+                            const updatedUserId =
+                                typeof msg.data?.userId === "string"
+                                    ? msg.data.userId
+                                    : null;
+                            const nextStatus =
+                                typeof msg.data?.status === "string"
+                                    ? msg.data.status
+                                    : null;
+
+                            if (!updatedUserId || !nextStatus) {
+                                break;
+                            }
+
+                            if (!PRESENCE_STATUSES.has(nextStatus)) {
+                                break;
+                            }
+
+                            const normalizedStatus = nextStatus as
+                                | "online"
+                                | "idle"
+                                | "dnd"
+                                | "invisible"
+                                | "offline";
+
+                            h.applyPresence(updatedUserId, normalizedStatus);
+                            h.applyUserPresence(updatedUserId, normalizedStatus);
+
+                            window.dispatchEvent(
+                                new CustomEvent("corvus:presence_update", {
+                                    detail: {
+                                        userId: updatedUserId,
+                                        status: normalizedStatus,
+                                    },
+                                })
+                            );
+                            break;
+                        }
+
                         case "new_message": {
                             h.addMessage(msg.data.channelId, msg.data);
 
@@ -495,6 +567,9 @@ export function useWebSocket() {
 
             globalWs.onclose = () => {
                 globalWs = null;
+                if (!globalShouldReconnect) {
+                    return;
+                }
                 // Reconnect with exponential backoff
                 const delay = Math.min(1000 * Math.pow(2, globalReconnectAttempts), MAX_RECONNECT_DELAY);
                 globalReconnectAttempts++;
@@ -509,6 +584,7 @@ export function useWebSocket() {
         connect();
 
         return () => {
+            globalShouldReconnect = false;
             if (globalReconnectTimer) {
                 clearTimeout(globalReconnectTimer);
                 globalReconnectTimer = null;

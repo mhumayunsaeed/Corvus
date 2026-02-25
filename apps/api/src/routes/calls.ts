@@ -8,22 +8,95 @@ const calls = new Hono<AuthEnv>();
 
 calls.use("*", authMiddleware);
 
-// Active call rooms: conversationId -> { roomName, startTime }
-const activeCallRooms = new Map<string, { roomName: string, startTime: number }>();
+interface ActiveCallRoom {
+    roomName: string;
+    startTime: number;
+    participants: Set<string>;
+}
 
-// ─── POST /dms/:conversationId/call/start ────────────────────────
+// Active call rooms: conversationId -> room info
+const activeCallRooms = new Map<string, ActiveCallRoom>();
+
+async function assertConversationParticipant(conversationId: string, userId: string) {
+    const participant = await prisma.dMParticipant.findUnique({
+        where: { conversationId_userId: { conversationId, userId } },
+    });
+    return !!participant;
+}
+
+async function finalizeRoomIfEmpty(conversationId: string, endedBy: string) {
+    const roomInfo = activeCallRooms.get(conversationId);
+    if (!roomInfo) return false;
+
+    roomInfo.participants.delete(endedBy);
+    if (roomInfo.participants.size > 0) {
+        return false;
+    }
+
+    activeCallRooms.delete(conversationId);
+
+    const participants = await prisma.dMParticipant.findMany({
+        where: { conversationId },
+        select: { userId: true },
+    });
+    const participantUserIds = participants.map((p) => p.userId);
+
+    const duration = Math.floor((Date.now() - roomInfo.startTime) / 1000);
+
+    const dmMessage = await prisma.dMMessage.create({
+        data: {
+            conversationId,
+            authorId: endedBy,
+            content: "Call ended",
+            type: "call",
+            metadata: JSON.stringify({ duration }),
+        },
+        include: {
+            author: {
+                select: {
+                    id: true,
+                    username: true,
+                    displayName: true,
+                    avatarUrl: true,
+                    status: true,
+                },
+            },
+        },
+    });
+
+    broadcastToUsers(participantUserIds, {
+        type: "call_ended",
+        data: { conversationId, endedBy },
+    });
+
+    const messagePayload = {
+        id: dmMessage.id,
+        conversationId: dmMessage.conversationId,
+        content: dmMessage.content,
+        type: dmMessage.type,
+        metadata: dmMessage.metadata,
+        createdAt: dmMessage.createdAt,
+        editedAt: dmMessage.editedAt,
+        author: dmMessage.author,
+    };
+
+    broadcastToDMConversation(conversationId, {
+        type: "new_dm_message",
+        data: {
+            conversationId,
+            message: messagePayload,
+        },
+    });
+
+    return true;
+}
 
 calls.post("/dms/:conversationId/call/start", async (c) => {
     const userId = c.get("userId");
     const username = c.get("username");
     const conversationId = c.req.param("conversationId");
 
-    // Verify participant
-    const participant = await prisma.dMParticipant.findUnique({
-        where: { conversationId_userId: { conversationId, userId } },
-    });
-
-    if (!participant) {
+    if (!(await assertConversationParticipant(conversationId, userId))) {
         return c.json({ error: "You are not a participant in this conversation." }, 403);
     }
 
@@ -32,7 +105,6 @@ calls.post("/dms/:conversationId/call/start", async (c) => {
         select: { userId: true },
     });
 
-    // Get user details
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { displayName: true, avatarUrl: true },
@@ -40,12 +112,17 @@ calls.post("/dms/:conversationId/call/start", async (c) => {
 
     const displayName = user?.displayName || username;
 
-    // Create or reuse room
     let roomInfo = activeCallRooms.get(conversationId);
     if (!roomInfo) {
-        roomInfo = { roomName: `dm_call_${conversationId}_${Date.now()}`, startTime: Date.now() };
+        roomInfo = {
+            roomName: `dm_call_${conversationId}_${Date.now()}`,
+            startTime: Date.now(),
+            participants: new Set(),
+        };
         activeCallRooms.set(conversationId, roomInfo);
     }
+
+    roomInfo.participants.add(userId);
     const roomName = roomInfo.roomName;
 
     const token = await generateVoiceToken(roomName, userId, displayName, {
@@ -53,7 +130,6 @@ calls.post("/dms/:conversationId/call/start", async (c) => {
         canSubscribe: true,
     });
 
-    // Broadcast incoming call to participants, even if they are not in DM view.
     const targetUserIds = participants
         .map((p) => p.userId)
         .filter((id) => id !== userId);
@@ -76,19 +152,12 @@ calls.post("/dms/:conversationId/call/start", async (c) => {
     });
 });
 
-// ─── POST /dms/:conversationId/call/join ─────────────────────────
-
 calls.post("/dms/:conversationId/call/join", async (c) => {
     const userId = c.get("userId");
     const username = c.get("username");
     const conversationId = c.req.param("conversationId");
 
-    // Verify participant
-    const participant = await prisma.dMParticipant.findUnique({
-        where: { conversationId_userId: { conversationId, userId } },
-    });
-
-    if (!participant) {
+    if (!(await assertConversationParticipant(conversationId, userId))) {
         return c.json({ error: "You are not a participant in this conversation." }, 403);
     }
 
@@ -96,6 +165,8 @@ calls.post("/dms/:conversationId/call/join", async (c) => {
     if (!roomInfo) {
         return c.json({ error: "No active call in this conversation." }, 404);
     }
+
+    roomInfo.participants.add(userId);
     const roomName = roomInfo.roomName;
 
     const user = await prisma.user.findUnique({
@@ -117,62 +188,29 @@ calls.post("/dms/:conversationId/call/join", async (c) => {
     });
 });
 
-// ─── POST /dms/:conversationId/call/end ──────────────────────────
+calls.post("/dms/:conversationId/call/leave", async (c) => {
+    const userId = c.get("userId");
+    const conversationId = c.req.param("conversationId");
 
+    if (!(await assertConversationParticipant(conversationId, userId))) {
+        return c.json({ error: "You are not a participant in this conversation." }, 403);
+    }
+
+    const endedForEveryone = await finalizeRoomIfEmpty(conversationId, userId);
+    return c.json({ message: endedForEveryone ? "Call ended." : "Left call." });
+});
+
+// Backward-compatible alias
 calls.post("/dms/:conversationId/call/end", async (c) => {
     const userId = c.get("userId");
     const conversationId = c.req.param("conversationId");
 
-    const roomInfo = activeCallRooms.get(conversationId);
-
-    if (roomInfo) {
-        activeCallRooms.delete(conversationId);
-
-        const participants = await prisma.dMParticipant.findMany({
-            where: { conversationId },
-            select: { userId: true },
-        });
-        const participantUserIds = participants.map((p) => p.userId);
-
-        const duration = Math.floor((Date.now() - roomInfo.startTime) / 1000);
-
-        const dmMessage = await prisma.dMMessage.create({
-            data: {
-                conversationId,
-                authorId: userId,
-                content: "Call ended",
-                type: "call",
-                metadata: JSON.stringify({ duration }),
-            },
-            include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, status: true } } },
-        });
-
-        broadcastToUsers(participantUserIds, {
-            type: "call_ended",
-            data: { conversationId, endedBy: userId },
-        });
-
-        const messagePayload = {
-            id: dmMessage.id,
-            conversationId: dmMessage.conversationId,
-            content: dmMessage.content,
-            type: dmMessage.type,
-            metadata: dmMessage.metadata,
-            createdAt: dmMessage.createdAt,
-            editedAt: dmMessage.editedAt,
-            author: dmMessage.author,
-        };
-
-        broadcastToDMConversation(conversationId, {
-            type: "new_dm_message",
-            data: {
-                conversationId,
-                message: messagePayload,
-            },
-        });
+    if (!(await assertConversationParticipant(conversationId, userId))) {
+        return c.json({ error: "You are not a participant in this conversation." }, 403);
     }
 
-    return c.json({ message: "Call ended." });
+    const endedForEveryone = await finalizeRoomIfEmpty(conversationId, userId);
+    return c.json({ message: endedForEveryone ? "Call ended." : "Left call." });
 });
 
 export default calls;

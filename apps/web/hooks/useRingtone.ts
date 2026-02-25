@@ -2,13 +2,19 @@
 
 import { useEffect, useRef } from "react";
 
-export function useRingtone(playing: boolean, type: "incoming" | "outgoing" = "incoming") {
+export function useRingtone(
+    playing: boolean,
+    type: "incoming" | "outgoing" = "incoming",
+    maxDurationMs?: number
+) {
     const contextRef = useRef<AudioContext | null>(null);
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         if (!playing) {
             if (intervalRef.current) clearInterval(intervalRef.current);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
             if (contextRef.current) {
                 contextRef.current.close().catch(() => { });
                 contextRef.current = null;
@@ -77,12 +83,26 @@ export function useRingtone(playing: boolean, type: "incoming" | "outgoing" = "i
         const intervalMs = type === "outgoing" ? 4500 : 2200;
         intervalRef.current = setInterval(playPattern, intervalMs);
 
+        if (typeof maxDurationMs === "number" && maxDurationMs > 0) {
+            timeoutRef.current = setTimeout(() => {
+                if (intervalRef.current) {
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                }
+                if (contextRef.current) {
+                    contextRef.current.close().catch(() => { });
+                    contextRef.current = null;
+                }
+            }, maxDurationMs);
+        }
+
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
             if (contextRef.current) {
                 contextRef.current.close().catch(() => { });
                 contextRef.current = null;
             }
         };
-    }, [playing, type]);
+    }, [playing, type, maxDurationMs]);
 }

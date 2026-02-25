@@ -1,4 +1,3 @@
-export { OnboardingPage } from "./OnboardingPage";
 export { ServerRail } from "./ServerRail";
 export { ChannelList } from "./ChannelList";
 export { ChatView } from "./ChatView";

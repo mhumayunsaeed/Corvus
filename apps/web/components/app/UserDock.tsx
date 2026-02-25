@@ -10,19 +10,25 @@ import {
     Headphones,
     Mic,
     MicOff,
+    MonitorUp,
     Settings,
+    Video,
+    VideoOff,
+    Wifi,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
 import { useVoiceStore } from "@/stores/voice-store";
+import { UserAvatar } from "./UserAvatar";
+import { getUsernameColor } from "@/lib/color-utils";
 
 interface UserDockProps {
     onOpenSettings: () => void;
 }
 
 const statusColors: Record<string, string> = {
-    online: "#3ECF8E",
+    online: "#34D399",
     idle: "#F59E0B",
-    dnd: "#F75F6E",
+    dnd: "#F06370",
     invisible: "#6B7280",
     offline: "#6B7280",
 };
@@ -53,18 +59,31 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
     const isMuted = useVoiceStore((s) => s.isMuted);
     const isDeafened = useVoiceStore((s) => s.isDeafened);
     const noiseSuppression = useVoiceStore((s) => s.noiseSuppression);
+    const hasVideo = useVoiceStore((s) => s.hasVideo);
+    const isScreenSharing = useVoiceStore((s) => s.isScreenSharing);
+    const currentChannelId = useVoiceStore((s) => s.currentChannelId);
+    const currentChannelName = useVoiceStore((s) => s.currentChannelName);
+    const currentServerName = useVoiceStore((s) => s.currentServerName);
+    const liveLatencyMs = useVoiceStore((s) => s.liveLatencyMs);
     const setLocalMuted = useVoiceStore((s) => s.setLocalMuted);
     const setLocalDeafened = useVoiceStore((s) => s.setLocalDeafened);
+    const setLocalVideo = useVoiceStore((s) => s.setLocalVideo);
+    const setLocalScreenSharing = useVoiceStore((s) => s.setLocalScreenSharing);
     const setNoiseSuppression = useVoiceStore((s) => s.setNoiseSuppression);
 
-    const userAvatar =
-        user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user?.username || "user"}`;
+    const userAvatar = user?.avatar;
     const userStatus = user?.status || "online";
     const userStatusColor = statusColors[userStatus] || statusColors.online;
     const userStatusLabel = statusLabels[userStatus] || statusLabels.online;
+    const userStatusSubtitle = userStatus === "offline" ? "" : userStatusLabel;
     const primaryName = user?.displayName || user?.username || "User";
     const secondaryName = user?.username || "user";
-    const statuses = ["online", "idle", "dnd", "invisible", "offline"] as const;
+    const statuses = ["online", "idle", "dnd", "invisible"] as const;
+    const hasActiveVoiceSession =
+        !!currentChannelId ||
+        liveLatencyMs !== null ||
+        hasVideo ||
+        isScreenSharing;
 
     const audioInputs = useMemo(
         () => devices.filter((device) => device.kind === "audioinput"),
@@ -185,275 +204,360 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
         }
     };
 
+    const handleVideoToggle = () => {
+        setLocalVideo(!hasVideo);
+    };
+
+    const handleScreenShareToggle = () => {
+        setLocalScreenSharing(!isScreenSharing);
+    };
+
     return (
-        <div ref={dockRef} className="px-2 pb-2 pt-2 border-t border-[#1F2330] bg-[#0E1016] flex-shrink-0">
-            <div className="h-[52px] px-2 rounded-xl border border-[#2A2F3F] bg-[#11141D] flex items-center">
-                <div className="relative flex min-w-0 flex-1" ref={statusMenuRef}>
-                    <button
-                        onClick={() => {
-                            setShowStatusMenu((prev) => !prev);
-                            setShowInputMenu(false);
-                            setShowOutputMenu(false);
-                        }}
-                        className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 hover:bg-[#202432] transition-colors"
-                        aria-haspopup="menu"
-                        aria-expanded={showStatusMenu}
-                    >
-                        <div className="relative">
-                            <img
-                                src={userAvatar}
-                                alt={user?.displayName || "You"}
-                                className="w-8 h-8 rounded-full bg-[#222633]"
-                            />
-                            <div
-                                className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#11141D]"
-                                style={{ backgroundColor: userStatusColor }}
-                            />
-                        </div>
-                        <div className="min-w-0 text-left">
-                            <div className="text-[14px] font-semibold text-[#E8EAF1] truncate leading-[1.1]">
-                                {primaryName}
+        <div
+            ref={dockRef}
+            className="relative z-[70] px-2 pb-2 pt-2 border-t border-border-subtle bg-bg-deep flex-shrink-0 overflow-visible"
+        >
+            <div className="relative w-full rounded-xl border border-border bg-surface inner-shine overflow-visible lg:w-[420px] lg:max-w-[calc(100%+60px)] lg:ml-[-60px]">
+                {hasActiveVoiceSession && (
+                    <div className="px-3 py-2 border-b border-border">
+                        <div className="flex items-center gap-2">
+                            <div className="w-9 h-9 rounded-lg bg-success/10 border border-success/20 text-success flex items-center justify-center">
+                                <AudioLines className="w-5 h-5" />
                             </div>
-                            <div className="text-[12px] text-[#9CA3B6] leading-[1.1] truncate">
-                                {secondaryName}
+                            <div className="min-w-0">
+                                <div className="text-[24px] leading-none font-semibold text-success">
+                                    Voice Details
+                                </div>
+                                <div className="text-[12px] text-text-muted truncate">
+                                    {currentChannelName
+                                        ? `${currentChannelName}${currentServerName ? ` - ${currentServerName}` : ""}`
+                                        : "Connected voice session"}
+                                </div>
                             </div>
-                        </div>
-                        <ChevronDown className="w-3.5 h-3.5 text-[#8E95A8] flex-shrink-0" />
-                    </button>
-
-                    {showStatusMenu && (
-                        <div className="absolute left-0 bottom-full mb-2 w-56 rounded-xl border border-[#2A2F3F] bg-[#11141D] shadow-xl z-50 p-1">
-                            <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-[#8E95A8]">
-                                Set status
-                            </div>
-                            {statuses.map((status) => {
-                                const isActive = userStatus === status;
-                                return (
-                                    <button
-                                        key={status}
-                                        onClick={() => {
-                                            setStatus(status);
-                                            setShowStatusMenu(false);
-                                        }}
-                                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] transition-colors ${
-                                            isActive
-                                                ? "bg-[#202432] text-[#E8EAF1]"
-                                                : "text-[#C8CEDB] hover:bg-[#202432] hover:text-[#E8EAF1]"
+                            {liveLatencyMs !== null && (
+                                <div
+                                    className={`ml-auto h-9 px-2 rounded-lg border border-border flex items-center gap-1.5 text-[13px] font-semibold ${liveLatencyMs < 80
+                                        ? "text-success"
+                                        : liveLatencyMs < 150
+                                            ? "text-warning"
+                                            : "text-danger"
                                         }`}
-                                    >
-                                        <span
-                                            className="w-2 h-2 rounded-full flex-shrink-0"
-                                            style={{ backgroundColor: statusColors[status] }}
-                                        />
-                                        <span className="flex-1 text-left">{statusLabels[status]}</span>
-                                        {isActive && <Check className="w-3.5 h-3.5 text-[#AAB1C0]" />}
-                                    </button>
-                                );
-                            })}
+                                    title="Live call latency"
+                                >
+                                    <Wifi className="w-4 h-4" />
+                                    <span>{liveLatencyMs}ms</span>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
-
-                <div className="ml-1 flex items-center gap-0.5 flex-shrink-0">
-                    <button
-                        onClick={handleMuteToggle}
-                        className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
-                            isMuted
-                                ? "text-danger hover:bg-danger/15"
-                                : "text-[#B3B9C7] hover:text-[#E8EAF1] hover:bg-[#202432]"
-                        }`}
-                        title={isMuted ? "Unmute" : "Mute"}
-                    >
-                        {isMuted ? <MicOff className="w-[15px] h-[15px]" /> : <Mic className="w-[15px] h-[15px]" />}
-                    </button>
-                    <div className="relative" ref={inputMenuRef}>
-                        <button
-                            onClick={() => {
-                                setShowInputMenu((prev) => !prev);
-                                setShowOutputMenu(false);
-                                setShowStatusMenu(false);
-                            }}
-                            className="w-4.5 h-7 rounded-md hover:bg-[#202432] flex items-center justify-center text-[#8E95A8] hover:text-[#E8EAF1] transition-colors"
-                            title="Microphone Options"
-                            aria-haspopup="menu"
-                            aria-expanded={showInputMenu}
-                        >
-                            <ChevronDown className="w-3 h-3" />
-                        </button>
-                        {showInputMenu && (
-                            <div className="absolute right-0 bottom-full mb-2 w-[280px] rounded-xl border border-[#2A2F3F] bg-[#11141D] shadow-xl z-50 p-3">
-                                <div className="text-[13px] font-semibold text-[#E8EAF1] mb-1.5">Input Device</div>
-                                <div className="space-y-0.5">
-                                    {(audioInputs.length > 0 ? audioInputs : [{ deviceId: "default", label: "Default Microphone" } as MediaDeviceInfo]).map((device, idx) => {
-                                        const id = device.deviceId || "default";
-                                        const selected = id === inputDeviceId;
-                                        const label = resolveDeviceLabel(device, idx, "input");
-                                        return (
-                                            <button
-                                                key={`input-${id}-${idx}`}
-                                                onClick={() => {
-                                                    setInputDeviceId(id);
-                                                    if (typeof window !== "undefined") {
-                                                        window.localStorage.setItem("corvus-input-device-id", id);
-                                                    }
-                                                }}
-                                                className={`w-full text-left px-2 py-1.5 rounded-md text-[13px] transition-colors ${
-                                                    selected
-                                                        ? "bg-[#202432] text-[#E8EAF1]"
-                                                        : "text-[#C8CEDB] hover:bg-[#202432] hover:text-[#E8EAF1]"
-                                                }`}
-                                                title={label}
-                                            >
-                                                <span className="block truncate">
-                                                    {label}
-                                                </span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-
-                                <div className="h-px bg-[#2A2F3F] my-3" />
-                                <div className="text-[13px] font-semibold text-[#E8EAF1] mb-2">Input Level</div>
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={100}
-                                    value={inputVolume}
-                                    onChange={(e) => {
-                                        const value = Number(e.target.value);
-                                        setInputVolume(value);
-                                        if (typeof window !== "undefined") {
-                                            window.localStorage.setItem("corvus-input-volume", String(value));
-                                        }
-                                    }}
-                                    className="w-full h-1.5 accent-[#5865F2] cursor-pointer"
-                                />
-
-                                <div className="h-px bg-[#2A2F3F] my-3" />
-                                <button
-                                    onClick={() => {
-                                        setShowInputMenu(false);
-                                        onOpenSettings();
-                                    }}
-                                    className="w-full flex items-center justify-between px-1 py-1 text-[13px] text-[#E8EAF1] hover:text-white"
-                                >
-                                    <span>Voice Settings</span>
-                                    <Settings className="w-4 h-4 text-[#AAB1C0]" />
-                                </button>
-                            </div>
-                        )}
+                        <div className="grid grid-cols-4 gap-2 mt-2">
+                            <button
+                                onClick={() => setNoiseSuppression(!noiseSuppression)}
+                                className={`h-10 rounded-lg border border-border flex items-center justify-center transition-colors ${noiseSuppression
+                                    ? "text-accent-teal bg-accent-teal/10 border-accent-teal/20"
+                                    : "text-text-secondary hover:text-text-primary hover:bg-hover-row"
+                                    }`}
+                                title={noiseSuppression ? "Disable Noise Suppression" : "Enable Noise Suppression"}
+                            >
+                                <AudioLines className="w-5 h-5" />
+                            </button>
+                            <button
+                                onClick={handleScreenShareToggle}
+                                className={`h-10 rounded-lg border border-border flex items-center justify-center transition-colors ${isScreenSharing
+                                    ? "text-accent-teal bg-accent-teal/10 border-accent-teal/20"
+                                    : "text-text-secondary hover:text-text-primary hover:bg-hover-row"
+                                    }`}
+                                title={isScreenSharing ? "Stop Screen Share" : "Start Screen Share"}
+                            >
+                                <MonitorUp className="w-5 h-5" />
+                            </button>
+                            <button
+                                onClick={handleVideoToggle}
+                                className={`h-10 rounded-lg border border-border flex items-center justify-center transition-colors ${hasVideo
+                                    ? "text-accent-teal bg-accent-teal/10 border-accent-teal/20"
+                                    : "text-text-secondary hover:text-text-primary hover:bg-hover-row"
+                                    }`}
+                                title={hasVideo ? "Turn Off Camera" : "Turn On Camera"}
+                            >
+                                {hasVideo ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+                            </button>
+                            <button
+                                onClick={onOpenSettings}
+                                className="h-10 rounded-lg border border-border flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-hover-row transition-colors"
+                                title="Voice Settings"
+                            >
+                                <Settings className="w-5 h-5" />
+                            </button>
+                        </div>
                     </div>
-                    <button
-                        onClick={handleDeafenToggle}
-                        className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
-                            isDeafened
-                                ? "text-danger hover:bg-danger/15"
-                                : "text-[#B3B9C7] hover:text-[#E8EAF1] hover:bg-[#202432]"
-                        }`}
-                        title={isDeafened ? "Undeafen" : "Deafen"}
-                    >
-                        {isDeafened ? (
-                            <HeadphoneOff className="w-[15px] h-[15px]" />
-                        ) : (
-                            <Headphones className="w-[15px] h-[15px]" />
-                        )}
-                    </button>
-                    <div className="relative" ref={outputMenuRef}>
+                )}
+
+                <div className="px-3 py-2 flex items-center gap-2">
+                    <div className="relative min-w-0 flex-1" ref={statusMenuRef}>
                         <button
                             onClick={() => {
-                                setShowOutputMenu((prev) => !prev);
+                                setShowStatusMenu((prev) => !prev);
                                 setShowInputMenu(false);
-                                setShowStatusMenu(false);
+                                setShowOutputMenu(false);
                             }}
-                            className="w-4.5 h-7 rounded-md hover:bg-[#202432] flex items-center justify-center text-[#8E95A8] hover:text-[#E8EAF1] transition-colors"
-                            title="Sound Options"
+                            className="flex w-full min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-hover-row transition-colors"
                             aria-haspopup="menu"
-                            aria-expanded={showOutputMenu}
+                            aria-expanded={showStatusMenu}
                         >
-                            <ChevronDown className="w-3 h-3" />
-                        </button>
-                        {showOutputMenu && (
-                            <div className="absolute right-0 bottom-full mb-2 w-[280px] rounded-xl border border-[#2A2F3F] bg-[#11141D] shadow-xl z-50 p-3">
-                                <div className="text-[13px] font-semibold text-[#E8EAF1] mb-1.5">Output Device</div>
-                                <div className="space-y-0.5">
-                                    {(audioOutputs.length > 0 ? audioOutputs : [{ deviceId: "default", label: "Default Output" } as MediaDeviceInfo]).map((device, idx) => {
-                                        const id = device.deviceId || "default";
-                                        const selected = id === outputDeviceId;
-                                        const label = resolveDeviceLabel(device, idx, "output");
-                                        return (
-                                            <button
-                                                key={`output-${id}-${idx}`}
-                                                onClick={() => {
-                                                    setOutputDeviceId(id);
-                                                    if (typeof window !== "undefined") {
-                                                        window.localStorage.setItem("corvus-output-device-id", id);
-                                                    }
-                                                    applyOutputDevice(id);
-                                                }}
-                                                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] transition-colors ${
-                                                    selected
-                                                        ? "bg-[#202432] text-[#E8EAF1]"
-                                                        : "text-[#C8CEDB] hover:bg-[#202432] hover:text-[#E8EAF1]"
-                                                }`}
-                                                title={label}
-                                            >
-                                                <span className="flex-1 truncate text-left">{label}</span>
-                                                {selected && <ChevronRight className="w-3.5 h-3.5 text-[#AAB1C0] flex-shrink-0" />}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-
-                                <div className="h-px bg-[#2A2F3F] my-3" />
-                                <div className="text-[13px] font-semibold text-[#E8EAF1] mb-2">Output Volume</div>
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={100}
-                                    value={outputVolume}
-                                    onChange={(e) => {
-                                        const value = Number(e.target.value);
-                                        setOutputVolume(value);
-                                        if (typeof window !== "undefined") {
-                                            window.localStorage.setItem("corvus-output-volume", String(value));
-                                        }
-                                        applyOutputVolume(value);
-                                    }}
-                                    className="w-full h-1.5 accent-[#5865F2] cursor-pointer"
+                            <div className="relative">
+                                <UserAvatar
+                                    avatarUrl={userAvatar}
+                                    username={user?.username || "user"}
+                                    className="w-10 h-10"
                                 />
-
-                                <div className="h-px bg-[#2A2F3F] my-3" />
-                                <button
-                                    onClick={() => {
-                                        setShowOutputMenu(false);
-                                        onOpenSettings();
-                                    }}
-                                    className="w-full flex items-center justify-between px-1 py-1 text-[13px] text-[#E8EAF1] hover:text-white"
+                                <div
+                                    className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-surface"
+                                    style={{ backgroundColor: userStatusColor }}
+                                />
+                            </div>
+                            <div className="min-w-0 text-left">
+                                <div
+                                    className="text-[18px] leading-tight font-semibold truncate"
+                                    style={{ color: getUsernameColor(user?.username || "user") }}
                                 >
-                                    <span>Voice Settings</span>
-                                    <Settings className="w-4 h-4 text-[#AAB1C0]" />
-                                </button>
+                                    {primaryName}
+                                </div>
+                                {(userStatusSubtitle || secondaryName) && (
+                                    <div className="text-[13px] text-text-muted leading-[1.1] truncate">
+                                        {userStatusSubtitle || secondaryName}
+                                    </div>
+                                )}
+                            </div>
+                            <ChevronDown className="w-4 h-4 text-text-faint flex-shrink-0" />
+                        </button>
+
+                        {showStatusMenu && (
+                            <div className="absolute left-0 bottom-full mb-2 w-56 rounded-xl border border-border-highlight bg-surface-overlay shadow-float z-50 p-1 animate-slide-up">
+                                <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-text-faint">
+                                    Set status
+                                </div>
+                                {statuses.map((status) => {
+                                    const isActive = userStatus === status;
+                                    return (
+                                        <button
+                                            key={status}
+                                            onClick={() => {
+                                                setStatus(status);
+                                                setShowStatusMenu(false);
+                                            }}
+                                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] transition-colors ${isActive
+                                                ? "bg-active-row text-text-primary"
+                                                : "text-text-secondary hover:bg-hover-row hover:text-text-primary"
+                                                }`}
+                                        >
+                                            <span
+                                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                                style={{ backgroundColor: statusColors[status] }}
+                                            />
+                                            <span className="flex-1 text-left">{statusLabels[status]}</span>
+                                            {isActive && <Check className="w-3.5 h-3.5 text-text-muted" />}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
-                    <button
-                        onClick={() => setNoiseSuppression(!noiseSuppression)}
-                        className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
-                            noiseSuppression
-                                ? "text-accent-teal hover:bg-accent-teal/15"
-                                : "text-[#B3B9C7] hover:text-[#E8EAF1] hover:bg-[#202432]"
-                        }`}
-                        title={noiseSuppression ? "Disable Noise Suppression" : "Enable Noise Suppression"}
-                    >
-                        <AudioLines className="w-[15px] h-[15px]" />
-                    </button>
-                    <button
-                        onClick={onOpenSettings}
-                        className="w-7 h-7 rounded-md hover:bg-[#202432] flex items-center justify-center text-[#B3B9C7] hover:text-[#E8EAF1] transition-colors"
-                        title="Settings"
-                    >
-                        <Settings className="w-[15px] h-[15px]" />
-                    </button>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                            onClick={handleMuteToggle}
+                            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${isMuted
+                                ? "text-danger hover:bg-danger/10"
+                                : "text-text-secondary hover:text-text-primary hover:bg-hover-row"
+                                }`}
+                            title={isMuted ? "Unmute" : "Mute"}
+                        >
+                            {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                        </button>
+                        <div className="relative" ref={inputMenuRef}>
+                            <button
+                                onClick={() => {
+                                    setShowInputMenu((prev) => !prev);
+                                    setShowOutputMenu(false);
+                                    setShowStatusMenu(false);
+                                }}
+                                className="w-5 h-9 rounded-md hover:bg-hover-row flex items-center justify-center text-text-faint hover:text-text-secondary transition-colors"
+                                title="Microphone Options"
+                                aria-haspopup="menu"
+                                aria-expanded={showInputMenu}
+                            >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                            {showInputMenu && (
+                                <div className="absolute right-0 bottom-full mb-2 w-[280px] rounded-xl border border-border-highlight bg-surface-overlay shadow-float z-50 p-3 animate-slide-up">
+                                    <div className="text-[13px] font-semibold text-text-primary mb-1.5">Input Device</div>
+                                    <div className="space-y-0.5">
+                                        {(audioInputs.length > 0 ? audioInputs : [{ deviceId: "default", label: "Default Microphone" } as MediaDeviceInfo]).map((device, idx) => {
+                                            const id = device.deviceId || "default";
+                                            const selected = id === inputDeviceId;
+                                            const label = resolveDeviceLabel(device, idx, "input");
+                                            return (
+                                                <button
+                                                    key={`input-${id}-${idx}`}
+                                                    onClick={() => {
+                                                        setInputDeviceId(id);
+                                                        if (typeof window !== "undefined") {
+                                                            window.localStorage.setItem("corvus-input-device-id", id);
+                                                        }
+                                                    }}
+                                                    className={`w-full text-left px-2 py-1.5 rounded-lg text-[13px] transition-colors ${selected
+                                                        ? "bg-active-row text-text-primary"
+                                                        : "text-text-secondary hover:bg-hover-row hover:text-text-primary"
+                                                        }`}
+                                                    title={label}
+                                                >
+                                                    <span className="block truncate">
+                                                        {label}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="h-px bg-border my-3" />
+                                    <div className="text-[13px] font-semibold text-text-primary mb-2">Input Level</div>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        value={inputVolume}
+                                        onChange={(e) => {
+                                            const value = Number(e.target.value);
+                                            setInputVolume(value);
+                                            if (typeof window !== "undefined") {
+                                                window.localStorage.setItem("corvus-input-volume", String(value));
+                                            }
+                                        }}
+                                        className="w-full h-1.5 accent-accent-violet cursor-pointer"
+                                    />
+
+                                    <div className="h-px bg-border my-3" />
+                                    <button
+                                        onClick={() => {
+                                            setShowInputMenu(false);
+                                            onOpenSettings();
+                                        }}
+                                        className="w-full flex items-center justify-between px-1 py-1 text-[13px] text-text-secondary hover:text-text-primary transition-colors"
+                                    >
+                                        <span>Voice Settings</span>
+                                        <Settings className="w-4 h-4 text-text-muted" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            onClick={handleDeafenToggle}
+                            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${isDeafened
+                                ? "text-danger hover:bg-danger/10"
+                                : "text-text-secondary hover:text-text-primary hover:bg-hover-row"
+                                }`}
+                            title={isDeafened ? "Undeafen" : "Deafen"}
+                        >
+                            {isDeafened ? (
+                                <HeadphoneOff className="w-5 h-5" />
+                            ) : (
+                                <Headphones className="w-5 h-5" />
+                            )}
+                        </button>
+                        <div className="relative" ref={outputMenuRef}>
+                            <button
+                                onClick={() => {
+                                    setShowOutputMenu((prev) => !prev);
+                                    setShowInputMenu(false);
+                                    setShowStatusMenu(false);
+                                }}
+                                className="w-5 h-9 rounded-md hover:bg-hover-row flex items-center justify-center text-text-faint hover:text-text-secondary transition-colors"
+                                title="Sound Options"
+                                aria-haspopup="menu"
+                                aria-expanded={showOutputMenu}
+                            >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                            {showOutputMenu && (
+                                <div className="absolute right-0 bottom-full mb-2 w-[280px] rounded-xl border border-border-highlight bg-surface-overlay shadow-float z-50 p-3 animate-slide-up">
+                                    <div className="text-[13px] font-semibold text-text-primary mb-1.5">Output Device</div>
+                                    <div className="space-y-0.5">
+                                        {(audioOutputs.length > 0 ? audioOutputs : [{ deviceId: "default", label: "Default Output" } as MediaDeviceInfo]).map((device, idx) => {
+                                            const id = device.deviceId || "default";
+                                            const selected = id === outputDeviceId;
+                                            const label = resolveDeviceLabel(device, idx, "output");
+                                            return (
+                                                <button
+                                                    key={`output-${id}-${idx}`}
+                                                    onClick={() => {
+                                                        setOutputDeviceId(id);
+                                                        if (typeof window !== "undefined") {
+                                                            window.localStorage.setItem("corvus-output-device-id", id);
+                                                        }
+                                                        applyOutputDevice(id);
+                                                    }}
+                                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] transition-colors ${selected
+                                                        ? "bg-active-row text-text-primary"
+                                                        : "text-text-secondary hover:bg-hover-row hover:text-text-primary"
+                                                        }`}
+                                                    title={label}
+                                                >
+                                                    <span className="flex-1 truncate text-left">{label}</span>
+                                                    {selected && <ChevronRight className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="h-px bg-border my-3" />
+                                    <div className="text-[13px] font-semibold text-text-primary mb-2">Output Volume</div>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        value={outputVolume}
+                                        onChange={(e) => {
+                                            const value = Number(e.target.value);
+                                            setOutputVolume(value);
+                                            if (typeof window !== "undefined") {
+                                                window.localStorage.setItem("corvus-output-volume", String(value));
+                                            }
+                                            applyOutputVolume(value);
+                                        }}
+                                        className="w-full h-1.5 accent-accent-violet cursor-pointer"
+                                    />
+
+                                    <div className="h-px bg-border my-3" />
+                                    <button
+                                        onClick={() => {
+                                            setShowOutputMenu(false);
+                                            onOpenSettings();
+                                        }}
+                                        className="w-full flex items-center justify-between px-1 py-1 text-[13px] text-text-secondary hover:text-text-primary transition-colors"
+                                    >
+                                        <span>Voice Settings</span>
+                                        <Settings className="w-4 h-4 text-text-muted" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            onClick={() => setNoiseSuppression(!noiseSuppression)}
+                            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${noiseSuppression
+                                ? "text-accent-teal hover:bg-accent-teal/10"
+                                : "text-text-secondary hover:text-text-primary hover:bg-hover-row"
+                                }`}
+                            title={noiseSuppression ? "Disable Noise Suppression" : "Enable Noise Suppression"}
+                        >
+                            <AudioLines className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={onOpenSettings}
+                            className="w-9 h-9 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
+                            title="Settings"
+                        >
+                            <Settings className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
             </div>
             <span className="sr-only">{userStatusLabel}</span>

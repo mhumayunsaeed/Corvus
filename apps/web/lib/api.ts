@@ -647,10 +647,14 @@ export function joinDMCall(conversationId: string) {
     );
 }
 
-export function endDMCall(conversationId: string) {
-    return api<{ message: string }>(`/dms/${conversationId}/call/end`, {
+export function leaveDMCall(conversationId: string) {
+    return api<{ message: string }>(`/dms/${conversationId}/call/leave`, {
         method: "POST",
     });
+}
+
+export function endDMCall(conversationId: string) {
+    return leaveDMCall(conversationId);
 }
 
 // ─── Stickers API ───────────────────────────────────────────────────────────────

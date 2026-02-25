@@ -31,6 +31,7 @@ interface AuthState {
     updateUser: (data: Partial<User>) => void;
     completeOnboarding: () => Promise<void>;
     setStatus: (status: User["status"]) => void;
+    applyPresence: (userId: string, status: User["status"]) => void;
     checkUsername: (username: string) => Promise<boolean | null>;
     refreshUser: () => Promise<void>;
 }
@@ -173,12 +174,27 @@ export const useAuthStore = create<AuthState>()(
             },
 
             logout: () => {
+                const token = get().token;
+
+                // Clear local auth state immediately so the UI redirects
                 set({
                     user: null,
                     token: null,
                     isAuthenticated: false,
                     isLoading: false,
                 });
+
+                // Fire-and-forget: tell the server to set status offline.
+                // The WebSocket hook will also close because token became null,
+                // which triggers server-side removeClient() -> offline as a fallback.
+                if (token) {
+                    api("/auth/logout", {
+                        method: "POST",
+                        headers: { Authorization: `Bearer ${token}` },
+                    }).catch((err) => {
+                        console.warn("Failed to sync logout presence:", err);
+                    });
+                }
             },
 
             updateUser: (data) => {
@@ -231,9 +247,19 @@ export const useAuthStore = create<AuthState>()(
             setStatus: (status) => {
                 const current = get().user;
                 if (current) {
-                    set({ user: { ...current, status } });
-                    get().updateUser({ status });
+                    const nextStatus = status === "offline" ? "invisible" : status;
+                    set({ user: { ...current, status: nextStatus } });
+                    get().updateUser({ status: nextStatus });
                 }
+            },
+
+            applyPresence: (userId, status) => {
+                set((state) => {
+                    if (!state.user || state.user.id !== userId || state.user.status === status) {
+                        return state;
+                    }
+                    return { user: { ...state.user, status } };
+                });
             },
 
             checkUsername: async (username: string): Promise<boolean | null> => {
