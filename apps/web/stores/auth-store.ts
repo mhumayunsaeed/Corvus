@@ -41,36 +41,74 @@ async function api<T>(
 ): Promise<T> {
     const baseUrl = ensureApiUrl();
     const maxRetries = 2;
+    const timeoutMs = 15000;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        let res: Response;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
         try {
-            res = await fetch(`${baseUrl}${path}`, {
+            const res = await fetch(`${baseUrl}${path}`, {
                 headers: {
                     "Content-Type": "application/json",
                     ...options.headers,
                 },
                 ...options,
+                signal: controller.signal,
             });
-        } catch {
+
+            const contentType = res.headers.get("content-type") || "";
+            let data: unknown = null;
+
+            if (contentType.includes("application/json")) {
+                data = await res.json().catch(() => null);
+            } else {
+                const text = await res.text().catch(() => "");
+                data = text ? { error: text } : null;
+            }
+
+            if (!res.ok) {
+                const errObj = data as { error?: string; message?: string; details?: string } | null;
+                const baseMessage =
+                    errObj?.error ||
+                    errObj?.message ||
+                    `Request failed (${res.status})`;
+
+                const httpError = new Error(
+                    errObj?.details ? `${baseMessage}: ${errObj.details}` : baseMessage
+                );
+                httpError.name = "HttpError";
+                throw httpError;
+            }
+
+            return (data ?? ({} as T)) as T;
+        } catch (err) {
+            const isHttpError = err instanceof Error && err.name === "HttpError";
+            if (isHttpError) {
+                throw err;
+            }
+
             if (attempt < maxRetries) {
-                // Wait before retrying (handles Render cold starts)
+                // Wait before retrying (handles Render cold starts and transient network issues)
                 await new Promise((r) => setTimeout(r, 750 * (attempt + 1)));
                 continue;
             }
-            throw new Error(
-                `Failed to reach API at ${baseUrl}. ` +
-                "The server may be waking up — please try again in a moment."
-            );
+
+            if (err instanceof Error && err.name === "AbortError") {
+                throw new Error(
+                    `Request to ${baseUrl}${path} timed out. ` +
+                    "Please check your connection and try again."
+                );
+            }
+
+            if (err instanceof Error) {
+                throw err;
+            }
+
+            throw new Error("Unexpected error.");
+        } finally {
+            clearTimeout(timeoutId);
         }
-
-        const data = await res.json();
-
-        if (!res.ok) {
-            throw new Error(data.error || "Something went wrong.");
-        }
-
-        return data as T;
     }
 
     // Unreachable, but satisfies TypeScript
@@ -106,11 +144,9 @@ export const useAuthStore = create<AuthState>()(
                         user: data.user,
                         token: data.token,
                         isAuthenticated: true,
-                        isLoading: false,
                     });
-                } catch (err) {
+                } finally {
                     set({ isLoading: false });
-                    throw err;
                 }
             },
 
@@ -127,15 +163,12 @@ export const useAuthStore = create<AuthState>()(
                         body: JSON.stringify(data),
                     });
 
-                    set({ isLoading: false });
-
                     return {
                         confirmEmail: result.confirmEmail,
                         email: result.email,
                     };
-                } catch (err) {
+                } finally {
                     set({ isLoading: false });
-                    throw err;
                 }
             },
 
