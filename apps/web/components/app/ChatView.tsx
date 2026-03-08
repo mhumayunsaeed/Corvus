@@ -23,6 +23,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { GifPicker } from "./GifPicker";
 import { StickerPicker } from "./StickerPicker";
 import { SlashCommandMenu } from "./SlashCommandMenu";
+import { MentionMenu, extractMentionQuery, filterMentionUsers, applyMention, type MentionUser } from "./MentionMenu";
 import { UserAvatar } from "./UserAvatar";
 import { getUsernameColor } from "@/lib/color-utils";
 import { useChatStore } from "@/stores/chat-store";
@@ -36,6 +37,7 @@ import {
     addReaction,
     removeReaction,
     fetchMessages,
+    fetchMembers,
     fetchStickerById,
     fetchLinkPreview,
     uploadAttachment,
@@ -43,6 +45,7 @@ import {
     type MessageEmbedData,
     type StickerData,
 } from "@/lib/api";
+import { useAppStore } from "@/stores/app-store";
 import {
     encodeAttachmentContent,
     formatAttachmentSize,
@@ -53,7 +56,7 @@ import {
     ATTACHMENT_INPUT_ACCEPT,
 } from "@/lib/attachments";
 import { API_URL } from "@/lib/endpoints";
-import { extractMessageUrls, linkifyMessageText } from "@/lib/link-utils";
+import { extractMessageUrls, linkifyAndMentionText } from "@/lib/link-utils";
 import {
     extractSlashQuery,
     filterSlashCommands,
@@ -129,11 +132,16 @@ export function ChatView({
     const [previewCache, setPreviewCache] = useState<Record<string, MessageEmbedData | null>>({});
     const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
     const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
+    const [mentionUsers, setMentionUsers] = useState<MentionUser[]>([]);
+    const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+    const [cursorPosition, setCursorPosition] = useState(0);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const attachmentInputRef = useRef<HTMLInputElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const prevChannelRef = useRef<string | null>(null);
+    const mentionMembersRef = useRef<MentionUser[]>([]);
 
     const channelMessages = useChatStore((s) => s.messages[channelId]);
     const messages = channelMessages ?? EMPTY_MESSAGES;
@@ -151,6 +159,31 @@ export function ChatView({
         [slashQuery]
     );
     const showSlashCommandMenu = slashQuery !== null && filteredSlashCommands.length > 0;
+
+    const activeServerId = useAppStore((s) => s.activeServerId);
+
+    // Fetch members for @mention autocomplete
+    useEffect(() => {
+        if (!activeServerId) return;
+        fetchMembers(activeServerId)
+            .then((res) => {
+                mentionMembersRef.current = res.members.map((m) => ({
+                    id: m.user.id,
+                    displayName: m.user.displayName,
+                    username: m.user.username,
+                    avatarUrl: m.user.avatarUrl,
+                }));
+            })
+            .catch(() => {});
+    }, [activeServerId]);
+
+    const mentionQuery = useMemo(() => extractMentionQuery(messageInput, cursorPosition), [messageInput, cursorPosition]);
+    const filteredMentionUsers = useMemo(
+        () => mentionQuery !== null ? filterMentionUsers(mentionMembersRef.current, mentionQuery) : [],
+        [mentionQuery]
+    );
+    const showMentionMenu = !showSlashCommandMenu && filteredMentionUsers.length > 0;
+
     const stickerIdsInMessages = useMemo(() => {
         const ids = new Set<string>();
         for (const message of messages) {
@@ -426,7 +459,50 @@ export function ChatView({
         [filteredSlashCommands]
     );
 
+    const applyMentionSelection = useCallback(
+        (user: MentionUser) => {
+            const { newText, newCursor } = applyMention(messageInput, cursorPosition, user);
+            setMessageInput(newText);
+            setCursorPosition(newCursor);
+            setSelectedMentionIndex(0);
+            // Set cursor position in textarea after React renders
+            setTimeout(() => {
+                if (textareaRef.current) {
+                    textareaRef.current.selectionStart = newCursor;
+                    textareaRef.current.selectionEnd = newCursor;
+                    textareaRef.current.focus();
+                }
+            }, 0);
+        },
+        [messageInput, cursorPosition]
+    );
+
     const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (showMentionMenu) {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setSelectedMentionIndex((prev) => (prev + 1) % filteredMentionUsers.length);
+                return;
+            }
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setSelectedMentionIndex((prev) =>
+                    (prev - 1 + filteredMentionUsers.length) % filteredMentionUsers.length
+                );
+                return;
+            }
+            if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+                e.preventDefault();
+                applyMentionSelection(filteredMentionUsers[selectedMentionIndex]);
+                return;
+            }
+            if (e.key === "Escape") {
+                e.preventDefault();
+                setCursorPosition(0); // hide menu
+                return;
+            }
+        }
+
         if (showSlashCommandMenu) {
             if (e.key === "ArrowDown") {
                 e.preventDefault();
@@ -460,6 +536,8 @@ export function ChatView({
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setMessageInput(e.target.value);
+        setCursorPosition(e.target.selectionStart || 0);
+        setSelectedMentionIndex(0);
 
         // Typing indicator debounce
         if (typingTimeoutRef.current) {
@@ -641,7 +719,7 @@ export function ChatView({
         while ((match = codeBlockRegex.exec(content)) !== null) {
             if (match.index > lastIndex) {
                 parts.push(
-                    <span key={lastIndex}>{linkifyMessageText(content.substring(lastIndex, match.index))}</span>
+                    <span key={lastIndex}>{linkifyAndMentionText(content.substring(lastIndex, match.index))}</span>
                 );
             }
             const code = match[2];
@@ -659,9 +737,9 @@ export function ChatView({
         }
 
         if (lastIndex < content.length) {
-            parts.push(<span key={lastIndex}>{linkifyMessageText(content.substring(lastIndex))}</span>);
+            parts.push(<span key={lastIndex}>{linkifyAndMentionText(content.substring(lastIndex))}</span>);
         }
-        return parts.length > 0 ? parts : linkifyMessageText(content);
+        return parts.length > 0 ? parts : linkifyAndMentionText(content);
     };
 
     const formatReplyContent = (content: string) => {
@@ -1130,6 +1208,14 @@ export function ChatView({
                             onHover={setSelectedSlashIndex}
                         />
                     )}
+                    {showMentionMenu && (
+                        <MentionMenu
+                            users={filteredMentionUsers}
+                            selectedIndex={selectedMentionIndex}
+                            onSelect={applyMentionSelection}
+                            onHover={setSelectedMentionIndex}
+                        />
+                    )}
                     <div className="flex items-center gap-2 p-3">
                         <button
                             onClick={() => attachmentInputRef.current?.click()}
@@ -1152,9 +1238,11 @@ export function ChatView({
                         />
 
                         <textarea
+                            ref={textareaRef}
                             value={messageInput}
                             onChange={handleInputChange}
                             onKeyDown={handleKeyPress}
+                            onSelect={(e) => setCursorPosition((e.target as HTMLTextAreaElement).selectionStart || 0)}
                             placeholder={`Message #${channelName}`}
                             className="flex-1 bg-transparent text-text-primary placeholder:text-text-muted resize-none outline-none min-h-[22px] max-h-[200px] py-1 text-[14px] leading-[1.45]"
                             rows={1}

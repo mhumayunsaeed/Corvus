@@ -20,6 +20,8 @@ model User {
   emailVerified        Boolean  @default(false) @map("email_verified")
   emailVerifyToken     String?  @unique @map("email_verify_token")
   emailVerifyExpires   DateTime? @map("email_verify_expires")
+  passwordResetToken   String?  @unique @map("password_reset_token")
+  passwordResetExpires DateTime? @map("password_reset_expires")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
@@ -38,6 +40,8 @@ model User {
   dmParticipations       DMParticipant[]
   dmMessages             DMMessage[]
   stickers               Sticker[]
+  pinnedDMMessages       PinnedDMMessage[]
+  channelReads           ChannelRead[]
 
   @@map("users")
 }
@@ -84,11 +88,26 @@ model Channel {
   position  Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at")
 
-  server   Server    @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  server   Server        @relation(fields: [serverId], references: [id], onDelete: Cascade)
   messages Message[]
+  reads    ChannelRead[]
 
   @@index([serverId])
   @@map("channels")
+}
+
+model ChannelRead {
+  id         String   @id @default(cuid())
+  channelId  String   @map("channel_id")
+  userId     String   @map("user_id")
+  lastReadAt DateTime @default(now()) @map("last_read_at")
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([userId])
+  @@map("channel_reads")
 }
 
 model Message {
@@ -140,6 +159,7 @@ model Reaction {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId, emoji])
+  @@index([messageId])
   @@map("reactions")
 }
 
@@ -227,9 +247,10 @@ model DMConversation {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  createdBy    User            @relation("DMConversationCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  participants DMParticipant[]
-  messages     DMMessage[]
+  createdBy      User            @relation("DMConversationCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  participants   DMParticipant[]
+  messages       DMMessage[]
+  pinnedMessages PinnedDMMessage[]
 
   @@index([updatedAt])
   @@map("dm_conversations")
@@ -240,6 +261,7 @@ model DMParticipant {
   conversationId String   @map("conversation_id")
   userId         String   @map("user_id")
   joinedAt       DateTime @default(now()) @map("joined_at")
+  lastReadAt     DateTime @default(now()) @map("last_read_at")
 
   conversation DMConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -254,14 +276,34 @@ model DMMessage {
   conversationId String    @map("conversation_id")
   authorId       String    @map("author_id")
   content        String
-  type           String    @default("default") // default, call
+  type           String    @default("default") // default, reply, call
+  replyToId      String?   @map("reply_to_id")
   metadata       String?   // JSON string with extra details (e.g. call duration)
   editedAt       DateTime? @map("edited_at")
   createdAt      DateTime  @default(now()) @map("created_at")
 
-  conversation DMConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  author       User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  conversation   DMConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  author         User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  replyTo        DMMessage?      @relation("DMMessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        DMMessage[]     @relation("DMMessageReplies")
+  pinnedEntries  PinnedDMMessage[]
 
   @@index([conversationId, createdAt])
   @@map("dm_messages")
+}
+
+model PinnedDMMessage {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  messageId      String   @map("message_id")
+  pinnedById     String   @map("pinned_by_id")
+  pinnedAt       DateTime @default(now()) @map("pinned_at")
+
+  conversation DMConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      DMMessage      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  pinnedBy     User           @relation(fields: [pinnedById], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, messageId])
+  @@index([conversationId])
+  @@map("pinned_dm_messages")
 }

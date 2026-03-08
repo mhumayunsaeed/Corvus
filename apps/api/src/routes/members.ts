@@ -21,6 +21,9 @@ members.get("/servers/:serverId/members", async (c) => {
         return c.json({ error: "You are not a member of this server." }, 403);
     }
 
+    const limit = Math.min(parseInt(c.req.query("limit") || "100", 10), 200);
+    const offset = Math.max(parseInt(c.req.query("offset") || "0", 10), 0);
+
     const memberList = await prisma.serverMember.findMany({
         where: { serverId },
         include: {
@@ -36,6 +39,8 @@ members.get("/servers/:serverId/members", async (c) => {
             },
         },
         orderBy: { joinedAt: "asc" },
+        take: limit,
+        skip: offset,
     });
 
     return c.json({

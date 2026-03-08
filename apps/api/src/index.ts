@@ -1,4 +1,6 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -16,6 +18,15 @@ import stage from "./routes/stage.js";
 import stickerRoutes from "./routes/stickers.js";
 import attachmentRoutes from "./routes/attachments.js";
 import { setupWebSocket } from "./ws.js";
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const envDir = resolve(currentDir, "..");
+const isProduction = process.env.NODE_ENV === "production";
+
+// Load API env files from apps/api regardless of process cwd.
+// In non-production we intentionally override shell vars to avoid stale DATABASE_URL values.
+dotenv.config({ path: resolve(envDir, ".env"), override: !isProduction });
+dotenv.config({ path: resolve(envDir, ".env.local"), override: !isProduction });
 
 const app = new Hono();
 
@@ -50,7 +61,7 @@ app.use(
     "*",
     cors({
         origin: (origin) => {
-            if (!origin) return "*";
+            if (!origin) return "";
             return allowedOrigins.has(normalizeOrigin(origin)) ? origin : "";
         },
         allowHeaders: ["Content-Type", "Authorization"],
@@ -58,6 +69,14 @@ app.use(
         credentials: true,
     })
 );
+
+// Security headers
+app.use("*", async (c, next) => {
+    await next();
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("X-Frame-Options", "DENY");
+    c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+});
 
 app.onError((err, c) => {
     console.error("Unhandled API error:", err);

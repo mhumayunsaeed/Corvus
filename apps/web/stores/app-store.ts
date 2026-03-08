@@ -23,6 +23,7 @@ interface AppState {
     applyUserPresence: (userId: string, status: string) => void;
     addServer: (server: ServerData) => void;
     removeServer: (serverId: string) => void;
+    updateServer: (serverId: string, updates: Partial<ServerData>) => void;
     addChannel: (channel: ChannelData) => void;
     removeChannel: (channelId: string) => void;
 }
@@ -120,6 +121,13 @@ export const useAppStore = create<AppState>((set) => ({
         set((state) => ({
             servers: state.servers.filter((s) => s.id !== serverId),
             activeServerId: state.activeServerId === serverId ? null : state.activeServerId,
+        })),
+
+    updateServer: (serverId, updates) =>
+        set((state) => ({
+            servers: state.servers.map((s) =>
+                s.id === serverId ? { ...s, ...updates } : s
+            ),
         })),
 
     addChannel: (channel) =>

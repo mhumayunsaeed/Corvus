@@ -163,4 +163,32 @@ channels.delete("/channels/:id", async (c) => {
     return c.json({ message: "Channel deleted." });
 });
 
+// ─── POST /channels/:id/read — Mark channel as read ─────────────
+
+channels.post("/channels/:id/read", async (c) => {
+    const userId = c.get("userId");
+    const channelId = c.req.param("id");
+
+    const channel = await prisma.channel.findUnique({
+        where: { id: channelId },
+    });
+
+    if (!channel) {
+        return c.json({ error: "Channel not found." }, 404);
+    }
+
+    const membership = await verifyMembership(channel.serverId, userId);
+    if (!membership) {
+        return c.json({ error: "You are not a member of this server." }, 403);
+    }
+
+    await prisma.channelRead.upsert({
+        where: { channelId_userId: { channelId, userId } },
+        update: { lastReadAt: new Date() },
+        create: { channelId, userId, lastReadAt: new Date() },
+    });
+
+    return c.json({ success: true });
+});
+
 export default channels;

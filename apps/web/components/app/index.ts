@@ -13,3 +13,4 @@ export { LinkEmbed } from "./LinkEmbed";
 export { CallModal } from "./CallModal";
 export { IncomingCallNotification } from "./IncomingCallNotification";
 export { UserSettingsModal } from "./UserSettingsModal";
+export { ServerSettingsModal } from "./ServerSettingsModal";

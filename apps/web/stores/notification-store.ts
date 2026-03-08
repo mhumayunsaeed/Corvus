@@ -18,6 +18,7 @@ interface NotificationState {
     channelUnread: Record<string, number>;
     channelMentions: Record<string, number>;
     dmUnread: Record<string, number>;
+    channelServerMap: Record<string, string>; // channelId → serverId
 
     setPreference: <K extends keyof NotificationPreferences>(
         key: K,
@@ -34,6 +35,10 @@ interface NotificationState {
     markChannelRead: (channelId: string) => void;
     markDMRead: (conversationId: string) => void;
     clearAllUnread: () => void;
+
+    registerChannelsForServer: (serverId: string, channelIds: string[]) => void;
+    setChannelUnreadBatch: (counts: Record<string, number>) => void;
+    setDMUnreadBatch: (counts: Record<string, number>) => void;
 
     getTotalUnread: () => number;
     getTotalMentions: () => number;
@@ -67,6 +72,27 @@ function sumRecord(record: Record<string, number>): number {
     return Object.values(record).reduce((total, count) => total + count, 0);
 }
 
+/** Aggregate channel unread/mention counts per server */
+export function getServerUnreadCounts(
+    channelServerMap: Record<string, string>,
+    channelUnread: Record<string, number>,
+    channelMentions: Record<string, number>
+): Record<string, { unread: number; mentions: number }> {
+    const result: Record<string, { unread: number; mentions: number }> = {};
+    for (const [channelId, serverId] of Object.entries(channelServerMap)) {
+        const unread = channelUnread[channelId] || 0;
+        const mentions = channelMentions[channelId] || 0;
+        if (unread > 0 || mentions > 0) {
+            if (!result[serverId]) {
+                result[serverId] = { unread: 0, mentions: 0 };
+            }
+            result[serverId].unread += unread;
+            result[serverId].mentions += mentions;
+        }
+    }
+    return result;
+}
+
 export const useNotificationStore = create<NotificationState>()(
     persist(
         (set, get) => ({
@@ -74,6 +100,7 @@ export const useNotificationStore = create<NotificationState>()(
             channelUnread: {},
             channelMentions: {},
             dmUnread: {},
+            channelServerMap: {},
 
             setPreference: (key, value) =>
                 set((state) => ({
@@ -137,6 +164,23 @@ export const useNotificationStore = create<NotificationState>()(
                     channelMentions: {},
                     dmUnread: {},
                 }),
+
+            registerChannelsForServer: (serverId, channelIds) =>
+                set((state) => {
+                    const next = { ...state.channelServerMap };
+                    for (const id of channelIds) {
+                        next[id] = serverId;
+                    }
+                    return { channelServerMap: next };
+                }),
+
+            setChannelUnreadBatch: (counts) =>
+                set((state) => ({
+                    channelUnread: { ...state.channelUnread, ...counts },
+                })),
+
+            setDMUnreadBatch: (counts) =>
+                set({ dmUnread: counts }),
 
             getTotalUnread: () => {
                 const state = get();

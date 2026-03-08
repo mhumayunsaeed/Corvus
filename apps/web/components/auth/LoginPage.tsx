@@ -275,12 +275,12 @@ export function LoginPage() {
                                         >
                                             Password
                                         </label>
-                                        <a
-                                            href="#"
+                                        <Link
+                                            href="/forgot-password"
                                             className="text-micro text-text-muted hover:text-accent-violet transition-colors"
                                         >
                                             Forgot password?
-                                        </a>
+                                        </Link>
                                     </div>
                                     <div
                                         className={`relative rounded-[10px] transition-shadow duration-200 ${isFocused === "password"

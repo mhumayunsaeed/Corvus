@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: veyra-api
+    name: corvus-api
     runtime: node
     plan: free
     region: oregon
@@ -23,15 +23,23 @@ services:
         generateValue: true
       - key: FRONTEND_URL
         fromService:
-          name: veyra-web
+          name: corvus-web
           type: web
           envVarKey: RENDER_EXTERNAL_URL
       - key: CORS_ORIGINS
         sync: false
-      - key: RESEND_API_KEY
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
         sync: false
       - key: EMAIL_FROM
-        value: Veyra <noreply@veyra.app>
+        value: Corvus <noreply@corvus.app>
       - key: LIVEKIT_URL
         sync: false
       - key: LIVEKIT_API_KEY
@@ -47,7 +55,7 @@ services:
         - pnpm-workspace.yaml
 
   - type: web
-    name: veyra-web
+    name: corvus-web
     runtime: node
     plan: free
     region: oregon
@@ -63,7 +71,7 @@ services:
         value: production
       - key: NEXT_PUBLIC_API_URL
         fromService:
-          name: veyra-api
+          name: corvus-api
           type: web
           envVarKey: RENDER_EXTERNAL_URL
       - key: NEXT_PUBLIC_WS_URL

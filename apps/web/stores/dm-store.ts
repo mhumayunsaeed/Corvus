@@ -2,6 +2,13 @@ import { create } from "zustand";
 import type { DMMessageData } from "@/lib/api";
 
 const MAX_MESSAGES_PER_CONVERSATION = 1000;
+const TYPING_TIMEOUT_MS = 5000;
+
+export interface DMTypingUser {
+    userId: string;
+    username: string;
+    timeout: ReturnType<typeof setTimeout>;
+}
 
 function normalizeMessage(message: DMMessageData): DMMessageData {
     if (message.reactions) return message;
@@ -24,6 +31,8 @@ interface DMState {
     messages: Record<string, DMMessageData[]>;
     cursors: Record<string, string | null>;
     hasMore: Record<string, boolean>;
+    typingUsers: Record<string, DMTypingUser[]>;
+    pinnedMessages: Record<string, DMMessageData[]>;
     setMessages: (
         conversationId: string,
         messages: DMMessageData[],
@@ -42,12 +51,19 @@ interface DMState {
     addReaction: (conversationId: string, messageId: string, emoji: string, userId: string, currentUserId: string) => void;
     removeReaction: (conversationId: string, messageId: string, emoji: string, userId: string, currentUserId: string) => void;
     clearConversation: (conversationId: string) => void;
+    setDMTyping: (conversationId: string, userId: string, username: string) => void;
+    clearDMTyping: (conversationId: string, userId: string) => void;
+    setPinnedMessages: (conversationId: string, messages: DMMessageData[]) => void;
+    addPinnedMessage: (conversationId: string, message: DMMessageData) => void;
+    removePinnedMessage: (conversationId: string, messageId: string) => void;
 }
 
 export const useDMStore = create<DMState>((set) => ({
     messages: {},
     cursors: {},
     hasMore: {},
+    typingUsers: {},
+    pinnedMessages: {},
 
     setMessages: (conversationId, messages, cursor, hasMore) =>
         set((state) => ({
@@ -182,4 +198,61 @@ export const useDMStore = create<DMState>((set) => ({
                 hasMore: nextHasMore,
             };
         }),
+
+    setDMTyping: (conversationId, userId, username) =>
+        set((state) => {
+            const existing = state.typingUsers[conversationId] || [];
+            const prev = existing.find((u) => u.userId === userId);
+            if (prev) clearTimeout(prev.timeout);
+
+            const timeout = setTimeout(() => {
+                useDMStore.getState().clearDMTyping(conversationId, userId);
+            }, TYPING_TIMEOUT_MS);
+
+            return {
+                typingUsers: {
+                    ...state.typingUsers,
+                    [conversationId]: [
+                        ...existing.filter((u) => u.userId !== userId),
+                        { userId, username, timeout },
+                    ],
+                },
+            };
+        }),
+
+    clearDMTyping: (conversationId, userId) =>
+        set((state) => {
+            const existing = state.typingUsers[conversationId] || [];
+            const prev = existing.find((u) => u.userId === userId);
+            if (prev) clearTimeout(prev.timeout);
+            return {
+                typingUsers: {
+                    ...state.typingUsers,
+                    [conversationId]: existing.filter((u) => u.userId !== userId),
+                },
+            };
+        }),
+
+    setPinnedMessages: (conversationId, messages) =>
+        set((state) => ({
+            pinnedMessages: { ...state.pinnedMessages, [conversationId]: messages },
+        })),
+
+    addPinnedMessage: (conversationId, message) =>
+        set((state) => ({
+            pinnedMessages: {
+                ...state.pinnedMessages,
+                [conversationId]: [message, ...(state.pinnedMessages[conversationId] || [])],
+            },
+        })),
+
+    removePinnedMessage: (conversationId, messageId) =>
+        set((state) => ({
+            pinnedMessages: {
+                ...state.pinnedMessages,
+                [conversationId]: (state.pinnedMessages[conversationId] || []).filter(
+                    (m) => m.id !== messageId
+                ),
+            },
+        })),
 }));

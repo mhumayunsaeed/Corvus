@@ -9,10 +9,17 @@ servers.use("*", authMiddleware);
 
 // ─── Validation Schemas ─────────────────────────────────────────
 
+const channelTemplateSchema = z.object({
+    name: z.string().min(1).max(100),
+    type: z.enum(["text", "voice", "announcement", "forum", "stage"]),
+    category: z.string().min(1).max(100),
+});
+
 const createServerSchema = z.object({
     name: z.string().min(1, "Server name is required").max(100),
     iconUrl: z.string().url().optional(),
     description: z.string().max(500).optional(),
+    channels: z.array(channelTemplateSchema).max(20).optional(),
 });
 
 const updateServerSchema = z.object({
@@ -32,7 +39,16 @@ servers.post("/", async (c) => {
         return c.json({ error: result.error.errors[0].message }, 400);
     }
 
-    const { name, iconUrl, description } = result.data;
+    const { name, iconUrl, description, channels: templateChannels } = result.data;
+
+    const channelsToCreate = templateChannels && templateChannels.length > 0
+        ? templateChannels.map((ch, i) => ({
+            name: ch.name,
+            type: ch.type,
+            category: ch.category,
+            position: i,
+        }))
+        : [{ name: "general", type: "text", category: "General", position: 0 }];
 
     const server = await prisma.server.create({
         data: {
@@ -47,16 +63,11 @@ servers.post("/", async (c) => {
                 },
             },
             channels: {
-                create: {
-                    name: "general",
-                    type: "text",
-                    category: "General",
-                    position: 0,
-                },
+                create: channelsToCreate,
             },
         },
         include: {
-            channels: true,
+            channels: { orderBy: [{ category: "asc" }, { position: "asc" }] },
             _count: { select: { members: true } },
         },
     });
@@ -121,12 +132,42 @@ servers.get("/:id", async (c) => {
         return c.json({ error: "Server not found." }, 404);
     }
 
+    // Compute unread counts per channel
+    const channelIds = server.channels.filter((ch) => ch.type === "text").map((ch) => ch.id);
+    const reads = await prisma.channelRead.findMany({
+        where: { userId, channelId: { in: channelIds } },
+        select: { channelId: true, lastReadAt: true },
+    });
+    const readMap = new Map(reads.map((r) => [r.channelId, r.lastReadAt]));
+
+    // Count unread messages per channel (messages after lastReadAt, not authored by current user)
+    const unreadCounts: Record<string, number> = {};
+    if (channelIds.length > 0) {
+        const countResults = await Promise.all(
+            channelIds.map(async (chId) => {
+                const lastRead = readMap.get(chId);
+                const count = await prisma.message.count({
+                    where: {
+                        channelId: chId,
+                        authorId: { not: userId },
+                        ...(lastRead ? { createdAt: { gt: lastRead } } : {}),
+                    },
+                });
+                return { channelId: chId, count };
+            })
+        );
+        for (const { channelId: chId, count } of countResults) {
+            if (count > 0) unreadCounts[chId] = count;
+        }
+    }
+
     return c.json({
         server: {
             ...server,
             memberCount: server._count.members,
             role: membership.role,
         },
+        unreadCounts,
     });
 });
 

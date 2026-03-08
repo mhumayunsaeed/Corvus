@@ -13,7 +13,8 @@ dms.use("*", async (c, next) => {
     const hasDMModels =
         typeof db.dMConversation !== "undefined" &&
         typeof db.dMParticipant !== "undefined" &&
-        typeof db.dMMessage !== "undefined";
+        typeof db.dMMessage !== "undefined" &&
+        typeof db.pinnedDMMessage !== "undefined";
 
     if (!hasDMModels) {
         return c.json(
@@ -35,6 +36,7 @@ const createConversationSchema = z.object({
 
 const sendDMMessageSchema = z.object({
     content: z.string().min(1, "Message cannot be empty").max(4000),
+    replyToId: z.string().optional(),
 });
 
 const dmReactionSchema = z.object({
@@ -194,7 +196,26 @@ dms.get("/dms", async (c) => {
         orderBy: { updatedAt: "desc" },
     });
 
-    return c.json({ conversations: conversations.map(mapConversation) });
+    // Compute unread counts per DM conversation
+    const dmUnreadCounts: Record<string, number> = {};
+    for (const conv of conversations) {
+        const myParticipant = conv.participants.find((p: any) => p.userId === userId);
+        if (!myParticipant) continue;
+        const lastRead = myParticipant.lastReadAt;
+        const count = await db.dMMessage.count({
+            where: {
+                conversationId: conv.id,
+                authorId: { not: userId },
+                createdAt: { gt: lastRead },
+            },
+        });
+        if (count > 0) dmUnreadCounts[conv.id] = count;
+    }
+
+    return c.json({
+        conversations: conversations.map(mapConversation),
+        dmUnreadCounts,
+    });
 });
 
 // POST /dms
@@ -368,6 +389,13 @@ dms.get("/dms/:id/messages", async (c) => {
         orderBy: { createdAt: "desc" },
         include: {
             author: { select: userSelect },
+            replyTo: {
+                select: {
+                    id: true,
+                    content: true,
+                    author: { select: userSelect },
+                },
+            },
         },
     });
 
@@ -382,6 +410,7 @@ dms.get("/dms/:id/messages", async (c) => {
             createdAt: m.createdAt,
             editedAt: m.editedAt,
             author: m.author,
+            replyTo: m.replyTo || null,
         }))
         .reverse();
 
@@ -415,6 +444,7 @@ dms.post("/dms/:id/messages", async (c) => {
 
     let resolvedContent = parsed.data.content;
     let resolvedType = "default";
+    const replyToId = parsed.data.replyToId;
 
     const slash = executeSlashCommand(parsed.data.content, { username });
     if (slash.kind === "error") {
@@ -422,9 +452,10 @@ dms.post("/dms/:id/messages", async (c) => {
     }
     if (slash.kind === "ok") {
         resolvedContent = slash.content;
-        resolvedType = slash.type;
+        resolvedType = slash.type === "system" ? "system" : replyToId ? "reply" : "default";
     } else {
         resolvedContent = slash.content;
+        if (replyToId) resolvedType = "reply";
     }
 
     const message = await db.$transaction(async (tx: any) => {
@@ -434,9 +465,17 @@ dms.post("/dms/:id/messages", async (c) => {
                 authorId: userId,
                 content: resolvedContent,
                 type: resolvedType,
+                replyToId,
             },
             include: {
                 author: { select: userSelect },
+                replyTo: {
+                    select: {
+                        id: true,
+                        content: true,
+                        author: { select: userSelect },
+                    },
+                },
             },
         });
 
@@ -476,6 +515,7 @@ dms.post("/dms/:id/messages", async (c) => {
         createdAt: message.createdAt,
         editedAt: message.editedAt,
         author: message.author,
+        replyTo: message.replyTo || null,
     };
 
     broadcastToDMConversation(conversationId, {
@@ -715,6 +755,150 @@ dms.delete("/dms/:conversationId/messages/:messageId", async (c) => {
     });
 
     return c.json({ message: "Message deleted." });
+});
+
+// ─── GET /dms/:conversationId/pins — List pinned messages ────────
+
+dms.get("/dms/:conversationId/pins", async (c) => {
+    const userId = c.get("userId");
+    const conversationId = c.req.param("conversationId");
+
+    const isMember = await verifyConversationMembership(conversationId, userId);
+    if (!isMember) {
+        return c.json({ error: "Conversation not found." }, 404);
+    }
+
+    const pinned = await db.pinnedDMMessage.findMany({
+        where: { conversationId },
+        include: {
+            message: {
+                include: {
+                    author: { select: userSelect },
+                },
+            },
+            pinnedBy: { select: userSelect },
+        },
+        orderBy: { pinnedAt: "desc" },
+    });
+
+    return c.json({
+        pins: pinned.map((p: any) => ({
+            id: p.id,
+            pinnedAt: p.pinnedAt,
+            pinnedBy: p.pinnedBy,
+            message: {
+                id: p.message.id,
+                conversationId: p.message.conversationId,
+                content: p.message.content,
+                type: p.message.type,
+                metadata: p.message.metadata,
+                reactions: buildDMReactions(p.message.metadata, userId),
+                createdAt: p.message.createdAt,
+                editedAt: p.message.editedAt,
+                author: p.message.author,
+            },
+        })),
+    });
+});
+
+// ─── POST /dms/:conversationId/messages/:messageId/pin — Pin a message ──
+
+dms.post("/dms/:conversationId/messages/:messageId/pin", async (c) => {
+    const userId = c.get("userId");
+    const conversationId = c.req.param("conversationId");
+    const messageId = c.req.param("messageId");
+
+    const isMember = await verifyConversationMembership(conversationId, userId);
+    if (!isMember) {
+        return c.json({ error: "Conversation not found." }, 404);
+    }
+
+    const message = await db.dMMessage.findUnique({
+        where: { id: messageId },
+        include: { author: { select: userSelect } },
+    });
+
+    if (!message || message.conversationId !== conversationId) {
+        return c.json({ error: "Message not found." }, 404);
+    }
+
+    try {
+        await db.pinnedDMMessage.create({
+            data: {
+                conversationId,
+                messageId,
+                pinnedById: userId,
+            },
+        });
+    } catch {
+        return c.json({ error: "Message is already pinned." }, 409);
+    }
+
+    broadcastToDMConversation(conversationId, {
+        type: "dm_message_pin",
+        data: {
+            conversationId,
+            messageId,
+            pinnedById: userId,
+            message: {
+                id: message.id,
+                conversationId: message.conversationId,
+                content: message.content,
+                type: message.type,
+                createdAt: message.createdAt,
+                author: message.author,
+            },
+        },
+    });
+
+    return c.json({ message: "Message pinned." }, 201);
+});
+
+// ─── DELETE /dms/:conversationId/messages/:messageId/pin — Unpin a message ──
+
+dms.delete("/dms/:conversationId/messages/:messageId/pin", async (c) => {
+    const userId = c.get("userId");
+    const conversationId = c.req.param("conversationId");
+    const messageId = c.req.param("messageId");
+
+    const isMember = await verifyConversationMembership(conversationId, userId);
+    if (!isMember) {
+        return c.json({ error: "Conversation not found." }, 404);
+    }
+
+    const result = await db.pinnedDMMessage.deleteMany({
+        where: { conversationId, messageId },
+    });
+
+    if (result.count === 0) {
+        return c.json({ error: "Message is not pinned." }, 404);
+    }
+
+    broadcastToDMConversation(conversationId, {
+        type: "dm_message_unpin",
+        data: { conversationId, messageId },
+    });
+
+    return c.json({ message: "Message unpinned." });
+});
+
+// ─── POST /dms/:conversationId/read — Mark DM conversation as read ──
+
+dms.post("/dms/:conversationId/read", async (c) => {
+    const userId = c.get("userId");
+    const conversationId = c.req.param("conversationId");
+
+    const isMember = await verifyConversationMembership(conversationId, userId);
+    if (!isMember) {
+        return c.json({ error: "You are not a participant of this conversation." }, 403);
+    }
+
+    await db.dMParticipant.update({
+        where: { conversationId_userId: { conversationId, userId } },
+        data: { lastReadAt: new Date() },
+    });
+
+    return c.json({ success: true });
 });
 
 export default dms;

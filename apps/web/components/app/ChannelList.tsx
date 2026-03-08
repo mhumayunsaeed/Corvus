@@ -13,41 +13,57 @@ import {
     Plus,
     UserPlus,
     Radio,
+    LogOut,
 } from "lucide-react";
 import { useAppStore } from "@/stores/app-store";
 import { useVoiceStore } from "@/stores/voice-store";
 import { useNotificationStore } from "@/stores/notification-store";
-import { joinVoiceChannel } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import { joinVoiceChannel, leaveServer } from "@/lib/api";
 import { UserDock } from "./UserDock";
 import { UserAvatar } from "./UserAvatar";
 import { getUsernameColor } from "@/lib/color-utils";
 
 interface ChannelListProps {
     serverName: string;
+    serverId: string;
+    serverRole: string;
+    serverOwnerId: string;
     onCreateChannel: () => void;
     onInvite: () => void;
     onOpenSettings: () => void;
+    onOpenServerSettings: () => void;
     panelWidth?: number;
 }
 
 export function ChannelList({
     serverName,
+    serverId,
+    serverRole,
+    serverOwnerId,
     onCreateChannel,
     onInvite,
     onOpenSettings,
+    onOpenServerSettings,
     panelWidth = 360,
 }: ChannelListProps) {
     const [collapsedCategories, setCollapsedCategories] = useState<string[]>([]);
     const [joiningChannel, setJoiningChannel] = useState<string | null>(null);
+    const [showHeaderMenu, setShowHeaderMenu] = useState(false);
     const channels = useAppStore((s) => s.channels);
     const activeChannelId = useAppStore((s) => s.activeChannelId);
     const setActiveChannel = useAppStore((s) => s.setActiveChannel);
+    const removeServer = useAppStore((s) => s.removeServer);
     const channelUnread = useNotificationStore((s) => s.channelUnread);
     const channelMentions = useNotificationStore((s) => s.channelMentions);
     const markChannelRead = useNotificationStore((s) => s.markChannelRead);
     const currentVoiceChannelId = useVoiceStore((s) => s.currentChannelId);
     const channelParticipants = useVoiceStore((s) => s.channelParticipants);
     const joinVoice = useVoiceStore((s) => s.joinChannel);
+    const user = useAuthStore((s) => s.user);
+
+    const isOwner = user?.id === serverOwnerId;
+    const isAdmin = serverRole === "admin" || isOwner;
 
     const categories = Array.from(new Set(channels.map((c) => c.category)));
 
@@ -102,35 +118,93 @@ export function ChannelList({
         }
     };
 
+    const handleLeaveServer = async () => {
+        if (!user) return;
+        if (!window.confirm(`Leave "${serverName}"? You will lose access to all channels.`)) return;
+        try {
+            await leaveServer(serverId, user.id);
+            removeServer(serverId);
+        } catch (err) {
+            console.error("Failed to leave server:", err);
+        }
+    };
+
     return (
         <div
             className="w-full lg:[width:var(--panel-width)] max-h-[42vh] lg:max-h-none bg-channel-sidebar flex flex-col border-b lg:border-b-0 lg:border-r border-border-subtle flex-shrink-0 relative overflow-visible"
             style={{ "--panel-width": `${panelWidth}px` } as CSSProperties}
         >
-            {/* Server Header */}
-            <button className="h-12 px-4 flex items-center justify-between border-b border-border-subtle hover:bg-hover-row transition-colors group flex-shrink-0">
-                <span className="text-emphasis font-semibold text-text-primary truncate">
-                    {serverName}
-                </span>
-                <ChevronDown className="w-4 h-4 text-text-muted group-hover:text-text-secondary transition-colors flex-shrink-0" />
-            </button>
+            {/* Server Header with Dropdown */}
+            <div className="relative">
+                <button
+                    onClick={() => setShowHeaderMenu((v) => !v)}
+                    className="w-full h-12 px-4 flex items-center justify-between border-b border-border-subtle hover:bg-hover-row transition-colors group flex-shrink-0"
+                >
+                    <span className="text-emphasis font-semibold text-text-primary truncate">
+                        {serverName}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 text-text-muted group-hover:text-text-secondary transition-all flex-shrink-0 ${showHeaderMenu ? "rotate-180" : ""}`} />
+                </button>
 
-            {/* Quick actions */}
-            <div className="px-2 py-2 flex items-center gap-1 border-b border-border-subtle">
-                <button
-                    onClick={onInvite}
-                    className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-md text-micro text-text-muted hover:text-text-secondary hover:bg-hover-row transition-colors"
-                >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    Invite
-                </button>
-                <button
-                    onClick={onOpenSettings}
-                    className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-md text-micro text-text-muted hover:text-text-secondary hover:bg-hover-row transition-colors"
-                >
-                    <Bell className="w-3.5 h-3.5" />
-                    Notifications
-                </button>
+                {/* Dropdown Menu */}
+                {showHeaderMenu && (
+                    <>
+                        <div
+                            className="fixed inset-0 z-40"
+                            onClick={() => setShowHeaderMenu(false)}
+                        />
+                        <div className="absolute top-12 left-2 right-2 z-50 bg-surface-overlay border border-border-highlight rounded-lg shadow-float py-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                            {isAdmin && (
+                                <button
+                                    onClick={() => {
+                                        setShowHeaderMenu(false);
+                                        onOpenServerSettings();
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-body text-text-primary hover:bg-accent-violet hover:text-white transition-colors rounded-sm mx-0"
+                                >
+                                    <Settings className="w-4 h-4" />
+                                    Server Settings
+                                </button>
+                            )}
+                            <button
+                                onClick={() => {
+                                    setShowHeaderMenu(false);
+                                    onInvite();
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-body text-text-primary hover:bg-accent-violet hover:text-white transition-colors rounded-sm"
+                            >
+                                <UserPlus className="w-4 h-4" />
+                                Invite People
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowHeaderMenu(false);
+                                    onOpenSettings();
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-body text-text-primary hover:bg-accent-violet hover:text-white transition-colors rounded-sm"
+                            >
+                                <Bell className="w-4 h-4" />
+                                Notification Settings
+                            </button>
+
+                            {!isOwner && (
+                                <>
+                                    <div className="h-px bg-border mx-2 my-1" />
+                                    <button
+                                        onClick={() => {
+                                            setShowHeaderMenu(false);
+                                            handleLeaveServer();
+                                        }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-body text-danger hover:bg-danger hover:text-white transition-colors rounded-sm"
+                                    >
+                                        <LogOut className="w-4 h-4" />
+                                        Leave Server
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Channel list */}
@@ -138,6 +212,11 @@ export function ChannelList({
                 {categories.map((category) => {
                     const categoryChannels = channels.filter((c) => c.category === category);
                     const isCollapsed = collapsedCategories.includes(category);
+
+                    // Check if collapsed category has unread channels
+                    const hasUnread = isCollapsed && categoryChannels.some(
+                        (c) => (channelUnread[c.id] || 0) > 0
+                    );
 
                     return (
                         <div key={category} className="mb-3">
@@ -155,14 +234,19 @@ export function ChannelList({
                                         )}
                                     </div>
                                     {category}
+                                    {hasUnread && (
+                                        <span className="w-2 h-2 rounded-full bg-accent-violet ml-1" />
+                                    )}
                                 </button>
-                                <button
-                                    onClick={onCreateChannel}
-                                    className="w-4 h-4 rounded hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all"
-                                    title="Create Channel"
-                                >
-                                    <Plus className="w-3 h-3" />
-                                </button>
+                                {isAdmin && (
+                                    <button
+                                        onClick={onCreateChannel}
+                                        className="w-4 h-4 rounded hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all"
+                                        title="Create Channel"
+                                    >
+                                        <Plus className="w-3 h-3" />
+                                    </button>
+                                )}
                             </div>
 
                             {/* Channels */}
@@ -204,7 +288,13 @@ export function ChannelList({
                                                             : "text-text-faint"
                                                             }`}
                                                     />
-                                                    <span className={`text-body truncate ${isActive && !isVoice ? "font-medium" : ""}`}>
+                                                    <span className={`text-body truncate ${
+                                                        isActive && !isVoice
+                                                            ? "font-medium"
+                                                            : !isVoice && unreadCount > 0
+                                                                ? "font-medium text-text-primary"
+                                                                : ""
+                                                    }`}>
                                                         {channel.name}
                                                     </span>
 

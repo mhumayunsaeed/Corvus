@@ -250,6 +250,18 @@ export interface DMMessageData {
     createdAt: string;
     editedAt: string | null;
     author: DMParticipantData;
+    replyTo?: {
+        id: string;
+        content: string;
+        author: DMParticipantData;
+    } | null;
+}
+
+export interface PinnedDMMessageData {
+    id: string;
+    pinnedAt: string;
+    pinnedBy: DMParticipantData;
+    message: DMMessageData;
 }
 
 export interface DMConversationData {
@@ -280,7 +292,12 @@ export function fetchServers() {
     return api<{ servers: ServerData[] }>("/servers");
 }
 
-export function createServer(data: { name: string; iconUrl?: string; description?: string }) {
+export function createServer(data: {
+    name: string;
+    iconUrl?: string;
+    description?: string;
+    channels?: { name: string; type: string; category: string }[];
+}) {
     return api<{ server: ServerData & { channels: ChannelData[] } }>("/servers", {
         method: "POST",
         body: JSON.stringify(data),
@@ -288,7 +305,7 @@ export function createServer(data: { name: string; iconUrl?: string; description
 }
 
 export function fetchServer(id: string) {
-    return api<{ server: ServerData & { channels: ChannelData[] } }>(`/servers/${id}`);
+    return api<{ server: ServerData & { channels: ChannelData[] }; unreadCounts?: Record<string, number> }>(`/servers/${id}`);
 }
 
 export function updateServer(id: string, data: { name?: string; iconUrl?: string | null; description?: string | null }) {
@@ -423,6 +440,20 @@ export function leaveServer(serverId: string, userId: string) {
     });
 }
 
+// ─── Read State API ───────────────────────────────────────────────────────────
+
+export function markChannelReadApi(channelId: string) {
+    return api<{ success: boolean }>(`/channels/${channelId}/read`, {
+        method: "POST",
+    });
+}
+
+export function markDMReadApi(conversationId: string) {
+    return api<{ success: boolean }>(`/dms/${conversationId}/read`, {
+        method: "POST",
+    });
+}
+
 // ─── Friend API ───────────────────────────────────────────────────────────────
 
 export function fetchFriendDashboard() {
@@ -490,7 +521,7 @@ export function unblockUser(userId: string) {
 // ─── DM API ───────────────────────────────────────────────────────────────────
 
 export function fetchDMConversations() {
-    return api<{ conversations: DMConversationData[] }>("/dms");
+    return api<{ conversations: DMConversationData[]; dmUnreadCounts?: Record<string, number> }>("/dms");
 }
 
 export function createDMConversation(data: { participantIds: string[]; name?: string }) {
@@ -507,10 +538,26 @@ export function fetchDMMessages(conversationId: string, cursor?: string) {
     );
 }
 
-export function sendDMMessage(conversationId: string, content: string) {
+export function sendDMMessage(conversationId: string, content: string, replyToId?: string) {
     return api<{ message: DMMessageData }>(`/dms/${conversationId}/messages`, {
         method: "POST",
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, replyToId }),
+    });
+}
+
+export function fetchDMPins(conversationId: string) {
+    return api<{ pins: PinnedDMMessageData[] }>(`/dms/${conversationId}/pins`);
+}
+
+export function pinDMMessage(conversationId: string, messageId: string) {
+    return api<{ message: string }>(`/dms/${conversationId}/messages/${messageId}/pin`, {
+        method: "POST",
+    });
+}
+
+export function unpinDMMessage(conversationId: string, messageId: string) {
+    return api<{ message: string }>(`/dms/${conversationId}/messages/${messageId}/pin`, {
+        method: "DELETE",
     });
 }
 

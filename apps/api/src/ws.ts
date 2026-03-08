@@ -12,6 +12,7 @@ interface WSClient {
 
 const clients = new Map<WebSocket, WSClient>();
 const userConnectionCounts = new Map<string, number>();
+const userIdToSockets = new Map<string, Set<WebSocket>>();
 
 export type PresenceStatus =
     | "online"
@@ -174,20 +175,33 @@ export function broadcastToUsers(
     userIds: Iterable<string>,
     event: { type: string; data: unknown }
 ) {
-    const targetUserIds = new Set(userIds);
-    if (targetUserIds.size === 0) return;
-
     const payload = JSON.stringify(event);
-    for (const [ws, client] of clients) {
-        if (targetUserIds.has(client.userId) && ws.readyState === WebSocket.OPEN) {
-            ws.send(payload);
+    for (const userId of userIds) {
+        const sockets = userIdToSockets.get(userId);
+        if (!sockets) continue;
+        for (const ws of sockets) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(payload);
+            }
         }
     }
 }
 
-function subscribeToChannel(ws: WebSocket, channelId: string) {
+async function subscribeToChannel(ws: WebSocket, channelId: string) {
     const client = clients.get(ws);
     if (!client) return;
+
+    // Verify the user has access to this channel's server
+    const channel = await prisma.channel.findUnique({
+        where: { id: channelId },
+        select: { serverId: true },
+    });
+    if (!channel) return;
+
+    const membership = await prisma.serverMember.findUnique({
+        where: { serverId_userId: { serverId: channel.serverId, userId: client.userId } },
+    });
+    if (!membership) return;
 
     client.subscribedChannels.add(channelId);
 
@@ -276,6 +290,13 @@ function removeClient(ws: WebSocket) {
 
     clients.delete(ws);
 
+    // Remove from user-socket index
+    const userSockets = userIdToSockets.get(client.userId);
+    if (userSockets) {
+        userSockets.delete(ws);
+        if (userSockets.size === 0) userIdToSockets.delete(client.userId);
+    }
+
     const remainingConnections = decrementUserConnections(client.userId);
     if (remainingConnections === 0) {
         void updateUserPresence(client.userId, "offline");
@@ -331,6 +352,12 @@ export function setupWebSocket(server: any) {
             };
 
             clients.set(ws, client);
+            // Add to user-socket index
+            if (!userIdToSockets.has(payload.userId)) {
+                userIdToSockets.set(payload.userId, new Set());
+            }
+            userIdToSockets.get(payload.userId)!.add(ws);
+
             const activeConnections = incrementUserConnections(payload.userId);
             if (activeConnections === 1) {
                 void resolveConnectedPresence(payload.userId)
@@ -424,6 +451,34 @@ function handleClientMessage(
                         userId: client.userId,
                         username: client.username,
                         channelId: msg.channelId,
+                        isTyping: false,
+                    },
+                });
+            }
+            break;
+
+        case "typing_start_dm":
+            if (msg.conversationId) {
+                broadcastToDMConversation(msg.conversationId, {
+                    type: "dm_typing",
+                    data: {
+                        userId: client.userId,
+                        username: client.username,
+                        conversationId: msg.conversationId,
+                        isTyping: true,
+                    },
+                });
+            }
+            break;
+
+        case "typing_stop_dm":
+            if (msg.conversationId) {
+                broadcastToDMConversation(msg.conversationId, {
+                    type: "dm_typing",
+                    data: {
+                        userId: client.userId,
+                        username: client.username,
+                        conversationId: msg.conversationId,
                         isTyping: false,
                     },
                 });

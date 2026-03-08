@@ -13,11 +13,14 @@ import {
     CreateChannelModal,
     InviteModal,
     UserSettingsModal,
+    ServerSettingsModal,
 } from "@/components/app";
+import { ToastContainer } from "@/components/app/ToastNotification";
 import { VoiceChannelView } from "@/components/app/VoiceChannelView";
 import { VoiceControlBar } from "@/components/app/VoiceControlBar";
 import { IncomingCallNotification } from "@/components/app/IncomingCallNotification";
 import { useAppStore } from "@/stores/app-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { useVoiceStore } from "@/stores/voice-store";
 import { useNotificationStore } from "@/stores/notification-store";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -33,6 +36,8 @@ import {
     fetchServers,
     fetchServerVoiceStates,
     leaveDMCall,
+    markChannelReadApi,
+    markDMReadApi,
     startDMCall,
     type FriendListEntry,
 } from "@/lib/api";
@@ -54,12 +59,14 @@ export default function AppPage() {
     const [showInviteJoin, setShowInviteJoin] = useState(false);
     const [showVoiceView, setShowVoiceView] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    const [showServerSettings, setShowServerSettings] = useState(false);
     const [activeDMCall, setActiveDMCall] = useState<ActiveDMCall | null>(null);
     const [loading, setLoading] = useState(true);
     const [friendList, setFriendList] = useState<FriendListEntry[]>([]);
     const [serverPaneWidth, setServerPaneWidth] = useState(360);
     const [dmPaneWidth, setDmPaneWidth] = useState(360);
     const subscribedDMRef = useRef<Set<string>>(new Set());
+    const subscribedBgServersRef = useRef<Set<string>>(new Set());
 
     const servers = useAppStore((s) => s.servers);
     const activeServerId = useAppStore((s) => s.activeServerId);
@@ -73,8 +80,12 @@ export default function AppPage() {
     const setActiveChannel = useAppStore((s) => s.setActiveChannel);
     const setActiveDMConversation = useAppStore((s) => s.setActiveDMConversation);
     const upsertDMConversation = useAppStore((s) => s.upsertDMConversation);
+    const user = useAuthStore((s) => s.user);
     const markChannelRead = useNotificationStore((s) => s.markChannelRead);
     const markDMRead = useNotificationStore((s) => s.markDMRead);
+    const registerChannelsForServer = useNotificationStore((s) => s.registerChannelsForServer);
+    const setChannelUnreadBatch = useNotificationStore((s) => s.setChannelUnreadBatch);
+    const setDMUnreadBatch = useNotificationStore((s) => s.setDMUnreadBatch);
     const badgeEnabled = useNotificationStore((s) => s.preferences.enableTaskbarBadge);
     const totalUnread = useNotificationStore(
         (s) =>
@@ -104,6 +115,8 @@ export default function AppPage() {
         sendTypingStop,
         subscribeDM,
         unsubscribeDM,
+        sendDMTypingStart,
+        sendDMTypingStop,
     } = useWebSocket();
 
     // Load servers on mount
@@ -115,6 +128,36 @@ export default function AppPage() {
             .catch(console.error)
             .finally(() => setLoading(false));
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Background-subscribe to channels for all servers (for cross-server notifications)
+    useEffect(() => {
+        if (servers.length === 0) return;
+
+        const subscribeServerChannels = async (server: typeof servers[0]) => {
+            if (subscribedBgServersRef.current.has(server.id)) return;
+            subscribedBgServersRef.current.add(server.id);
+            try {
+                const result = await fetchServer(server.id);
+                const textChannels = result.server.channels.filter((c: { type: string }) => c.type === "text");
+                const channelIds = textChannels.map((c: { id: string }) => c.id);
+                registerChannelsForServer(server.id, channelIds);
+                // Initialize unread counts from server response
+                if (result.unreadCounts) {
+                    setChannelUnreadBatch(result.unreadCounts);
+                }
+                for (const ch of textChannels) {
+                    subscribe(ch.id);
+                }
+            } catch {
+                subscribedBgServersRef.current.delete(server.id);
+            }
+        };
+
+        // Stagger subscriptions to avoid thundering herd
+        servers.forEach((server, i) => {
+            setTimeout(() => subscribeServerChannels(server), i * 200);
+        });
+    }, [servers, subscribe, registerChannelsForServer]);
 
     // Load channels + voice states when server changes
     useEffect(() => {
@@ -160,10 +203,15 @@ export default function AppPage() {
                 setDMConversations(dmResult.conversations);
                 setFriendList(friendResult.friends);
 
+                // Initialize DM unread counts from server response
+                if (dmResult.dmUnreadCounts) {
+                    setDMUnreadBatch(dmResult.dmUnreadCounts);
+                }
+
                 const currentActiveDM = useAppStore.getState().activeDMConversationId;
                 if (
                     currentActiveDM &&
-                    !dmResult.conversations.some((c) => c.id === currentActiveDM)
+                    !dmResult.conversations.some((c: { id: string }) => c.id === currentActiveDM)
                 ) {
                     setActiveDMConversation(null);
                 }
@@ -227,11 +275,13 @@ export default function AppPage() {
     useEffect(() => {
         if (!activeChannelId) return;
         markChannelRead(activeChannelId);
+        markChannelReadApi(activeChannelId).catch(() => {});
     }, [activeChannelId, markChannelRead]);
 
     useEffect(() => {
         if (!activeDMConversationId) return;
         markDMRead(activeDMConversationId);
+        markDMReadApi(activeDMConversationId).catch(() => {});
     }, [activeDMConversationId, markDMRead]);
 
     useEffect(() => {
@@ -239,9 +289,11 @@ export default function AppPage() {
             const state = useAppStore.getState();
             if (state.activeChannelId) {
                 markChannelRead(state.activeChannelId);
+                markChannelReadApi(state.activeChannelId).catch(() => {});
             }
             if (state.activeDMConversationId) {
                 markDMRead(state.activeDMConversationId);
+                markDMReadApi(state.activeDMConversationId).catch(() => {});
             }
         };
 
@@ -467,9 +519,13 @@ export default function AppPage() {
             {activeServerId && activeServer && (
                 <ChannelList
                     serverName={activeServer.name}
+                    serverId={activeServerId}
+                    serverRole={activeServer.role || "member"}
+                    serverOwnerId={activeServer.ownerId || ""}
                     onCreateChannel={() => setShowCreateChannel(true)}
                     onInvite={() => setShowInviteCreate(true)}
                     onOpenSettings={() => setShowSettings(true)}
+                    onOpenServerSettings={() => setShowServerSettings(true)}
                     panelWidth={serverPaneWidth}
                 />
             )}
@@ -524,6 +580,8 @@ export default function AppPage() {
                                 onConversationUpdated={upsertDMConversation}
                                 onSubscribeDM={subscribeDM}
                                 onUnsubscribeDM={unsubscribeDM}
+                                onDMTypingStart={sendDMTypingStart}
+                                onDMTypingStop={sendDMTypingStop}
                                 onStartCall={handleStartDMCall}
                                 activeCall={activeCallForConversation}
                             />
@@ -644,6 +702,21 @@ export default function AppPage() {
                 open={showSettings}
                 onClose={() => setShowSettings(false)}
             />
+
+            {activeServerId && activeServer && (
+                <ServerSettingsModal
+                    open={showServerSettings}
+                    onClose={() => setShowServerSettings(false)}
+                    serverId={activeServerId}
+                    serverName={activeServer.name}
+                    serverDescription={activeServer.description}
+                    serverIconUrl={activeServer.iconUrl}
+                    serverOwnerId={activeServer.ownerId}
+                    serverRole={activeServer.role || "member"}
+                />
+            )}
+
+            <ToastContainer />
         </div>
     );
 }

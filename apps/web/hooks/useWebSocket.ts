@@ -13,6 +13,7 @@ import {
     showSystemNotification,
     summarizeNotificationBody,
 } from "@/lib/notifications";
+import { useToastStore } from "@/stores/toast-store";
 
 let globalWs: WebSocket | null = null;
 let globalReconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -118,6 +119,10 @@ export function useWebSocket() {
     const deleteDMMessage = useDMStore((s) => s.deleteMessage);
     const addDMReaction = useDMStore((s) => s.addReaction);
     const removeDMReaction = useDMStore((s) => s.removeReaction);
+    const setDMTyping = useDMStore((s) => s.setDMTyping);
+    const clearDMTyping = useDMStore((s) => s.clearDMTyping);
+    const addDMPinnedMessage = useDMStore((s) => s.addPinnedMessage);
+    const removeDMPinnedMessage = useDMStore((s) => s.removePinnedMessage);
     const upsertDMConversation = useAppStore((s) => s.upsertDMConversation);
     const applyUserPresence = useAppStore((s) => s.applyUserPresence);
     const activeChannelId = useAppStore((s) => s.activeChannelId);
@@ -143,6 +148,10 @@ export function useWebSocket() {
         deleteDMMessage,
         addDMReaction,
         removeDMReaction,
+        setDMTyping,
+        clearDMTyping,
+        addDMPinnedMessage,
+        removeDMPinnedMessage,
         upsertDMConversation,
         applyPresence,
         applyUserPresence,
@@ -173,6 +182,10 @@ export function useWebSocket() {
         deleteDMMessage,
         addDMReaction,
         removeDMReaction,
+        setDMTyping,
+        clearDMTyping,
+        addDMPinnedMessage,
+        removeDMPinnedMessage,
         upsertDMConversation,
         applyPresence,
         applyUserPresence,
@@ -342,6 +355,21 @@ export function useWebSocket() {
                                 });
                             }
 
+                            // In-app toast when focused but viewing different channel
+                            if (focused && !isActiveChannel) {
+                                const toastTitle = isTag
+                                    ? `Tagged in #${channelName}`
+                                    : `#${channelName}`;
+                                const mappedServerId = notificationStore.channelServerMap[msg.data.channelId];
+                                useToastStore.getState().addToast({
+                                    title: toastTitle,
+                                    body: `${msg.data.author.displayName}: ${preview}`,
+                                    avatarUrl: msg.data.author.avatarUrl,
+                                    channelId: msg.data.channelId,
+                                    serverId: mappedServerId,
+                                });
+                            }
+
                             break;
                         }
 
@@ -423,6 +451,24 @@ export function useWebSocket() {
                             );
                             break;
 
+                        case "dm_typing":
+                            if (msg.data.userId !== currentUserId) {
+                                if (msg.data.isTyping) {
+                                    h.setDMTyping(msg.data.conversationId, msg.data.userId, msg.data.username);
+                                } else {
+                                    h.clearDMTyping(msg.data.conversationId, msg.data.userId);
+                                }
+                            }
+                            break;
+
+                        case "dm_message_pin":
+                            h.addDMPinnedMessage(msg.data.conversationId, msg.data.message);
+                            break;
+
+                        case "dm_message_unpin":
+                            h.removeDMPinnedMessage(msg.data.conversationId, msg.data.messageId);
+                            break;
+
                         case "new_dm_message": {
                             h.addDMMessage(msg.data.conversationId, msg.data.message);
                             if (msg.data.conversation) {
@@ -460,29 +506,40 @@ export function useWebSocket() {
                                 });
                             }
 
+                            const mergedConversations = msg.data.conversation
+                                ? [
+                                      msg.data.conversation,
+                                      ...h.dmConversations.filter(
+                                          (conversation) =>
+                                              conversation.id !== msg.data.conversation.id
+                                      ),
+                                  ]
+                                : h.dmConversations;
+
+                            const conversationTitle = getConversationTitle(
+                                msg.data.conversationId,
+                                currentUserId,
+                                mergedConversations
+                            );
+
+                            const dmPreview = summarizeNotificationBody(msg.data.message.content);
+
                             if (canShowDesktop) {
-                                const mergedConversations = msg.data.conversation
-                                    ? [
-                                          msg.data.conversation,
-                                          ...h.dmConversations.filter(
-                                              (conversation) =>
-                                                  conversation.id !== msg.data.conversation.id
-                                          ),
-                                      ]
-                                    : h.dmConversations;
-
-                                const conversationTitle = getConversationTitle(
-                                    msg.data.conversationId,
-                                    currentUserId,
-                                    mergedConversations
-                                );
-
-                                const preview = summarizeNotificationBody(msg.data.message.content);
                                 showSystemNotification(
                                     conversationTitle,
-                                    `${msg.data.message.author.displayName}: ${preview}`
+                                    `${msg.data.message.author.displayName}: ${dmPreview}`
                                 ).catch(() => {
                                     // Ignore desktop notification errors.
+                                });
+                            }
+
+                            // In-app toast when focused but viewing different conversation
+                            if (focused && !isActiveConversation) {
+                                useToastStore.getState().addToast({
+                                    title: conversationTitle,
+                                    body: `${msg.data.message.author.displayName}: ${dmPreview}`,
+                                    avatarUrl: msg.data.message.author.avatarUrl,
+                                    conversationId: msg.data.conversationId,
                                 });
                             }
 
@@ -639,6 +696,18 @@ export function useWebSocket() {
         }
     }, []);
 
+    const sendDMTypingStart = useCallback((conversationId: string) => {
+        if (globalWs?.readyState === WebSocket.OPEN) {
+            globalWs.send(JSON.stringify({ type: "typing_start_dm", conversationId }));
+        }
+    }, []);
+
+    const sendDMTypingStop = useCallback((conversationId: string) => {
+        if (globalWs?.readyState === WebSocket.OPEN) {
+            globalWs.send(JSON.stringify({ type: "typing_stop_dm", conversationId }));
+        }
+    }, []);
+
     return {
         subscribe,
         unsubscribe,
@@ -646,5 +715,7 @@ export function useWebSocket() {
         sendTypingStop,
         subscribeDM,
         unsubscribeDM,
+        sendDMTypingStart,
+        sendDMTypingStop,
     };
 }

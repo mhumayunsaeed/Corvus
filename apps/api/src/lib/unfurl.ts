@@ -1,6 +1,44 @@
 import { parse } from "node-html-parser";
+import { resolve as dnsResolve } from "node:dns/promises";
+import { isIP } from "node:net";
 
 const URL_REGEX = /https?:\/\/[^\s<>\[\]()]+/gi;
+
+function isPrivateIP(ip: string): boolean {
+    // IPv4 private/reserved ranges
+    const parts = ip.split(".").map(Number);
+    if (parts.length === 4) {
+        if (parts[0] === 127) return true;                          // 127.0.0.0/8
+        if (parts[0] === 10) return true;                           // 10.0.0.0/8
+        if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true; // 172.16.0.0/12
+        if (parts[0] === 192 && parts[1] === 168) return true;     // 192.168.0.0/16
+        if (parts[0] === 169 && parts[1] === 254) return true;     // 169.254.0.0/16
+        if (parts[0] === 0) return true;                            // 0.0.0.0/8
+    }
+    // IPv6 loopback and private
+    if (ip === "::1" || ip === "::") return true;
+    if (ip.startsWith("fc") || ip.startsWith("fd")) return true;   // fc00::/7
+    if (ip.startsWith("fe80")) return true;                         // link-local
+    return false;
+}
+
+async function isUrlSafe(url: string): Promise<boolean> {
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+
+        const hostname = parsed.hostname;
+
+        // Check if hostname is a direct IP
+        if (isIP(hostname)) return !isPrivateIP(hostname);
+
+        // Resolve hostname and check all IPs
+        const addresses = await dnsResolve(hostname);
+        return addresses.every((addr) => !isPrivateIP(addr));
+    } catch {
+        return false;
+    }
+}
 
 export interface EmbedMetadata {
     url: string;
@@ -110,6 +148,12 @@ export async function unfurlUrl(url: string): Promise<EmbedMetadata | null> {
     }
 
     try {
+        // SSRF protection: block private/internal IPs
+        if (!(await isUrlSafe(url))) {
+            cache.set(url, { data: null, expiresAt: Date.now() + CACHE_TTL });
+            return null;
+        }
+
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3000);
 

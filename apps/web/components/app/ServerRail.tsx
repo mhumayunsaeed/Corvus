@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Plus, Compass } from "lucide-react";
 import { useAppStore } from "@/stores/app-store";
+import { useNotificationStore, getServerUnreadCounts } from "@/stores/notification-store";
 
 interface ServerRailProps {
     onCreateServer: () => void;
@@ -17,6 +18,13 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
     const activeServerId = useAppStore((s) => s.activeServerId);
     const setActiveServer = useAppStore((s) => s.setActiveServer);
     const setActiveDMConversation = useAppStore((s) => s.setActiveDMConversation);
+    const channelUnread = useNotificationStore((s) => s.channelUnread);
+    const channelMentions = useNotificationStore((s) => s.channelMentions);
+    const channelServerMap = useNotificationStore((s) => s.channelServerMap);
+    const dmUnread = useNotificationStore((s) => s.dmUnread);
+
+    const serverUnreadCounts = getServerUnreadCounts(channelServerMap, channelUnread, channelMentions);
+    const totalDMUnread = Object.values(dmUnread).reduce((sum, n) => sum + n, 0);
 
     useEffect(() => {
         let ctx: { revert: () => void } | undefined;
@@ -68,6 +76,12 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
                 {activeServerId === null && (
                     <div className="absolute -left-[11px] top-1/2 -translate-y-1/2 w-[4px] h-10 rounded-r-full bg-white" />
                 )}
+                {/* DM unread badge */}
+                {activeServerId !== null && totalDMUnread > 0 && (
+                    <div className="absolute -bottom-0.5 -right-0.5 h-5 min-w-[20px] px-1 rounded-full bg-danger text-white text-[11px] font-bold leading-5 text-center border-2 border-bg-deep">
+                        {totalDMUnread > 99 ? "99+" : totalDMUnread}
+                    </div>
+                )}
                 <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-surface-overlay border border-border-highlight rounded-lg text-micro text-text-primary whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-float animate-fade-in">
                     Home
                     <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-surface-overlay border-l border-b border-border-highlight rotate-45" />
@@ -82,13 +96,18 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
             >
                 {servers.map((server) => {
                     const isActive = server.id === activeServerId;
+                    const serverBadge = serverUnreadCounts[server.id];
+                    const hasUnread = !!serverBadge && serverBadge.unread > 0;
+                    const hasMentions = !!serverBadge && serverBadge.mentions > 0;
                     return (
                         <div key={server.id} className="relative group">
-                            {/* Active / hover indicator pill */}
+                            {/* Active / hover / unread indicator pill */}
                             <div
                                 className={`absolute -left-[11px] top-1/2 -translate-y-1/2 w-[4px] rounded-r-full bg-white transition-all duration-300 ${isActive
                                         ? "h-10 opacity-100"
-                                        : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-100"
+                                        : hasUnread && !isActive
+                                            ? "h-2 opacity-100 group-hover:h-5"
+                                            : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-100"
                                     }`}
                             />
 
@@ -110,6 +129,13 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
                                     </div>
                                 )}
                             </button>
+
+                            {/* Mention badge */}
+                            {hasMentions && (
+                                <div className="absolute -bottom-0.5 -right-0.5 h-5 min-w-[20px] px-1 rounded-full bg-danger text-white text-[11px] font-bold leading-5 text-center border-2 border-bg-deep">
+                                    {serverBadge.mentions > 99 ? "99+" : serverBadge.mentions}
+                                </div>
+                            )}
 
                             <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-surface-overlay border border-border-highlight rounded-lg text-micro text-text-primary whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-float animate-fade-in">
                                 {server.name}

@@ -3,13 +3,52 @@ import { z } from "zod";
 import { hash, verify } from "@node-rs/argon2";
 import { prisma } from "../lib/prisma.js";
 import { signToken, generateVerifyToken, verifyToken } from "../lib/jwt.js";
-import { sendConfirmationEmail } from "../lib/email.js";
+import { sendConfirmationEmail, sendPasswordResetEmail } from "../lib/email.js";
 import {
     broadcastPresenceUpdate,
     type PresenceStatus,
 } from "../ws.js";
 
 const auth = new Hono();
+
+// ─── Rate Limiting ──────────────────────────────────────────────
+
+interface RateLimitEntry {
+    timestamps: number[];
+}
+
+const rateLimitStore = new Map<string, RateLimitEntry>();
+
+// Clean up expired entries every 5 minutes
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of rateLimitStore) {
+        entry.timestamps = entry.timestamps.filter((t) => now - t < 15 * 60 * 1000);
+        if (entry.timestamps.length === 0) rateLimitStore.delete(key);
+    }
+}, 5 * 60 * 1000);
+
+function checkRateLimit(key: string, maxAttempts: number, windowMs: number = 15 * 60 * 1000): boolean {
+    const now = Date.now();
+    const entry = rateLimitStore.get(key);
+
+    if (!entry) {
+        rateLimitStore.set(key, { timestamps: [now] });
+        return true;
+    }
+
+    entry.timestamps = entry.timestamps.filter((t) => now - t < windowMs);
+    if (entry.timestamps.length >= maxAttempts) return false;
+
+    entry.timestamps.push(now);
+    return true;
+}
+
+function getClientIp(c: any): string {
+    return c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
+        || c.req.header("x-real-ip")
+        || "unknown";
+}
 
 // ─── Validation Schemas ─────────────────────────────────────────
 
@@ -31,9 +70,17 @@ const registerSchema = z.object({
         .email("Invalid email address"),
     password: z
         .string()
-        .min(6, "Password must be at least 6 characters")
+        .min(8, "Password must be at least 8 characters")
         .max(128),
 });
+
+const profileUpdateSchema = z.object({
+    displayName: z.string().min(1).max(50).optional(),
+    bio: z.string().max(500).nullable().optional(),
+    avatarUrl: z.string().url().nullable().optional(),
+    status: z.enum(["online", "idle", "dnd", "invisible", "offline"]).optional(),
+    onboardingCompleted: z.boolean().optional(),
+}).strict();
 
 const loginSchema = z.object({
     email: z
@@ -47,6 +94,11 @@ const loginSchema = z.object({
 // ─── POST /auth/register ────────────────────────────────────────
 
 auth.post("/register", async (c) => {
+    const ip = getClientIp(c);
+    if (!checkRateLimit(`register:${ip}`, 5)) {
+        return c.json({ error: "Too many registration attempts. Please try again later." }, 429);
+    }
+
     const body = await c.req.json();
     const result = registerSchema.safeParse(body);
 
@@ -88,8 +140,9 @@ auth.post("/register", async (c) => {
     const verifyEmailToken = generateVerifyToken();
     const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // In dev mode, auto-verify to avoid Resend free-tier restrictions
-    const isDev = process.env.NODE_ENV !== "production";
+    // Auto-verify only when SMTP is not configured (no email provider available)
+    const hasSmtp = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+    const autoVerify = !hasSmtp;
 
     // Create user
     const user = await prisma.user.create({
@@ -99,17 +152,17 @@ auth.post("/register", async (c) => {
             displayName,
             passwordHash,
             status: "offline",
-            emailVerified: isDev, // auto-verify in dev
-            emailVerifyToken: isDev ? null : verifyEmailToken,
-            emailVerifyExpires: isDev ? null : verifyExpires,
+            emailVerified: autoVerify,
+            emailVerifyToken: autoVerify ? null : verifyEmailToken,
+            emailVerifyExpires: autoVerify ? null : verifyExpires,
         },
     });
 
-    if (isDev) {
-        console.log(`✓ Dev mode: auto-verified ${email}`);
+    if (autoVerify) {
+        console.log(`✓ Auto-verified ${email} (no SMTP configured)`);
         return c.json(
             {
-                message: "Account created and auto-verified (dev mode).",
+                message: "Account created and verified.",
                 confirmEmail: false,
                 email,
             },
@@ -117,7 +170,7 @@ auth.post("/register", async (c) => {
         );
     }
 
-    // Production: send confirmation email
+    // Send confirmation email
     await sendConfirmationEmail(email, displayName, verifyEmailToken);
 
     return c.json(
@@ -133,6 +186,11 @@ auth.post("/register", async (c) => {
 // ─── POST /auth/login ───────────────────────────────────────────
 
 auth.post("/login", async (c) => {
+    const ip = getClientIp(c);
+    if (!checkRateLimit(`login:${ip}`, 10)) {
+        return c.json({ error: "Too many login attempts. Please try again later." }, 429);
+    }
+
     const body = await c.req.json();
     const result = loginSchema.safeParse(body);
 
@@ -235,6 +293,11 @@ auth.get("/verify-email", async (c) => {
 // ─── POST /auth/resend-verification ─────────────────────────────
 
 auth.post("/resend-verification", async (c) => {
+    const ip = getClientIp(c);
+    if (!checkRateLimit(`resend:${ip}`, 3)) {
+        return c.json({ error: "Too many requests. Please try again later." }, 429);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     if (!email) {
@@ -268,6 +331,202 @@ auth.post("/resend-verification", async (c) => {
     await sendConfirmationEmail(email, user.displayName, verifyEmailToken);
 
     return c.json({ message: "Verification email sent." });
+});
+
+// ─── POST /auth/forgot-password ──────────────────────────────────
+
+auth.post("/forgot-password", async (c) => {
+    const ip = getClientIp(c);
+    if (!checkRateLimit(`forgot:${ip}`, 3)) {
+        return c.json({ error: "Too many requests. Please try again later." }, 429);
+    }
+
+    const body = await c.req.json().catch(() => ({}));
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    if (!email) {
+        return c.json({ error: "Email is required." }, 400);
+    }
+
+    // Always return success to prevent email enumeration
+    const successMsg = "If an account with that email exists, a password reset link has been sent.";
+
+    const user = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
+    });
+
+    if (!user) {
+        return c.json({ message: successMsg });
+    }
+
+    const resetToken = generateVerifyToken();
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await prisma.user.update({
+        where: { id: user.id },
+        data: {
+            passwordResetToken: resetToken,
+            passwordResetExpires: resetExpires,
+        },
+    });
+
+    await sendPasswordResetEmail(email, user.displayName, resetToken);
+
+    return c.json({ message: successMsg });
+});
+
+// ─── POST /auth/reset-password ──────────────────────────────────
+
+auth.post("/reset-password", async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const token = typeof body.token === "string" ? body.token : "";
+    const password = typeof body.password === "string" ? body.password : "";
+
+    if (!token) {
+        return c.json({ error: "Reset token is required." }, 400);
+    }
+
+    if (!password || password.length < 8) {
+        return c.json({ error: "Password must be at least 8 characters." }, 400);
+    }
+
+    if (password.length > 128) {
+        return c.json({ error: "Password is too long." }, 400);
+    }
+
+    const user = await prisma.user.findUnique({
+        where: { passwordResetToken: token },
+    });
+
+    if (!user) {
+        return c.json({ error: "Invalid or expired reset link." }, 400);
+    }
+
+    if (user.passwordResetExpires && user.passwordResetExpires < new Date()) {
+        return c.json({ error: "Reset link has expired. Please request a new one." }, 400);
+    }
+
+    const passwordHash = await hash(password, {
+        memoryCost: 19456,
+        timeCost: 2,
+        outputLen: 32,
+        parallelism: 1,
+    });
+
+    await prisma.user.update({
+        where: { id: user.id },
+        data: {
+            passwordHash,
+            passwordResetToken: null,
+            passwordResetExpires: null,
+        },
+    });
+
+    return c.json({ message: "Password reset successfully. You can now log in." });
+});
+
+// ─── POST /auth/change-password (requires token) ────────────────
+
+auth.post("/change-password", async (c) => {
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+        return c.json({ error: "Unauthorized." }, 401);
+    }
+
+    try {
+        const payload = await verifyToken(authHeader.slice(7));
+        const body = await c.req.json();
+
+        const currentPassword = typeof body.currentPassword === "string" ? body.currentPassword : "";
+        const newPassword = typeof body.newPassword === "string" ? body.newPassword : "";
+
+        if (!currentPassword) {
+            return c.json({ error: "Current password is required." }, 400);
+        }
+
+        if (!newPassword || newPassword.length < 8) {
+            return c.json({ error: "New password must be at least 8 characters." }, 400);
+        }
+
+        if (newPassword.length > 128) {
+            return c.json({ error: "New password is too long." }, 400);
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+        if (!user) {
+            return c.json({ error: "User not found." }, 404);
+        }
+
+        const valid = await verify(user.passwordHash, currentPassword);
+        if (!valid) {
+            return c.json({ error: "Current password is incorrect." }, 401);
+        }
+
+        const passwordHash = await hash(newPassword, {
+            memoryCost: 19456,
+            timeCost: 2,
+            outputLen: 32,
+            parallelism: 1,
+        });
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { passwordHash },
+        });
+
+        return c.json({ message: "Password changed successfully." });
+    } catch {
+        return c.json({ error: "Invalid or expired token." }, 401);
+    }
+});
+
+// ─── DELETE /auth/account (requires token) ──────────────────────
+
+auth.delete("/account", async (c) => {
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+        return c.json({ error: "Unauthorized." }, 401);
+    }
+
+    try {
+        const payload = await verifyToken(authHeader.slice(7));
+        const body = await c.req.json().catch(() => ({}));
+
+        const password = typeof body.password === "string" ? body.password : "";
+        if (!password) {
+            return c.json({ error: "Password is required to delete your account." }, 400);
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+        if (!user) {
+            return c.json({ error: "User not found." }, 404);
+        }
+
+        const valid = await verify(user.passwordHash, password);
+        if (!valid) {
+            return c.json({ error: "Incorrect password." }, 401);
+        }
+
+        // Set user offline before deletion
+        broadcastPresenceUpdate(user.id, "offline");
+
+        // Cascade delete handles most relations. Transfer server ownership or delete owned servers.
+        const ownedServers = await prisma.server.findMany({
+            where: { ownerId: user.id },
+            select: { id: true },
+        });
+
+        if (ownedServers.length > 0) {
+            await prisma.server.deleteMany({
+                where: { ownerId: user.id },
+            });
+        }
+
+        await prisma.user.delete({ where: { id: user.id } });
+
+        return c.json({ message: "Account deleted successfully." });
+    } catch {
+        return c.json({ error: "Invalid or expired token." }, 401);
+    }
 });
 
 // ─── GET /auth/check-username?username=xxx ──────────────────────
@@ -333,20 +592,25 @@ auth.patch("/profile", async (c) => {
         const payload = await verifyToken(authHeader.slice(7));
         const body = await c.req.json();
 
+        const result = profileUpdateSchema.safeParse(body);
+        if (!result.success) {
+            return c.json({ error: result.error.errors[0].message }, 400);
+        }
+
         const updateData: Record<string, unknown> = {};
-        if (body.displayName !== undefined) updateData.displayName = body.displayName;
-        if (body.bio !== undefined) updateData.bio = body.bio;
-        if (body.avatarUrl !== undefined) updateData.avatarUrl = body.avatarUrl;
-        if (body.status !== undefined) updateData.status = body.status;
-        if (body.onboardingCompleted !== undefined)
-            updateData.onboardingCompleted = body.onboardingCompleted;
+        if (result.data.displayName !== undefined) updateData.displayName = result.data.displayName;
+        if (result.data.bio !== undefined) updateData.bio = result.data.bio;
+        if (result.data.avatarUrl !== undefined) updateData.avatarUrl = result.data.avatarUrl;
+        if (result.data.status !== undefined) updateData.status = result.data.status;
+        if (result.data.onboardingCompleted !== undefined)
+            updateData.onboardingCompleted = result.data.onboardingCompleted;
 
         const user = await prisma.user.update({
             where: { id: payload.userId },
             data: updateData,
         });
 
-        if (body.status !== undefined) {
+        if (result.data.status !== undefined) {
             broadcastPresenceUpdate(user.id, user.status as PresenceStatus);
         }
 
