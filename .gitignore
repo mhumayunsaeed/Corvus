@@ -7,3 +7,30 @@ target/
 *.tsbuildinfo
 .env*.local
 .env
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+*.exe
+*.msi
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Uploads (local dev)
+apps/api/uploads/
