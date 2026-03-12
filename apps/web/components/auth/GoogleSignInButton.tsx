@@ -59,6 +59,21 @@ export function GoogleSignInButton({ label = "Continue with Google", onError }: 
         async (response: { credential: string }) => {
             setLoading(true);
             try {
+                // Close any Tauri popup windows (Google OAuth window)
+                if ("__TAURI_INTERNALS__" in window) {
+                    try {
+                        const { getAllWindows } = await import("@tauri-apps/api/window");
+                        const allWindows = await getAllWindows();
+                        for (const win of allWindows) {
+                            if (win.label.startsWith("popup-")) {
+                                await win.close();
+                            }
+                        }
+                    } catch {
+                        // Not in Tauri or window API unavailable — ignore
+                    }
+                }
+
                 await googleLogin(response.credential);
                 router.push("/app");
             } catch (err) {

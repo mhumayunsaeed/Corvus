@@ -59,7 +59,7 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
             className="w-full lg:w-[72px] bg-bg-deep flex flex-row lg:flex-col items-center py-2 lg:py-3 px-2 lg:px-0 gap-2 border-b lg:border-b-0 lg:border-r border-border-subtle flex-shrink-0"
         >
             {/* Home button */}
-            <div className="relative group">
+            <div className="relative group flex-shrink-0">
                 <button
                     onClick={() => {
                         setActiveServer(null);
@@ -88,11 +88,12 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
                 </div>
             </div>
 
-            <div className="h-8 w-[2px] lg:h-[2px] lg:w-8 bg-border rounded-full" />
+            <div className="h-8 w-[2px] lg:h-[2px] lg:w-8 bg-border rounded-full flex-shrink-0" />
 
+            {/* Scrollable server list */}
             <div
                 ref={serverIconsRef}
-                className="flex-1 min-w-0 flex flex-row lg:flex-col items-center gap-2 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto scrollbar-none py-1"
+                className="flex-1 min-h-0 min-w-0 flex flex-row lg:flex-col items-center gap-2 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto scrollbar-none py-1"
             >
                 {servers.map((server) => {
                     const isActive = server.id === activeServerId;
@@ -100,7 +101,7 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
                     const hasUnread = !!serverBadge && serverBadge.unread > 0;
                     const hasMentions = !!serverBadge && serverBadge.mentions > 0;
                     return (
-                        <div key={server.id} className="relative group">
+                        <div key={server.id} className="relative group flex-shrink-0">
                             {/* Active / hover / unread indicator pill */}
                             <div
                                 className={`absolute -left-[11px] top-1/2 -translate-y-1/2 w-[4px] rounded-r-full bg-white transition-all duration-300 ${isActive
@@ -144,7 +145,12 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
                         </div>
                     );
                 })}
+            </div>
 
+            {/* Pinned bottom actions — always visible */}
+            <div className="h-8 w-[2px] lg:h-[2px] lg:w-8 bg-border rounded-full flex-shrink-0" />
+
+            <div className="flex flex-row lg:flex-col items-center gap-2 flex-shrink-0">
                 {/* Add server */}
                 <div className="relative group">
                     <button

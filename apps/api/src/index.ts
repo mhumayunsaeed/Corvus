@@ -82,11 +82,13 @@ app.use("*", async (c, next) => {
 });
 
 app.onError((err, c) => {
-    console.error("Unhandled API error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error("Unhandled API error:", message);
+    if (stack) console.error(stack);
     return c.json(
         {
-            error: "Internal Server Error",
-            details: process.env.NODE_ENV === "production" ? undefined : err.message,
+            error: message || "Internal Server Error",
         },
         500
     );

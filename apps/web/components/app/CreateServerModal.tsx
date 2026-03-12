@@ -15,10 +15,11 @@ import {
     X,
     type LucideIcon,
 } from "lucide-react";
-import { createServer, uploadAttachment } from "@/lib/api";
+import { uploadAttachment } from "@/lib/api";
 import { resolveAttachmentUrl, validateAttachmentFile } from "@/lib/attachments";
-import { API_URL } from "@/lib/endpoints";
+import { API_URL, ensureApiUrl } from "@/lib/endpoints";
 import { useAppStore } from "@/stores/app-store";
+import { useAuthStore } from "@/stores/auth-store";
 
 interface CreateServerModalProps {
     open: boolean;
@@ -101,6 +102,7 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
     const addServer = useAppStore((s) => s.addServer);
     const setActiveServer = useAppStore((s) => s.setActiveServer);
     const setChannels = useAppStore((s) => s.setChannels);
+    const token = useAuthStore((s) => s.token);
 
     const selectedTemplate = useMemo(
         () =>
@@ -174,15 +176,38 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
         setLoading(true);
         setError("");
 
+        const payload = {
+            name: name.trim(),
+            description: description.trim() || undefined,
+            iconUrl: iconUrl || undefined,
+            channels: selectedTemplate.channels.length > 0 ? selectedTemplate.channels : undefined,
+        };
+
         try {
-            const result = await createServer({
-                name: name.trim(),
-                description: description.trim() || undefined,
-                iconUrl: iconUrl || undefined,
-                channels: selectedTemplate.channels.length > 0 ? selectedTemplate.channels : undefined,
+            const baseUrl = ensureApiUrl();
+
+            const res = await fetch(`${baseUrl}/servers`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(payload),
             });
 
-            const server = result.server;
+            const data = await res.json().catch(() => null);
+
+            if (!res.ok) {
+                const msg = data?.error || data?.message || `Server returned ${res.status}`;
+                throw new Error(msg);
+            }
+
+            if (!data?.server) {
+                throw new Error("Invalid response from server.");
+            }
+
+            const server = data.server;
+
             addServer({
                 id: server.id,
                 name: server.name,
@@ -193,11 +218,14 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
                 role: server.role ?? "owner",
             });
             setActiveServer(server.id);
-            setChannels(server.channels);
+            if (server.channels) {
+                setChannels(server.channels);
+            }
 
             resetState();
             onClose();
         } catch (err) {
+            console.error("[CreateServer] Error:", err);
             setError(err instanceof Error ? err.message : "Failed to create server.");
         } finally {
             setLoading(false);

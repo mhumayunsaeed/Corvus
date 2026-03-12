@@ -34,8 +34,8 @@ export const DEFAULT_MEMBER_PERMISSIONS =
     Permissions.ATTACH_FILES |
     Permissions.USE_REACTIONS;
 
-/** All permissions granted (for admin roles) */
-export const ADMIN_PERMISSIONS = ~0 >>> 0; // all 32 bits set
+/** All permissions granted (for admin roles) — use all defined bits, not ~0 which overflows signed int32 */
+export const ADMIN_PERMISSIONS = Object.values(Permissions).reduce<number>((acc, p) => acc | p, 0);
 
 /** Human-readable permission labels */
 export const PERMISSION_LABELS: Record<string, string> = {

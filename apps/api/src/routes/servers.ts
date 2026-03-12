@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
-import { createDefaultRoles } from "./roles.js";
+import { DEFAULT_MEMBER_PERMISSIONS, ADMIN_PERMISSIONS } from "../lib/permissions.js";
 
 const servers = new Hono<AuthEnv>();
 
@@ -33,14 +33,20 @@ const updateServerSchema = z.object({
 
 servers.post("/", async (c) => {
     const userId = c.get("userId");
-    const body = await c.req.json();
-    const result = createServerSchema.safeParse(body);
 
-    if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
+    let body: unknown;
+    try {
+        body = await c.req.json();
+    } catch {
+        return c.json({ error: "Invalid JSON in request body." }, 400);
     }
 
-    const { name, iconUrl, description, channels: templateChannels } = result.data;
+    const parsed = createServerSchema.safeParse(body);
+    if (!parsed.success) {
+        return c.json({ error: parsed.error.errors[0].message }, 400);
+    }
+
+    const { name, iconUrl, description, channels: templateChannels } = parsed.data;
 
     const channelsToCreate = templateChannels && templateChannels.length > 0
         ? templateChannels.map((ch, i) => ({
@@ -49,34 +55,91 @@ servers.post("/", async (c) => {
             category: ch.category,
             position: i,
         }))
-        : [{ name: "general", type: "text", category: "General", position: 0 }];
+        : [{ name: "general", type: "text" as const, category: "General", position: 0 }];
 
-    const server = await prisma.server.create({
-        data: {
-            name,
-            iconUrl,
-            description,
-            ownerId: userId,
-            members: {
-                create: {
-                    userId,
-                    role: "owner",
+    // Step 1: Create the server with member + channels in one call
+    let server;
+    try {
+        server = await prisma.server.create({
+            data: {
+                name,
+                iconUrl: iconUrl ?? null,
+                description: description ?? null,
+                ownerId: userId,
+                members: { create: { userId, role: "owner" } },
+                channels: { create: channelsToCreate },
+            },
+            select: {
+                id: true,
+                name: true,
+                iconUrl: true,
+                description: true,
+                ownerId: true,
+                createdAt: true,
+                updatedAt: true,
+                channels: {
+                    select: {
+                        id: true,
+                        serverId: true,
+                        name: true,
+                        type: true,
+                        category: true,
+                        topic: true,
+                        position: true,
+                        createdAt: true,
+                    },
+                    orderBy: [{ category: "asc" }, { position: "asc" }],
                 },
+                _count: { select: { members: true } },
             },
-            channels: {
-                create: channelsToCreate,
-            },
-        },
-        include: {
-            channels: { orderBy: [{ category: "asc" }, { position: "asc" }] },
-            _count: { select: { members: true } },
-        },
-    });
+        });
+    } catch (err) {
+        console.error("[POST /servers] Failed to create server record:", err);
+        return c.json({ error: "Could not create the server. Please try again." }, 500);
+    }
 
-    // Create default roles for the new server
-    await createDefaultRoles(server.id);
+    // Step 2: Create default roles (non-blocking — server already exists)
+    try {
+        await Promise.all([
+            prisma.role.create({
+                data: {
+                    serverId: server.id,
+                    name: "@everyone",
+                    permissions: DEFAULT_MEMBER_PERMISSIONS,
+                    position: 0,
+                    isDefault: true,
+                },
+            }),
+            prisma.role.create({
+                data: {
+                    serverId: server.id,
+                    name: "Admin",
+                    color: "#7C3AED",
+                    permissions: ADMIN_PERMISSIONS,
+                    position: 100,
+                    isDefault: false,
+                },
+            }),
+        ]);
+    } catch (err) {
+        // Roles failed but the server itself is usable — log and continue
+        console.error("[POST /servers] Failed to create default roles for", server.id, err);
+    }
 
-    return c.json({ server }, 201);
+    // Step 3: Return a clean response matching the frontend ServerData + channels shape
+    const responseBody = {
+        server: {
+            id: server.id,
+            name: server.name,
+            iconUrl: server.iconUrl,
+            description: server.description,
+            ownerId: server.ownerId,
+            memberCount: server._count.members,
+            role: "owner",
+            channels: server.channels,
+        },
+    };
+    return c.json(responseBody, 201);
 });
 
 // ─── GET /servers — List user's servers ─────────────────────────
