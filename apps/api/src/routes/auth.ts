@@ -114,10 +114,16 @@ auth.post("/register", async (c) => {
         where: { email: { equals: email, mode: "insensitive" } },
     });
     if (existingEmail) {
-        return c.json({ error: "An account with this email already exists." }, 409);
+        // If the account is unverified (stuck from a failed email send),
+        // delete it so the user can re-register cleanly.
+        if (!existingEmail.emailVerified) {
+            await prisma.user.delete({ where: { id: existingEmail.id } });
+        } else {
+            return c.json({ error: "An account with this email already exists." }, 409);
+        }
     }
 
-    // Check if username already exists
+    // Check if username already exists (skip if it was the deleted unverified user)
     const existingUsername = await prisma.user.findUnique({
         where: { username },
     });

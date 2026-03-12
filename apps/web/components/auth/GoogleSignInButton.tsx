@@ -59,12 +59,8 @@ export function GoogleSignInButton({ label = "Continue with Google", onError }: 
         async (response: { credential: string }) => {
             setLoading(true);
             try {
-                const result = await googleLogin(response.credential);
-                if (result.isNewUser) {
-                    router.push("/onboarding");
-                } else {
-                    router.push("/app");
-                }
+                await googleLogin(response.credential);
+                router.push("/app");
             } catch (err) {
                 onError?.(
                     err instanceof Error ? err.message : "Google sign-in failed."

@@ -136,10 +136,15 @@ const port = parseInt(process.env.PORT || "3001", 10);
 const { serve } = await import("@hono/node-server");
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
+    const smtpOk = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+    const googleOk = !!process.env.GOOGLE_CLIENT_ID;
     console.log("");
     console.log("  ┌─────────────────────────────────────┐");
     console.log("  │                                     │");
     console.log(`  │   Corvus API running on :${info.port}        │`);
+    console.log("  │                                     │");
+    console.log(`  │   SMTP: ${smtpOk ? "✓ configured" : "✗ not set (auto-verify)"}     │`);
+    console.log(`  │   Google OAuth: ${googleOk ? "✓ configured" : "✗ not set"}  │`);
     console.log("  │                                     │");
     console.log("  └─────────────────────────────────────┘");
     console.log("");
