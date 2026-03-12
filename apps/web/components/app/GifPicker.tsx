@@ -68,15 +68,16 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
             let endpoint = `${TENOR_BASE}/featured`;
             let categoryQuery = "";
 
+            const cat = category as Record<string, string> | undefined;
             if (trimmedQuery) {
                 endpoint = `${TENOR_BASE}/search`;
-            } else if (category && "mode" in category && category.mode === "trending") {
+            } else if (cat?.mode === "trending") {
                 endpoint = `${TENOR_BASE}/trending`;
-            } else if ((category && "mode" in category && category.mode === "featured") || !category) {
+            } else if (cat?.mode === "featured" || !cat) {
                 endpoint = `${TENOR_BASE}/featured`;
             } else {
                 endpoint = `${TENOR_BASE}/search`;
-                categoryQuery = category.query ?? category.label;
+                categoryQuery = cat.query ?? cat.label;
             }
             const params = new URLSearchParams({
                 key: TENOR_API_KEY,
