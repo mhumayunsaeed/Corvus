@@ -14,6 +14,12 @@ let _transport: Transporter | null = null;
  */
 let _resolvedHost: string | null = null;
 
+function getSmtpTimeoutMs(): number {
+  const raw = Number(process.env.SMTP_TIMEOUT_MS);
+  if (!Number.isFinite(raw) || raw <= 0) return 8000;
+  return Math.trunc(raw);
+}
+
 async function resolveSmtpHost(): Promise<string> {
   if (_resolvedHost) return _resolvedHost;
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
@@ -31,6 +37,7 @@ async function resolveSmtpHost(): Promise<string> {
 
 function getTransport(): Transporter {
   if (!_transport) {
+    const timeoutMs = getSmtpTimeoutMs();
     _transport = createTransport({
       host: _resolvedHost || process.env.SMTP_HOST || "smtp.gmail.com",
       port: Number(process.env.SMTP_PORT) || 465,
@@ -39,6 +46,9 @@ function getTransport(): Transporter {
         user: process.env.SMTP_USER || "",
         pass: process.env.SMTP_PASS || "",
       },
+      connectionTimeout: timeoutMs,
+      greetingTimeout: timeoutMs,
+      socketTimeout: timeoutMs,
       // Force the TLS servername so certificate validation works when
       // connecting by IP instead of hostname.
       tls: {
@@ -180,7 +190,12 @@ async function sendMail(to: string, subject: string, html: string, fallbackLabel
   await resolveSmtpHost();
 
   try {
-    await getTransport().sendMail({ from: getFrom(), to, subject, html });
+    const timeoutMs = getSmtpTimeoutMs();
+    const sendPromise = getTransport().sendMail({ from: getFrom(), to, subject, html });
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`SMTP send timed out after ${timeoutMs}ms`)), timeoutMs);
+    });
+    await Promise.race([sendPromise, timeoutPromise]);
     console.log(`\u2713 ${fallbackLabel} sent to ${to}`);
   } catch (err) {
     console.error("SMTP send error:", err);
