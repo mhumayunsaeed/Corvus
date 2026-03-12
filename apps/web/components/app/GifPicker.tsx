@@ -70,9 +70,9 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
 
             if (trimmedQuery) {
                 endpoint = `${TENOR_BASE}/search`;
-            } else if (category?.mode === "trending") {
+            } else if (category && "mode" in category && category.mode === "trending") {
                 endpoint = `${TENOR_BASE}/trending`;
-            } else if (category?.mode === "featured" || !category) {
+            } else if ((category && "mode" in category && category.mode === "featured") || !category) {
                 endpoint = `${TENOR_BASE}/featured`;
             } else {
                 endpoint = `${TENOR_BASE}/search`;
