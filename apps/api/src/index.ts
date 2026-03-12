@@ -19,6 +19,7 @@ import stickerRoutes from "./routes/stickers.js";
 import attachmentRoutes from "./routes/attachments.js";
 import roles from "./routes/roles.js";
 import channelPermissions from "./routes/channel-permissions.js";
+import googleAuth from "./routes/google-auth.js";
 import { setupWebSocket } from "./ws.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -102,6 +103,7 @@ app.get("/healthz", (c) => {
     });
 });
 app.route("/auth", auth);
+app.route("/auth", googleAuth);
 app.route("/", attachmentRoutes); // routes are /attachments and /uploads/*
 app.route("/servers", servers);
 app.route("/", channels); // routes are /servers/:serverId/channels and /channels/:id

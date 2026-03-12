@@ -152,8 +152,12 @@ async function sendMail(to: string, subject: string, html: string, fallbackLabel
   } catch (err) {
     console.error("SMTP send error:", err);
     logFallback(to, fallbackLabel, fallbackUrl);
+    // Propagate the error so callers know the email was NOT delivered
+    throw new Error("Failed to send email. Please try again later.");
   }
 }
+
+export { hasSmtpConfig };
 
 // ─── Public API ────────────────────────────────────────────────
 

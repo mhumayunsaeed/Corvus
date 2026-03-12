@@ -21,6 +21,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <script src="https://accounts.google.com/gsi/client" async defer />
+      </head>
       <body className="flex h-dvh flex-col overflow-hidden">
         <Titlebar />
         <main className="flex-1 min-h-0 flex flex-col">

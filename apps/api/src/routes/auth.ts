@@ -3,7 +3,7 @@ import { z } from "zod";
 import { hash, verify } from "@node-rs/argon2";
 import { prisma } from "../lib/prisma.js";
 import { signToken, generateVerifyToken, verifyToken } from "../lib/jwt.js";
-import { sendConfirmationEmail, sendPasswordResetEmail } from "../lib/email.js";
+import { sendConfirmationEmail, sendPasswordResetEmail, hasSmtpConfig } from "../lib/email.js";
 import {
     broadcastPresenceUpdate,
     type PresenceStatus,
@@ -170,8 +170,28 @@ auth.post("/register", async (c) => {
         );
     }
 
-    // Send confirmation email
-    await sendConfirmationEmail(email, displayName, verifyEmailToken);
+    // Send confirmation email — if it fails, auto-verify so the user isn't stuck
+    try {
+        await sendConfirmationEmail(email, displayName, verifyEmailToken);
+    } catch (err) {
+        console.error(`Email delivery failed for ${email}, auto-verifying:`, err);
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                emailVerified: true,
+                emailVerifyToken: null,
+                emailVerifyExpires: null,
+            },
+        });
+        return c.json(
+            {
+                message: "Account created and verified.",
+                confirmEmail: false,
+                email,
+            },
+            201
+        );
+    }
 
     return c.json(
         {
@@ -207,7 +227,10 @@ auth.post("/login", async (c) => {
         return c.json({ error: "Invalid email or password." }, 401);
     }
 
-    // Verify password
+    // Verify password (Google-only accounts have no passwordHash)
+    if (!user.passwordHash) {
+        return c.json({ error: "This account uses Google sign-in. Please log in with Google." }, 401);
+    }
     const valid = await verify(user.passwordHash, password);
     if (!valid) {
         return c.json({ error: "Invalid email or password." }, 401);
@@ -215,14 +238,28 @@ auth.post("/login", async (c) => {
 
     // Check email verification
     if (!user.emailVerified) {
-        return c.json(
-            {
-                error: "Please verify your email before logging in.",
-                needsVerification: true,
-                email: user.email,
-            },
-            403
-        );
+        // If SMTP is not configured or the verify token has expired,
+        // auto-verify so the user isn't permanently locked out.
+        const tokenExpired = user.emailVerifyExpires && user.emailVerifyExpires < new Date();
+        if (!hasSmtpConfig() || tokenExpired) {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    emailVerified: true,
+                    emailVerifyToken: null,
+                    emailVerifyExpires: null,
+                },
+            });
+        } else {
+            return c.json(
+                {
+                    error: "Please verify your email before logging in.",
+                    needsVerification: true,
+                    email: user.email,
+                },
+                403
+            );
+        }
     }
 
     const userStatus = user.status === "offline" ? "online" : user.status;
@@ -456,6 +493,10 @@ auth.post("/change-password", async (c) => {
             return c.json({ error: "User not found." }, 404);
         }
 
+        if (!user.passwordHash) {
+            return c.json({ error: "This account uses Google sign-in. Set a password via 'Forgot Password' first." }, 400);
+        }
+
         const valid = await verify(user.passwordHash, currentPassword);
         if (!valid) {
             return c.json({ error: "Current password is incorrect." }, 401);
@@ -501,9 +542,11 @@ auth.delete("/account", async (c) => {
             return c.json({ error: "User not found." }, 404);
         }
 
-        const valid = await verify(user.passwordHash, password);
-        if (!valid) {
-            return c.json({ error: "Incorrect password." }, 401);
+        if (user.passwordHash) {
+            const valid = await verify(user.passwordHash, password);
+            if (!valid) {
+                return c.json({ error: "Incorrect password." }, 401);
+            }
         }
 
         // Set user offline before deletion

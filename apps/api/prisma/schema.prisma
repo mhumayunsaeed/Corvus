@@ -12,7 +12,8 @@ model User {
   email                String   @unique
   username             String   @unique
   displayName          String   @map("display_name")
-  passwordHash         String   @map("password_hash")
+  passwordHash         String?  @map("password_hash")
+  googleId             String?  @unique @map("google_id")
   avatarUrl            String?  @map("avatar_url")
   bio                  String?
   status               String   @default("offline")

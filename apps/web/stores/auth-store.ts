@@ -21,6 +21,7 @@ interface AuthState {
 
     // Actions
     login: (email: string, password: string) => Promise<void>;
+    googleLogin: (credential: string) => Promise<{ isNewUser: boolean }>;
     register: (data: {
         displayName: string;
         username: string;
@@ -146,6 +147,31 @@ export const useAuthStore = create<AuthState>()(
                         token: data.token,
                         isAuthenticated: true,
                     });
+                } finally {
+                    set({ isLoading: false });
+                }
+            },
+
+            googleLogin: async (credential: string) => {
+                set({ isLoading: true });
+
+                try {
+                    const data = await api<{
+                        token: string;
+                        user: User;
+                        isNewUser: boolean;
+                    }>("/auth/google", {
+                        method: "POST",
+                        body: JSON.stringify({ credential }),
+                    });
+
+                    set({
+                        user: data.user,
+                        token: data.token,
+                        isAuthenticated: true,
+                    });
+
+                    return { isNewUser: data.isNewUser };
                 } finally {
                     set({ isLoading: false });
                 }
