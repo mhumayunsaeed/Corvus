@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Upload, Trash2, Shield, Crown, UserMinus, Search } from "lucide-react";
+import { X, Upload, Trash2, Shield, Crown, UserMinus, Search, Plus, Palette, GripVertical, Check } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
 import { useAppStore } from "@/stores/app-store";
 import {
@@ -10,7 +10,12 @@ import {
     fetchMembers,
     updateMemberRole,
     kickMember,
+    fetchRoles,
+    createRole,
+    updateRole,
+    deleteRole,
     type MemberData,
+    type RoleData,
 } from "@/lib/api";
 import { UserAvatar } from "./UserAvatar";
 
@@ -25,7 +30,46 @@ interface ServerSettingsModalProps {
     serverRole: string;
 }
 
-type Tab = "Overview" | "Members";
+type Tab = "Overview" | "Members" | "Roles";
+
+// Permission constants (mirrored from backend)
+const PERMISSIONS = {
+    VIEW_CHANNEL:     1 << 0,
+    SEND_MESSAGES:    1 << 1,
+    MANAGE_MESSAGES:  1 << 2,
+    MANAGE_CHANNELS:  1 << 3,
+    MANAGE_ROLES:     1 << 4,
+    MANAGE_SERVER:    1 << 5,
+    CREATE_INVITES:   1 << 6,
+    KICK_MEMBERS:     1 << 7,
+    BAN_MEMBERS:      1 << 8,
+    CONNECT_VOICE:    1 << 9,
+    SPEAK:            1 << 10,
+    STAGE_MODERATOR:  1 << 11,
+    MANAGE_NICKNAMES: 1 << 12,
+    MENTION_EVERYONE: 1 << 13,
+    ATTACH_FILES:     1 << 14,
+    USE_REACTIONS:    1 << 15,
+} as const;
+
+const PERMISSION_LABELS: Record<string, string> = {
+    VIEW_CHANNEL: "View Channel",
+    SEND_MESSAGES: "Send Messages",
+    MANAGE_MESSAGES: "Manage Messages",
+    MANAGE_CHANNELS: "Manage Channels",
+    MANAGE_ROLES: "Manage Roles",
+    MANAGE_SERVER: "Manage Server",
+    CREATE_INVITES: "Create Invites",
+    KICK_MEMBERS: "Kick Members",
+    BAN_MEMBERS: "Ban Members",
+    CONNECT_VOICE: "Connect to Voice",
+    SPEAK: "Speak in Voice",
+    STAGE_MODERATOR: "Stage Moderator",
+    MANAGE_NICKNAMES: "Manage Nicknames",
+    MENTION_EVERYONE: "Mention @everyone",
+    ATTACH_FILES: "Attach Files",
+    USE_REACTIONS: "Use Reactions",
+};
 
 export function ServerSettingsModal({
     open,
@@ -59,6 +103,18 @@ export function ServerSettingsModal({
     const [memberSearch, setMemberSearch] = useState("");
     const [changingRole, setChangingRole] = useState<Record<string, boolean>>({});
 
+    // Roles state
+    const [roles, setRoles] = useState<RoleData[]>([]);
+    const [loadingRoles, setLoadingRoles] = useState(false);
+    const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+    const [editRoleName, setEditRoleName] = useState("");
+    const [editRoleColor, setEditRoleColor] = useState("");
+    const [editRolePermissions, setEditRolePermissions] = useState(0);
+    const [savingRole, setSavingRole] = useState(false);
+    const [roleMessage, setRoleMessage] = useState<string | null>(null);
+    const [creatingRole, setCreatingRole] = useState(false);
+    const [newRoleName, setNewRoleName] = useState("");
+
     // Sync props when modal opens or server changes
     useEffect(() => {
         if (open) {
@@ -81,6 +137,25 @@ export function ServerSettingsModal({
                 .finally(() => setLoadingMembers(false));
         }
     }, [open, activeTab, serverId, members.length]);
+
+    // Load roles when tab switches
+    useEffect(() => {
+        if (open && activeTab === "Roles") {
+            setLoadingRoles(true);
+            fetchRoles(serverId)
+                .then((res) => {
+                    setRoles(res.roles);
+                    if (res.roles.length > 0 && !selectedRoleId) {
+                        setSelectedRoleId(res.roles[0].id);
+                        setEditRoleName(res.roles[0].name);
+                        setEditRoleColor(res.roles[0].color || "");
+                        setEditRolePermissions(res.roles[0].permissions);
+                    }
+                })
+                .catch(console.error)
+                .finally(() => setLoadingRoles(false));
+        }
+    }, [open, activeTab, serverId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (!open) return null;
 
@@ -230,6 +305,18 @@ export function ServerSettingsModal({
                         >
                             Members
                         </button>
+                        {isAdmin && (
+                            <button
+                                onClick={() => setActiveTab("Roles")}
+                                className={`w-full text-left px-3 py-2 rounded-md transition-colors text-body ${
+                                    activeTab === "Roles"
+                                        ? "bg-surface-raised text-text-primary font-medium"
+                                        : "text-text-muted hover:bg-hover-row hover:text-text-primary"
+                                }`}
+                            >
+                                Roles
+                            </button>
+                        )}
                     </div>
 
                     {isOwner && (
@@ -458,6 +545,262 @@ export function ServerSettingsModal({
                                             {memberSearch ? "No members found." : "No members."}
                                         </p>
                                     )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === "Roles" && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-xl font-bold text-text-primary">Roles</h2>
+                                <button
+                                    onClick={() => setCreatingRole(true)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-violet text-white rounded-lg text-body font-medium hover:bg-accent-violet/80 transition-colors"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Create Role
+                                </button>
+                            </div>
+
+                            {/* Create role inline */}
+                            {creatingRole && (
+                                <div className="mb-4 p-4 bg-surface-raised rounded-xl border border-border">
+                                    <label className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-2">
+                                        Role Name
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={newRoleName}
+                                            onChange={(e) => setNewRoleName(e.target.value)}
+                                            className="flex-1 px-3 py-2 bg-surface border border-border rounded-lg text-text-primary text-body focus:outline-none focus:ring-2 focus:ring-accent-violet/50"
+                                            placeholder="New role name..."
+                                            autoFocus
+                                        />
+                                        <button
+                                            onClick={async () => {
+                                                if (!newRoleName.trim()) return;
+                                                try {
+                                                    const res = await createRole(serverId, { name: newRoleName.trim() });
+                                                    setRoles((prev) => [...prev, { ...res.role, memberCount: 0 }]);
+                                                    setNewRoleName("");
+                                                    setCreatingRole(false);
+                                                    setSelectedRoleId(res.role.id);
+                                                    setEditRoleName(res.role.name);
+                                                    setEditRoleColor(res.role.color || "");
+                                                    setEditRolePermissions(res.role.permissions);
+                                                } catch (err) {
+                                                    console.error("Failed to create role:", err);
+                                                }
+                                            }}
+                                            className="px-4 py-2 bg-accent-violet text-white rounded-lg text-body font-medium hover:bg-accent-violet/80 transition-colors"
+                                        >
+                                            Create
+                                        </button>
+                                        <button
+                                            onClick={() => { setCreatingRole(false); setNewRoleName(""); }}
+                                            className="px-3 py-2 text-text-muted hover:text-text-primary transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {loadingRoles ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <svg className="animate-spin w-6 h-6 text-accent-violet" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                </div>
+                            ) : (
+                                <div className="flex gap-6">
+                                    {/* Role list */}
+                                    <div className="w-56 space-y-1 flex-shrink-0">
+                                        {roles.map((role) => (
+                                            <button
+                                                key={role.id}
+                                                onClick={() => {
+                                                    setSelectedRoleId(role.id);
+                                                    setEditRoleName(role.name);
+                                                    setEditRoleColor(role.color || "");
+                                                    setEditRolePermissions(role.permissions);
+                                                    setRoleMessage(null);
+                                                }}
+                                                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-colors ${
+                                                    selectedRoleId === role.id
+                                                        ? "bg-surface-raised text-text-primary"
+                                                        : "text-text-muted hover:bg-hover-row hover:text-text-secondary"
+                                                }`}
+                                            >
+                                                <div
+                                                    className="w-3 h-3 rounded-full flex-shrink-0"
+                                                    style={{ backgroundColor: role.color || "#6b7280" }}
+                                                />
+                                                <span className="text-body truncate flex-1">{role.name}</span>
+                                                <span className="text-micro text-text-muted">{role.memberCount}</span>
+                                            </button>
+                                        ))}
+                                        {roles.length === 0 && (
+                                            <p className="text-body text-text-muted px-3 py-4">
+                                                No roles yet. Create one to get started.
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Role editor */}
+                                    {selectedRoleId && (() => {
+                                        const selectedRole = roles.find((r) => r.id === selectedRoleId);
+                                        if (!selectedRole) return null;
+
+                                        return (
+                                            <div className="flex-1 space-y-6">
+                                                {/* Name */}
+                                                <div>
+                                                    <label className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-2">
+                                                        Role Name
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={editRoleName}
+                                                        onChange={(e) => setEditRoleName(e.target.value)}
+                                                        disabled={selectedRole.isDefault}
+                                                        className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-lg text-text-primary text-body focus:outline-none focus:ring-2 focus:ring-accent-violet/50 transition-all disabled:opacity-50"
+                                                    />
+                                                </div>
+
+                                                {/* Color */}
+                                                <div>
+                                                    <label className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-2">
+                                                        Role Color
+                                                    </label>
+                                                    <div className="flex items-center gap-3">
+                                                        <input
+                                                            type="color"
+                                                            value={editRoleColor || "#6b7280"}
+                                                            onChange={(e) => setEditRoleColor(e.target.value)}
+                                                            className="w-10 h-10 rounded-lg border border-border cursor-pointer bg-transparent"
+                                                        />
+                                                        <input
+                                                            type="text"
+                                                            value={editRoleColor}
+                                                            onChange={(e) => setEditRoleColor(e.target.value)}
+                                                            className="w-28 px-3 py-2 bg-surface-raised border border-border rounded-lg text-text-primary text-body font-mono focus:outline-none focus:ring-2 focus:ring-accent-violet/50"
+                                                            placeholder="#000000"
+                                                        />
+                                                        {editRoleColor && (
+                                                            <button
+                                                                onClick={() => setEditRoleColor("")}
+                                                                className="text-micro text-text-muted hover:text-text-primary"
+                                                            >
+                                                                Clear
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Permissions */}
+                                                <div>
+                                                    <label className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-3">
+                                                        Permissions
+                                                    </label>
+                                                    <div className="space-y-2">
+                                                        {Object.entries(PERMISSIONS).map(([key, bit]) => {
+                                                            const isEnabled = (editRolePermissions & bit) === bit;
+                                                            return (
+                                                                <label
+                                                                    key={key}
+                                                                    className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-hover-row transition-colors cursor-pointer"
+                                                                    onClick={() => {
+                                                                        setEditRolePermissions((prev) =>
+                                                                            isEnabled ? prev & ~bit : prev | bit
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <span className="text-body text-text-primary">
+                                                                        {PERMISSION_LABELS[key] || key}
+                                                                    </span>
+                                                                    <div
+                                                                        role="switch"
+                                                                        aria-checked={isEnabled}
+                                                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+                                                                            isEnabled ? "bg-accent-violet" : "bg-surface-raised"
+                                                                        }`}
+                                                                    >
+                                                                        <div
+                                                                            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                                                                                isEnabled ? "translate-x-5" : "translate-x-0"
+                                                                            }`}
+                                                                        />
+                                                                    </div>
+                                                                </label>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                {/* Save / Delete */}
+                                                <div className="flex items-center gap-3 pt-4 border-t border-border">
+                                                    <button
+                                                        onClick={async () => {
+                                                            setSavingRole(true);
+                                                            setRoleMessage(null);
+                                                            try {
+                                                                await updateRole(selectedRoleId, {
+                                                                    name: editRoleName.trim() || selectedRole.name,
+                                                                    color: editRoleColor || null,
+                                                                    permissions: editRolePermissions,
+                                                                });
+                                                                setRoles((prev) =>
+                                                                    prev.map((r) =>
+                                                                        r.id === selectedRoleId
+                                                                            ? { ...r, name: editRoleName.trim() || r.name, color: editRoleColor || null, permissions: editRolePermissions }
+                                                                            : r
+                                                                    )
+                                                                );
+                                                                setRoleMessage("Saved!");
+                                                                setTimeout(() => setRoleMessage(null), 2000);
+                                                            } catch (err) {
+                                                                setRoleMessage(err instanceof Error ? err.message : "Failed to save.");
+                                                            } finally {
+                                                                setSavingRole(false);
+                                                            }
+                                                        }}
+                                                        disabled={savingRole}
+                                                        className="px-5 py-2 bg-accent-violet text-white rounded-lg font-medium text-body hover:bg-accent-violet/80 transition-colors disabled:opacity-50"
+                                                    >
+                                                        {savingRole ? "Saving..." : "Save Changes"}
+                                                    </button>
+
+                                                    {!selectedRole.isDefault && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (!window.confirm(`Delete the "${selectedRole.name}" role?`)) return;
+                                                                try {
+                                                                    await deleteRole(selectedRoleId);
+                                                                    setRoles((prev) => prev.filter((r) => r.id !== selectedRoleId));
+                                                                    setSelectedRoleId(roles[0]?.id !== selectedRoleId ? roles[0]?.id ?? null : roles[1]?.id ?? null);
+                                                                } catch (err) {
+                                                                    console.error("Failed to delete role:", err);
+                                                                }
+                                                            }}
+                                                            className="px-4 py-2 text-danger hover:bg-danger/10 rounded-lg text-body transition-colors"
+                                                        >
+                                                            Delete Role
+                                                        </button>
+                                                    )}
+
+                                                    {roleMessage && (
+                                                        <span className={`text-micro ${roleMessage === "Saved!" ? "text-success" : "text-danger"}`}>
+                                                            {roleMessage}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             )}
                         </div>

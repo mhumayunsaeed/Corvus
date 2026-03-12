@@ -166,6 +166,18 @@ export function ChannelList({
                                     Server Settings
                                 </button>
                             )}
+                            {isAdmin && (
+                                <button
+                                    onClick={() => {
+                                        setShowHeaderMenu(false);
+                                        onCreateChannel();
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-body text-text-primary hover:bg-accent-violet hover:text-white transition-colors rounded-sm"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Create Channel
+                                </button>
+                            )}
                             <button
                                 onClick={() => {
                                     setShowHeaderMenu(false);

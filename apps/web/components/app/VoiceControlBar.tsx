@@ -50,6 +50,8 @@ export function VoiceControlBar({
     const setScreenShareQuality = useVoiceStore((s) => s.setScreenShareQuality);
     const noiseSuppression = useVoiceStore((s) => s.noiseSuppression);
     const setNoiseSuppression = useVoiceStore((s) => s.setNoiseSuppression);
+    const pttEnabled = useVoiceStore((s) => s.pttEnabled);
+    const pttActive = useVoiceStore((s) => s.pttActive);
     const voiceLeave = useVoiceStore((s) => s.leaveChannel);
     const [showQualityPicker, setShowQualityPicker] = useState(false);
     const qualityPickerRef = useRef<HTMLDivElement>(null);
@@ -125,18 +127,31 @@ export function VoiceControlBar({
 
             {/* Center zone: controls */}
             <div className="flex-1 flex items-center justify-center gap-2">
-                {/* Mute */}
-                <button
-                    onClick={handleMuteToggle}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                        isMuted
-                            ? "bg-danger/20 text-danger hover:bg-danger/30"
-                            : "bg-surface-raised text-text-primary hover:bg-hover-row"
-                    }`}
-                    title={isMuted ? "Unmute" : "Mute"}
-                >
-                    {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                </button>
+                {/* Mute + PTT indicator */}
+                <div className="relative">
+                    <button
+                        onClick={handleMuteToggle}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                            isMuted
+                                ? "bg-danger/20 text-danger hover:bg-danger/30"
+                                : "bg-surface-raised text-text-primary hover:bg-hover-row"
+                        }`}
+                        title={isMuted ? "Unmute" : "Mute"}
+                    >
+                        {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                    </button>
+                    {pttEnabled && (
+                        <span
+                            className={`absolute -top-1 -right-1 px-1 py-0.5 rounded text-[9px] font-bold uppercase leading-none transition-colors ${
+                                pttActive
+                                    ? "bg-accent-teal text-white animate-pulse"
+                                    : "bg-surface-raised text-text-muted border border-border"
+                            }`}
+                        >
+                            PTT
+                        </span>
+                    )}
+                </div>
 
                 {/* Deafen */}
                 <button

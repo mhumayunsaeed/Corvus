@@ -134,6 +134,10 @@ export function useWebSocket() {
     const addVoiceParticipant = useVoiceStore((s) => s.addParticipant);
     const removeVoiceParticipant = useVoiceStore((s) => s.removeParticipant);
     const currentVoiceChannelId = useVoiceStore((s) => s.currentChannelId);
+    const addStageSpeaker = useVoiceStore((s) => s.addStageSpeaker);
+    const removeStageSpeaker = useVoiceStore((s) => s.removeStageSpeaker);
+    const addStageRaisedHand = useVoiceStore((s) => s.addStageRaisedHand);
+    const removeStageRaisedHand = useVoiceStore((s) => s.removeStageRaisedHand);
 
     const handlersRef = useRef({
         addMessage,
@@ -167,6 +171,10 @@ export function useWebSocket() {
         addVoiceParticipant,
         removeVoiceParticipant,
         currentVoiceChannelId,
+        addStageSpeaker,
+        removeStageSpeaker,
+        addStageRaisedHand,
+        removeStageRaisedHand,
     });
 
     handlersRef.current = {
@@ -201,6 +209,10 @@ export function useWebSocket() {
         addVoiceParticipant,
         removeVoiceParticipant,
         currentVoiceChannelId,
+        addStageSpeaker,
+        removeStageSpeaker,
+        addStageRaisedHand,
+        removeStageRaisedHand,
     };
 
     useEffect(() => {
@@ -572,6 +584,24 @@ export function useWebSocket() {
                             h.removeVoiceChannelParticipant(msg.data.channelId, msg.data.userId);
                             if (h.currentVoiceChannelId === msg.data.channelId) {
                                 h.removeVoiceParticipant(msg.data.userId);
+                            }
+                            break;
+
+                        case "stage_speak_request":
+                            if (h.currentVoiceChannelId === msg.data.channelId) {
+                                h.addStageRaisedHand(msg.data.userId);
+                            }
+                            break;
+
+                        case "stage_speaker_added":
+                            if (h.currentVoiceChannelId === msg.data.channelId) {
+                                h.addStageSpeaker(msg.data.userId);
+                            }
+                            break;
+
+                        case "stage_speaker_removed":
+                            if (h.currentVoiceChannelId === msg.data.channelId) {
+                                h.removeStageSpeaker(msg.data.userId);
                             }
                             break;
 

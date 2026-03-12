@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Modal } from "@corvus/ui";
-import { X, Loader2, Hash, Volume2, Megaphone } from "lucide-react";
+import { X, Loader2, Hash, Volume2, Megaphone, Radio } from "lucide-react";
 import { createChannel } from "@/lib/api";
 import { useAppStore } from "@/stores/app-store";
 
@@ -16,6 +16,7 @@ interface CreateChannelModalProps {
 const channelTypes = [
     { value: "text", label: "Text", icon: Hash, description: "Send messages, images, and files" },
     { value: "voice", label: "Voice", icon: Volume2, description: "Hang out with voice and video" },
+    { value: "stage", label: "Stage", icon: Radio, description: "Host live audio events and talks" },
     { value: "announcement", label: "Announcement", icon: Megaphone, description: "Important updates for members" },
 ] as const;
 

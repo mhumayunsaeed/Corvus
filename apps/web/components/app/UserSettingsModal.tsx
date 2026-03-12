@@ -49,7 +49,13 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
     const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
     const [audioInputId, setAudioInputId] = useState("default");
     const [audioOutputId, setAudioOutputId] = useState("default");
-    const [pushToTalk, setPushToTalk] = useState(false);
+    const pttEnabled = useVoiceStore((s) => s.pttEnabled);
+    const setPttEnabled = useVoiceStore((s) => s.setPttEnabled);
+    const pttShortcut = useVoiceStore((s) => s.pttShortcut);
+    const setPttShortcut = useVoiceStore((s) => s.setPttShortcut);
+    const pttMode = useVoiceStore((s) => s.pttMode);
+    const setPttMode = useVoiceStore((s) => s.setPttMode);
+    const [recordingShortcut, setRecordingShortcut] = useState(false);
     const notificationPrefs = useNotificationStore((s) => s.preferences);
     const setNotificationPreference = useNotificationStore((s) => s.setPreference);
 
@@ -749,15 +755,82 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                 <div className="pt-6 border-t border-border">
                                     <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">Input Mode</h3>
                                     <div className="space-y-3">
-                                        <label className="flex items-center gap-3 cursor-pointer" onClick={() => setPushToTalk(false)}>
-                                            <div className={`w-5 h-5 rounded-full border ${!pushToTalk ? "border-[5px] border-accent-violet bg-white" : "border-border bg-surface"}`} />
+                                        <label className="flex items-center gap-3 cursor-pointer" onClick={() => setPttEnabled(false)}>
+                                            <div className={`w-5 h-5 rounded-full border ${!pttEnabled ? "border-[5px] border-accent-violet bg-white" : "border-border bg-surface"}`} />
                                             <span className="text-body text-text-primary">Voice Activity</span>
                                         </label>
-                                        <label className="flex items-center gap-3 cursor-pointer" onClick={() => setPushToTalk(true)}>
-                                            <div className={`w-5 h-5 rounded-full border ${pushToTalk ? "border-[5px] border-accent-violet bg-white" : "border-border bg-surface"}`} />
+                                        <label className="flex items-center gap-3 cursor-pointer" onClick={() => setPttEnabled(true)}>
+                                            <div className={`w-5 h-5 rounded-full border ${pttEnabled ? "border-[5px] border-accent-violet bg-white" : "border-border bg-surface"}`} />
                                             <span className="text-body text-text-primary">Push to Talk</span>
                                         </label>
                                     </div>
+
+                                    {pttEnabled && (
+                                        <div className="mt-4 space-y-4 pl-8">
+                                            {/* Shortcut recorder */}
+                                            <div>
+                                                <label className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-2">Shortcut</label>
+                                                <button
+                                                    onClick={() => {
+                                                        setRecordingShortcut(true);
+                                                        const handler = (e: KeyboardEvent) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            const parts: string[] = [];
+                                                            if (e.ctrlKey || e.metaKey) parts.push("CmdOrCtrl");
+                                                            if (e.altKey) parts.push("Alt");
+                                                            if (e.shiftKey) parts.push("Shift");
+                                                            const key = e.key;
+                                                            if (key && !["Control", "Alt", "Shift", "Meta"].includes(key)) {
+                                                                parts.push(key.length === 1 ? key.toUpperCase() : key);
+                                                            }
+                                                            if (parts.length >= 2) {
+                                                                setPttShortcut(parts.join("+"));
+                                                                setRecordingShortcut(false);
+                                                                window.removeEventListener("keydown", handler);
+                                                            }
+                                                        };
+                                                        window.addEventListener("keydown", handler);
+                                                        setTimeout(() => {
+                                                            window.removeEventListener("keydown", handler);
+                                                            setRecordingShortcut(false);
+                                                        }, 5000);
+                                                    }}
+                                                    className={`px-4 py-2 rounded-lg text-body font-mono transition-colors ${
+                                                        recordingShortcut
+                                                            ? "bg-accent-violet/20 border border-accent-violet text-accent-violet animate-pulse"
+                                                            : "bg-surface-raised border border-border text-text-primary hover:bg-hover-row"
+                                                    }`}
+                                                >
+                                                    {recordingShortcut ? "Press a key combo..." : pttShortcut}
+                                                </button>
+                                                {!(typeof window !== "undefined" && (window as any).__TAURI__) && (
+                                                    <p className="text-xs text-yellow-500 mt-1">Push to Talk shortcuts only work in the desktop app.</p>
+                                                )}
+                                            </div>
+
+                                            {/* PTT Mode */}
+                                            <div>
+                                                <label className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-2">Mode</label>
+                                                <div className="space-y-2">
+                                                    <label className="flex items-center gap-3 cursor-pointer" onClick={() => setPttMode("push-to-talk")}>
+                                                        <div className={`w-4 h-4 rounded-full border ${pttMode === "push-to-talk" ? "border-[4px] border-accent-violet bg-white" : "border-border bg-surface"}`} />
+                                                        <div>
+                                                            <span className="text-body text-text-primary block">Hold to Speak</span>
+                                                            <span className="text-xs text-text-muted">Mic is active while key is held</span>
+                                                        </div>
+                                                    </label>
+                                                    <label className="flex items-center gap-3 cursor-pointer" onClick={() => setPttMode("toggle")}>
+                                                        <div className={`w-4 h-4 rounded-full border ${pttMode === "toggle" ? "border-[4px] border-accent-violet bg-white" : "border-border bg-surface"}`} />
+                                                        <div>
+                                                            <span className="text-body text-text-primary block">Toggle Mute</span>
+                                                            <span className="text-xs text-text-muted">Press to toggle mic on/off</span>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <NoiseSuppressionSection />

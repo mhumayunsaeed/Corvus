@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
+import { createDefaultRoles } from "./roles.js";
 
 const servers = new Hono<AuthEnv>();
 
@@ -71,6 +72,9 @@ servers.post("/", async (c) => {
             _count: { select: { members: true } },
         },
     });
+
+    // Create default roles for the new server
+    await createDefaultRoles(server.id);
 
     return c.json({ server }, 201);
 });

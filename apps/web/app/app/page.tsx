@@ -17,6 +17,7 @@ import {
 } from "@/components/app";
 import { ToastContainer } from "@/components/app/ToastNotification";
 import { VoiceChannelView } from "@/components/app/VoiceChannelView";
+import { StageChannelView } from "@/components/app/StageChannelView";
 import { VoiceControlBar } from "@/components/app/VoiceControlBar";
 import { IncomingCallNotification } from "@/components/app/IncomingCallNotification";
 import { useAppStore } from "@/stores/app-store";
@@ -94,6 +95,7 @@ export default function AppPage() {
     );
 
     const currentVoiceChannelId = useVoiceStore((s) => s.currentChannelId);
+    const currentChannelType = useVoiceStore((s) => s.currentChannelType);
     const setAllChannelParticipants = useVoiceStore((s) => s.setAllChannelParticipants);
 
     // LiveKit room ref for control bar actions
@@ -590,7 +592,14 @@ export default function AppPage() {
                         )}
                     </div>
                 ) : showVoiceView && currentVoiceChannelId ? (
-                    <VoiceChannelView />
+                    currentChannelType === "stage" ? (
+                        <StageChannelView
+                            serverRole={activeServer?.role}
+                            serverOwnerId={activeServer?.ownerId}
+                        />
+                    ) : (
+                        <VoiceChannelView />
+                    )
                 ) : activeChannelId && activeChannel ? (
                     <ChatView
                         channelId={activeChannelId}

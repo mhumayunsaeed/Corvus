@@ -678,6 +678,34 @@ export function fetchServerVoiceStates(serverId: string) {
     }>(`/servers/${serverId}/voice/states`);
 }
 
+// ─── Stage API ──────────────────────────────────────────────────────────────────
+
+export function requestStageSpeak(channelId: string) {
+    return api<{ message: string }>(`/channels/${channelId}/stage/request-speak`, {
+        method: "POST",
+    });
+}
+
+export function grantStageSpeak(channelId: string, userId: string) {
+    return api<{ message: string }>(`/channels/${channelId}/stage/grant-speak`, {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+    });
+}
+
+export function revokeStageSpeak(channelId: string, userId: string) {
+    return api<{ message: string }>(`/channels/${channelId}/stage/revoke-speak`, {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+    });
+}
+
+export function fetchStageState(channelId: string) {
+    return api<{ speakers: string[]; raisedHands: string[] }>(
+        `/channels/${channelId}/stage/state`
+    );
+}
+
 // ─── Call API ───────────────────────────────────────────────────────────────────
 
 export function startDMCall(conversationId: string) {
@@ -730,6 +758,82 @@ export function createSticker(data: { name: string; imageData: string }) {
 
 export function deleteSticker(id: string) {
     return api<{ message: string }>(`/stickers/${id}`, {
+        method: "DELETE",
+    });
+}
+
+// ─── Roles API ──────────────────────────────────────────────────────────────────
+
+export interface RoleData {
+    id: string;
+    name: string;
+    color: string | null;
+    position: number;
+    permissions: number;
+    isDefault: boolean;
+    memberCount: number;
+    createdAt: string;
+}
+
+export interface ChannelPermissionOverrideData {
+    id: string;
+    channelId: string;
+    roleId: string;
+    roleName: string;
+    roleColor: string | null;
+    allow: number;
+    deny: number;
+}
+
+export function fetchRoles(serverId: string) {
+    return api<{ roles: RoleData[] }>(`/servers/${serverId}/roles`);
+}
+
+export function createRole(serverId: string, data: { name: string; color?: string; permissions?: number }) {
+    return api<{ role: RoleData }>(`/servers/${serverId}/roles`, {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateRole(roleId: string, data: { name?: string; color?: string | null; permissions?: number; position?: number }) {
+    return api<{ role: RoleData }>(`/roles/${roleId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteRole(roleId: string) {
+    return api<{ message: string }>(`/roles/${roleId}`, {
+        method: "DELETE",
+    });
+}
+
+export function assignRole(roleId: string, userId: string) {
+    return api<{ message: string }>(`/roles/${roleId}/members/${userId}`, {
+        method: "POST",
+    });
+}
+
+export function removeRoleFromMember(roleId: string, userId: string) {
+    return api<{ message: string }>(`/roles/${roleId}/members/${userId}`, {
+        method: "DELETE",
+    });
+}
+
+export function fetchChannelPermissions(channelId: string) {
+    return api<{ overrides: ChannelPermissionOverrideData[] }>(`/channels/${channelId}/permissions`);
+}
+
+export function updateChannelPermission(channelId: string, roleId: string, data: { allow: number; deny: number }) {
+    return api<{ override: ChannelPermissionOverrideData }>(`/channels/${channelId}/permissions/${roleId}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteChannelPermission(channelId: string, roleId: string) {
+    return api<{ message: string }>(`/channels/${channelId}/permissions/${roleId}`, {
         method: "DELETE",
     });
 }

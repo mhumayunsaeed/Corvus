@@ -17,6 +17,8 @@ import calls from "./routes/calls.js";
 import stage from "./routes/stage.js";
 import stickerRoutes from "./routes/stickers.js";
 import attachmentRoutes from "./routes/attachments.js";
+import roles from "./routes/roles.js";
+import channelPermissions from "./routes/channel-permissions.js";
 import { setupWebSocket } from "./ws.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -112,6 +114,8 @@ app.route("/", voice);     // routes are /channels/:channelId/voice/* and /serve
 app.route("/", calls);     // routes are /dms/:conversationId/call/*
 app.route("/", stage);     // routes are /channels/:channelId/stage/*
 app.route("/", stickerRoutes); // routes are /stickers/*
+app.route("/", roles);              // routes are /servers/:serverId/roles and /roles/:id
+app.route("/", channelPermissions); // routes are /channels/:channelId/permissions
 
 // Health check
 app.get("/", (c) => {

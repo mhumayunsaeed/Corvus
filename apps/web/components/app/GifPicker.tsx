@@ -20,9 +20,21 @@ interface TenorGif {
 
 const TENOR_API_KEY = "AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ"; // Tenor public API key
 const TENOR_BASE = "https://tenor.googleapis.com/v2";
+const DEFAULT_CATEGORY_ID = "trending";
+const GIF_CATEGORIES = [
+    { id: "trending", label: "Trending", mode: "trending" },
+    { id: "featured", label: "Featured", mode: "featured" },
+    { id: "reactions", label: "Reactions", query: "reactions" },
+    { id: "love", label: "Love", query: "love" },
+    { id: "happy", label: "Happy", query: "happy" },
+    { id: "sad", label: "Sad", query: "sad" },
+    { id: "anime", label: "Anime", query: "anime" },
+] as const;
+type GifCategoryId = (typeof GIF_CATEGORIES)[number]["id"];
 
 export function GifPicker({ onSelect, onClose }: GifPickerProps) {
     const [search, setSearch] = useState("");
+    const [activeCategory, setActiveCategory] = useState<GifCategoryId>(DEFAULT_CATEGORY_ID);
     const [gifs, setGifs] = useState<TenorGif[]>([]);
     const [loading, setLoading] = useState(false);
     const [next, setNext] = useState("");
@@ -46,19 +58,34 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
         };
     }, [onClose]);
 
-    const fetchGifs = useCallback(async (query: string, pos?: string) => {
+    const fetchGifs = useCallback(async (query: string, pos?: string, categoryOverride?: GifCategoryId) => {
         setLoading(true);
         try {
-            const endpoint = query.trim()
-                ? `${TENOR_BASE}/search`
-                : `${TENOR_BASE}/featured`;
+            const trimmedQuery = query.trim();
+            const categoryId = categoryOverride ?? activeCategory;
+            const category = GIF_CATEGORIES.find((item) => item.id === categoryId);
+
+            let endpoint = `${TENOR_BASE}/featured`;
+            let categoryQuery = "";
+
+            if (trimmedQuery) {
+                endpoint = `${TENOR_BASE}/search`;
+            } else if (category?.mode === "trending") {
+                endpoint = `${TENOR_BASE}/trending`;
+            } else if (category?.mode === "featured" || !category) {
+                endpoint = `${TENOR_BASE}/featured`;
+            } else {
+                endpoint = `${TENOR_BASE}/search`;
+                categoryQuery = category.query ?? category.label;
+            }
             const params = new URLSearchParams({
                 key: TENOR_API_KEY,
                 client_key: "corvus_chat",
                 limit: "30",
                 media_filter: "gif,tinygif,nanogif",
             });
-            if (query.trim()) params.set("q", query);
+            if (trimmedQuery) params.set("q", trimmedQuery);
+            if (!trimmedQuery && categoryQuery) params.set("q", categoryQuery);
             if (pos) params.set("pos", pos);
 
             const res = await fetch(`${endpoint}?${params}`);
@@ -75,15 +102,24 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [activeCategory]);
 
-    // Load featured on mount
+    const handleCategorySelect = (categoryId: GifCategoryId) => {
+        setActiveCategory(categoryId);
+        setSearch("");
+        setGifs([]);
+        setNext("");
+    };
+
+    // Load category results when search is empty or category changes
     useEffect(() => {
-        fetchGifs("");
-    }, [fetchGifs]);
+        if (search.trim()) return;
+        fetchGifs("", undefined, activeCategory);
+    }, [activeCategory, fetchGifs, search]);
 
     // Debounced search
     useEffect(() => {
+        if (!search.trim()) return;
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
             fetchGifs(search);
@@ -114,6 +150,27 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
                             <X className="w-3.5 h-3.5" />
                         </button>
                     )}
+                </div>
+            </div>
+
+            {/* Categories */}
+            <div className="px-2 py-2 border-b border-border bg-surface">
+                <div className="flex items-center gap-2 overflow-x-auto">
+                    {GIF_CATEGORIES.map((category) => {
+                        const isActive = activeCategory === category.id && !search.trim();
+                        return (
+                            <button
+                                key={category.id}
+                                onClick={() => handleCategorySelect(category.id)}
+                                className={`px-2.5 py-1 rounded-full text-[11px] border transition-colors whitespace-nowrap ${isActive
+                                    ? "bg-accent-violet/15 border-accent-violet text-accent-violet"
+                                    : "bg-surface-raised border-border text-text-muted hover:text-text-primary hover:border-accent-violet/40"
+                                    }`}
+                            >
+                                {category.label}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -153,7 +210,7 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
 
                 {next && !loading && gifs.length > 0 && (
                     <button
-                        onClick={() => fetchGifs(search, next)}
+                        onClick={() => fetchGifs(search, next, activeCategory)}
                         className="w-full py-2 text-sm text-accent-violet hover:underline"
                     >
                         Load more

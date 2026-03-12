@@ -59,6 +59,7 @@ model Server {
   members  ServerMember[]
   channels Channel[]
   invites  Invite[]
+  roles    Role[]
 
   @@map("servers")
 }
@@ -73,6 +74,7 @@ model ServerMember {
 
   server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedRoles ServerMemberRole[]
 
   @@unique([serverId, userId])
   @@map("server_members")
@@ -88,9 +90,10 @@ model Channel {
   position  Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at")
 
-  server   Server        @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  messages Message[]
-  reads    ChannelRead[]
+  server               Server                    @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  messages             Message[]
+  reads                ChannelRead[]
+  permissionOverrides  ChannelPermissionOverride[]
 
   @@index([serverId])
   @@map("channels")
@@ -306,4 +309,51 @@ model PinnedDMMessage {
   @@unique([conversationId, messageId])
   @@index([conversationId])
   @@map("pinned_dm_messages")
+}
+
+// ─── Roles & Permissions ─────────────────────────────────────────
+
+model Role {
+  id          String   @id @default(cuid())
+  serverId    String   @map("server_id")
+  name        String
+  color       String?  // hex color for display (e.g. "#7C3AED")
+  position    Int      @default(0)  // higher = more authority
+  permissions Int      @default(0)  // bitfield of granted permissions
+  isDefault   Boolean  @default(false) @map("is_default") // true = @everyone role
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  server           Server                    @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  members          ServerMemberRole[]
+  channelOverrides ChannelPermissionOverride[]
+
+  @@unique([serverId, name])
+  @@index([serverId])
+  @@map("roles")
+}
+
+model ServerMemberRole {
+  id       String @id @default(cuid())
+  memberId String @map("member_id")
+  roleId   String @map("role_id")
+
+  member ServerMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role   Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, roleId])
+  @@map("server_member_roles")
+}
+
+model ChannelPermissionOverride {
+  id        String @id @default(cuid())
+  channelId String @map("channel_id")
+  roleId    String @map("role_id")
+  allow     Int    @default(0)  // bitfield of explicitly allowed perms
+  deny      Int    @default(0)  // bitfield of explicitly denied perms
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, roleId])
+  @@map("channel_permission_overrides")
 }

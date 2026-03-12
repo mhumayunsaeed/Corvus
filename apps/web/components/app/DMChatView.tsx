@@ -757,7 +757,7 @@ export function DMChatView({
                 <img
                     src={content.trim()}
                     alt="GIF"
-                    className="max-w-[300px] max-h-[250px] rounded-lg mt-1"
+                    className="max-w-[360px] max-h-[250px] rounded-lg mt-1"
                     loading="lazy"
                 />
             );

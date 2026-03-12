@@ -34,6 +34,8 @@ export interface VoiceParticipant {
     isScreenSharing?: boolean;
 }
 
+export type PttMode = "push-to-talk" | "toggle";
+
 interface VoiceState {
     // Current connection state
     currentChannelId: string | null;
@@ -56,6 +58,16 @@ interface VoiceState {
     screenShareQuality: ScreenShareQuality;
     noiseSuppression: boolean;
     liveLatencyMs: number | null;
+
+    // Push-to-talk settings
+    pttEnabled: boolean;
+    pttShortcut: string;
+    pttMode: PttMode;
+    pttActive: boolean; // true while key is held down (for visual indicator)
+
+    // Stage channel state
+    stageSpeakers: string[];
+    stageRaisedHands: string[];
 
     // Participants in all voice channels (for ChannelList display)
     channelParticipants: Record<string, VoiceParticipant[]>;
@@ -84,6 +96,16 @@ interface VoiceState {
     setScreenShareQuality: (quality: ScreenShareQuality) => void;
     setNoiseSuppression: (enabled: boolean) => void;
     setLiveLatency: (latencyMs: number | null) => void;
+    setPttEnabled: (enabled: boolean) => void;
+    setPttShortcut: (shortcut: string) => void;
+    setPttMode: (mode: PttMode) => void;
+    setPttActive: (active: boolean) => void;
+    setStageSpeakers: (speakers: string[]) => void;
+    setStageRaisedHands: (hands: string[]) => void;
+    addStageSpeaker: (userId: string) => void;
+    removeStageSpeaker: (userId: string) => void;
+    addStageRaisedHand: (userId: string) => void;
+    removeStageRaisedHand: (userId: string) => void;
     setChannelParticipants: (channelId: string, participants: VoiceParticipant[]) => void;
     addChannelParticipant: (channelId: string, participant: VoiceParticipant) => void;
     removeChannelParticipant: (channelId: string, userId: string) => void;
@@ -107,6 +129,12 @@ export const useVoiceStore = create<VoiceState>((set) => ({
     screenShareQuality: "720p30" as ScreenShareQuality,
     noiseSuppression: defaultNoiseSuppressionEnabled(),
     liveLatencyMs: null,
+    pttEnabled: typeof localStorage !== "undefined" && localStorage.getItem("corvus-ptt-enabled") === "true",
+    pttShortcut: (typeof localStorage !== "undefined" && localStorage.getItem("corvus-ptt-shortcut")) || "CmdOrCtrl+Alt+P",
+    pttMode: ((typeof localStorage !== "undefined" && localStorage.getItem("corvus-ptt-mode")) || "push-to-talk") as PttMode,
+    pttActive: false,
+    stageSpeakers: [],
+    stageRaisedHands: [],
     channelParticipants: {},
 
     joinChannel: (data) =>
@@ -125,6 +153,9 @@ export const useVoiceStore = create<VoiceState>((set) => ({
             hasVideo: false,
             isScreenSharing: false,
             liveLatencyMs: null,
+            stageSpeakers: [],
+            stageRaisedHands: [],
+            pttActive: false,
         }),
 
     leaveChannel: () =>
@@ -143,6 +174,9 @@ export const useVoiceStore = create<VoiceState>((set) => ({
             hasVideo: false,
             isScreenSharing: false,
             liveLatencyMs: null,
+            stageSpeakers: [],
+            stageRaisedHands: [],
+            pttActive: false,
         }),
 
     setParticipants: (participants) => set({ participants }),
@@ -209,4 +243,44 @@ export const useVoiceStore = create<VoiceState>((set) => ({
 
     setAllChannelParticipants: (states) =>
         set({ channelParticipants: states }),
+
+    // Push-to-talk
+    setPttEnabled: (enabled) => {
+        localStorage.setItem("corvus-ptt-enabled", String(enabled));
+        set({ pttEnabled: enabled });
+    },
+    setPttShortcut: (shortcut) => {
+        localStorage.setItem("corvus-ptt-shortcut", shortcut);
+        set({ pttShortcut: shortcut });
+    },
+    setPttMode: (mode) => {
+        localStorage.setItem("corvus-ptt-mode", mode);
+        set({ pttMode: mode });
+    },
+    setPttActive: (active) => set({ pttActive: active }),
+
+    // Stage channel
+    setStageSpeakers: (speakers) => set({ stageSpeakers: speakers }),
+    setStageRaisedHands: (hands) => set({ stageRaisedHands: hands }),
+    addStageSpeaker: (userId) =>
+        set((state) => ({
+            stageSpeakers: state.stageSpeakers.includes(userId)
+                ? state.stageSpeakers
+                : [...state.stageSpeakers, userId],
+            stageRaisedHands: state.stageRaisedHands.filter((id) => id !== userId),
+        })),
+    removeStageSpeaker: (userId) =>
+        set((state) => ({
+            stageSpeakers: state.stageSpeakers.filter((id) => id !== userId),
+        })),
+    addStageRaisedHand: (userId) =>
+        set((state) => ({
+            stageRaisedHands: state.stageRaisedHands.includes(userId)
+                ? state.stageRaisedHands
+                : [...state.stageRaisedHands, userId],
+        })),
+    removeStageRaisedHand: (userId) =>
+        set((state) => ({
+            stageRaisedHands: state.stageRaisedHands.filter((id) => id !== userId),
+        })),
 }));
