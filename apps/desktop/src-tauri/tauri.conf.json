@@ -30,6 +30,7 @@
     "windows": [
       {
         "title": "Corvus",
+        "create": false,
         "url": "/login",
         "width": 1280,
         "height": 800,
@@ -37,17 +38,17 @@
         "minHeight": 600,
         "decorations": false,
         "center": true,
-        "visible": false
+        "visible": true
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:* https://* ws://* wss://*; img-src 'self' data: https://* http://localhost:*; media-src 'self' data: blob: https://* http://localhost:*; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://twitframe.com https://platform.twitter.com;"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com https://www.gstatic.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:* https://* ws://* wss://*; img-src 'self' data: https://* http://localhost:*; media-src 'self' data: blob: https://* http://localhost:*; frame-src https://accounts.google.com https://www.gstatic.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://twitframe.com https://platform.twitter.com;"
     }
   },
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://veyra-web-rzp5.vercel.app/api/updater"
+        "https://veyra-web.onrender.com/api/updater"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYyQzQ5Qzk1NkVFMzgyQUUKUldTdWd1TnVsWnpFOHZVWVUxamd4YmNWM1I5dUtLcEtxR2ZHTHFSRzNaMmppczUrbWNWWTFocGEK"
     }

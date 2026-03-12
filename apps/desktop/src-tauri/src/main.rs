@@ -1,10 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{
     MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent,
 };
-use tauri::{Emitter, Manager, WebviewWindow, Window, WindowEvent};
+use tauri::webview::NewWindowResponse;
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window, WindowEvent};
+
+static POPUP_COUNTER: AtomicUsize = AtomicUsize::new(1);
 
 fn emit_webview_window_visibility(window: &WebviewWindow, visible: bool) {
     let _ = window.emit("corvus:window_visibility", visible);
@@ -21,9 +26,40 @@ fn main() {
             {
                 let window_icon =
                     tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))?;
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.set_icon(window_icon.clone());
+                let app_handle = app.handle().clone();
+                let mut main_config = app
+                    .config()
+                    .app
+                    .windows
+                    .get(0)
+                    .cloned()
+                    .expect("Missing main window config");
+                if main_config.label.is_empty() {
+                    main_config.label = "main".to_string();
                 }
+                main_config.visible = true;
+
+                let main_window = WebviewWindowBuilder::from_config(app, &main_config)?
+                    .on_new_window(move |url, features| {
+                        let label =
+                            format!("popup-{}", POPUP_COUNTER.fetch_add(1, Ordering::Relaxed));
+                        let window = WebviewWindowBuilder::new(
+                            &app_handle,
+                            label,
+                            WebviewUrl::External(url.clone()),
+                        )
+                        .window_features(features)
+                        .title(url.as_str())
+                        .build()
+                        .expect("failed to create popup window");
+
+                        NewWindowResponse::Create { window }
+                    })
+                    .build()?;
+
+                let _ = main_window.set_icon(window_icon.clone());
+                let _ = main_window.show();
+                let _ = main_window.set_focus();
 
                 let tray_icon =
                     tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
