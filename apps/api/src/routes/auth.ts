@@ -181,7 +181,10 @@ auth.post("/register", async (c) => {
         await sendConfirmationEmail(email, displayName, verifyEmailToken);
     } catch (err) {
         console.error(`Email delivery failed for ${email}, auto-verifying:`, err);
-        await prisma.user.update({
+        // The user record may have been replaced by a concurrent re-registration
+        // attempt (unverified accounts are cleaned up). Use updateMany to avoid
+        // P2025 "record not found" errors.
+        await prisma.user.updateMany({
             where: { id: user.id },
             data: {
                 emailVerified: true,

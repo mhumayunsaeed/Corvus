@@ -1,19 +1,48 @@
 import { createTransport, type Transporter } from "nodemailer";
+import { lookup } from "node:dns/promises";
 
 // ─── SMTP Transport (lazy) ────────────────────────────────────
 // Created on first use so dotenv has time to load env vars.
 
 let _transport: Transporter | null = null;
 
+/**
+ * Resolve the SMTP host to an IPv4 address.
+ * Many cloud providers (Render, Railway, etc.) cannot reach Gmail SMTP
+ * over IPv6, causing ENETUNREACH errors. By resolving to IPv4 ourselves
+ * and passing the IP directly, we force Nodemailer to use IPv4.
+ */
+let _resolvedHost: string | null = null;
+
+async function resolveSmtpHost(): Promise<string> {
+  if (_resolvedHost) return _resolvedHost;
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  try {
+    const { address } = await lookup(host, { family: 4 });
+    _resolvedHost = address;
+    console.log(`SMTP: resolved ${host} → ${address} (IPv4)`);
+    return address;
+  } catch {
+    // If DNS lookup fails, fall back to the hostname
+    _resolvedHost = host;
+    return host;
+  }
+}
+
 function getTransport(): Transporter {
   if (!_transport) {
     _transport = createTransport({
-      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      host: _resolvedHost || process.env.SMTP_HOST || "smtp.gmail.com",
       port: Number(process.env.SMTP_PORT) || 465,
       secure: process.env.SMTP_SECURE !== "false",
       auth: {
         user: process.env.SMTP_USER || "",
         pass: process.env.SMTP_PASS || "",
+      },
+      // Force the TLS servername so certificate validation works when
+      // connecting by IP instead of hostname.
+      tls: {
+        servername: process.env.SMTP_HOST || "smtp.gmail.com",
       },
     });
   }
@@ -146,13 +175,16 @@ async function sendMail(to: string, subject: string, html: string, fallbackLabel
     return;
   }
 
+  // Resolve SMTP host to IPv4 before first send.
+  // Many cloud providers (Render, Railway) can't reach Gmail over IPv6.
+  await resolveSmtpHost();
+
   try {
     await getTransport().sendMail({ from: getFrom(), to, subject, html });
     console.log(`\u2713 ${fallbackLabel} sent to ${to}`);
   } catch (err) {
     console.error("SMTP send error:", err);
     logFallback(to, fallbackLabel, fallbackUrl);
-    // Propagate the error so callers know the email was NOT delivered
     throw new Error("Failed to send email. Please try again later.");
   }
 }
