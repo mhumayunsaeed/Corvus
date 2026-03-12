@@ -54,6 +54,7 @@ export function VoiceControlBar({
     const pttActive = useVoiceStore((s) => s.pttActive);
     const voiceLeave = useVoiceStore((s) => s.leaveChannel);
     const [showQualityPicker, setShowQualityPicker] = useState(false);
+    const [isLeaving, setIsLeaving] = useState(false);
     const qualityPickerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -78,10 +79,18 @@ export function VoiceControlBar({
         const newDeafened = !isDeafened;
         setLocalDeafened(newDeafened);
         onDeafenToggle?.(newDeafened);
-        // When deafening, also mute
-        if (newDeafened && !isMuted) {
-            setLocalMuted(true);
-            onMuteToggle?.(true);
+        if (newDeafened) {
+            // When deafening, also mute
+            if (!isMuted) {
+                setLocalMuted(true);
+                onMuteToggle?.(true);
+            }
+        } else {
+            // When un-deafening, also unmute
+            if (isMuted) {
+                setLocalMuted(false);
+                onMuteToggle?.(false);
+            }
         }
     }, [isDeafened, isMuted, setLocalDeafened, setLocalMuted, onDeafenToggle, onMuteToggle]);
 
@@ -98,6 +107,8 @@ export function VoiceControlBar({
     }, [hasVideo, setLocalVideo, onVideoToggle]);
 
     const handleEndCall = useCallback(async () => {
+        if (isLeaving) return;
+        setIsLeaving(true);
         if (channelId) {
             try {
                 await leaveVoiceChannel(channelId);
@@ -106,7 +117,7 @@ export function VoiceControlBar({
             }
         }
         voiceLeave();
-    }, [channelId, voiceLeave]);
+    }, [channelId, voiceLeave, isLeaving]);
 
     if (!channelId) return null;
 
@@ -142,13 +153,13 @@ export function VoiceControlBar({
                     </button>
                     {pttEnabled && (
                         <span
-                            className={`absolute -top-1 -right-1 px-1 py-0.5 rounded text-[9px] font-bold uppercase leading-none transition-colors ${
+                            className={`absolute -top-1.5 -right-2 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase leading-none transition-all ${
                                 pttActive
-                                    ? "bg-accent-teal text-white animate-pulse"
+                                    ? "bg-accent-teal text-white shadow-[0_0_8px_rgba(45,212,191,0.5)] scale-110"
                                     : "bg-surface-raised text-text-muted border border-border"
                             }`}
                         >
-                            PTT
+                            {pttActive ? "LIVE" : "PTT"}
                         </span>
                     )}
                 </div>
@@ -249,7 +260,8 @@ export function VoiceControlBar({
                 {/* End Call */}
                 <button
                     onClick={handleEndCall}
-                    className="w-12 h-10 rounded-full bg-danger hover:bg-danger/80 flex items-center justify-center text-white transition-all"
+                    disabled={isLeaving}
+                    className={`w-12 h-10 rounded-full bg-danger hover:bg-danger/80 flex items-center justify-center text-white transition-all ${isLeaving ? "opacity-50 cursor-not-allowed" : ""}`}
                     title="Disconnect"
                 >
                     <PhoneOff className="w-5 h-5" />
