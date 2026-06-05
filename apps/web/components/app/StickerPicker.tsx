@@ -158,7 +158,7 @@ export function StickerPicker({ onSelect, onClose }: StickerPickerProps) {
                                         title={sticker.name}
                                     >
                                         <img
-                                            src={sticker.imageData}
+                                            src={sticker.imageUrl}
                                             alt={sticker.name}
                                             className="w-full h-full object-contain"
                                         />

@@ -1,0 +1,12 @@
+node_modules
+.next
+dist
+out
+.turbo
+**/gen/**
+**/icons/**
+pnpm-lock.yaml
+*.png
+*.ico
+*.bmp
+apps/desktop/src-tauri/target

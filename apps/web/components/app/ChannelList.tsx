@@ -14,6 +14,7 @@ import {
     UserPlus,
     Radio,
     LogOut,
+    Lock,
 } from "lucide-react";
 import { useAppStore } from "@/stores/app-store";
 import { useVoiceStore } from "@/stores/voice-store";
@@ -77,16 +78,11 @@ export function ChannelList({
 
     const getChannelIcon = (type: string) => {
         switch (type) {
-            case "text":
-                return Hash;
-            case "voice":
-                return Volume2;
-            case "stage":
-                return Radio;
-            case "announcement":
-                return Megaphone;
-            default:
-                return Hash;
+            case "text": return Hash;
+            case "voice": return Volume2;
+            case "stage": return Radio;
+            case "announcement": return Megaphone;
+            default: return Hash;
         }
     };
 
@@ -134,16 +130,18 @@ export function ChannelList({
             className="w-full lg:[width:var(--panel-width)] max-h-[42vh] lg:max-h-none bg-channel-sidebar flex flex-col border-b lg:border-b-0 lg:border-r border-border-subtle flex-shrink-0 relative overflow-visible"
             style={{ "--panel-width": `${panelWidth}px` } as CSSProperties}
         >
-            {/* Server Header with Dropdown */}
+            {/* Server Header */}
             <div className="relative">
                 <button
                     onClick={() => setShowHeaderMenu((v) => !v)}
-                    className="w-full h-12 px-4 flex items-center justify-between border-b border-border-subtle hover:bg-hover-row transition-colors group flex-shrink-0"
+                    className="w-full h-[52px] px-4 flex items-center justify-between hover:bg-hover-row transition-colors group flex-shrink-0 border-b border-border-subtle"
                 >
-                    <span className="text-emphasis font-semibold text-text-primary truncate">
+                    <span className="text-[14px] font-semibold text-text-primary truncate tracking-[-0.01em]">
                         {serverName}
                     </span>
-                    <ChevronDown className={`w-4 h-4 text-text-muted group-hover:text-text-secondary transition-all flex-shrink-0 ${showHeaderMenu ? "rotate-180" : ""}`} />
+                    <div className={`w-5 h-5 rounded-md flex items-center justify-center text-text-muted group-hover:text-text-secondary transition-all ${showHeaderMenu ? "bg-hover-row-strong rotate-180" : ""}`}>
+                        <ChevronDown className="w-3.5 h-3.5" />
+                    </div>
                 </button>
 
                 {/* Dropdown Menu */}
@@ -153,16 +151,16 @@ export function ChannelList({
                             className="fixed inset-0 z-40"
                             onClick={() => setShowHeaderMenu(false)}
                         />
-                        <div className="absolute top-12 left-2 right-2 z-50 bg-surface-overlay border border-border-highlight rounded-lg shadow-float py-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="absolute top-[52px] left-2 right-2 z-50 bg-surface-overlay border border-border-highlight rounded-xl shadow-float-lg py-1.5 animate-scale-in origin-top">
                             {isAdmin && (
                                 <button
                                     onClick={() => {
                                         setShowHeaderMenu(false);
                                         onOpenServerSettings();
                                     }}
-                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-body text-text-primary hover:bg-accent-violet hover:text-white transition-colors rounded-sm mx-0"
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-text-secondary hover:bg-hover-row-strong hover:text-text-primary transition-colors rounded-lg mx-0"
                                 >
-                                    <Settings className="w-4 h-4" />
+                                    <Settings className="w-3.5 h-3.5 text-text-muted" />
                                     Server Settings
                                 </button>
                             )}
@@ -172,9 +170,9 @@ export function ChannelList({
                                         setShowHeaderMenu(false);
                                         onCreateChannel();
                                     }}
-                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-body text-text-primary hover:bg-accent-violet hover:text-white transition-colors rounded-sm"
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-text-secondary hover:bg-hover-row-strong hover:text-text-primary transition-colors rounded-lg"
                                 >
-                                    <Plus className="w-4 h-4" />
+                                    <Plus className="w-3.5 h-3.5 text-text-muted" />
                                     Create Channel
                                 </button>
                             )}
@@ -183,9 +181,9 @@ export function ChannelList({
                                     setShowHeaderMenu(false);
                                     onInvite();
                                 }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-body text-text-primary hover:bg-accent-violet hover:text-white transition-colors rounded-sm"
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-text-secondary hover:bg-hover-row-strong hover:text-text-primary transition-colors rounded-lg"
                             >
-                                <UserPlus className="w-4 h-4" />
+                                <UserPlus className="w-3.5 h-3.5 text-text-muted" />
                                 Invite People
                             </button>
                             <button
@@ -193,23 +191,23 @@ export function ChannelList({
                                     setShowHeaderMenu(false);
                                     onOpenSettings();
                                 }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-body text-text-primary hover:bg-accent-violet hover:text-white transition-colors rounded-sm"
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-text-secondary hover:bg-hover-row-strong hover:text-text-primary transition-colors rounded-lg"
                             >
-                                <Bell className="w-4 h-4" />
+                                <Bell className="w-3.5 h-3.5 text-text-muted" />
                                 Notification Settings
                             </button>
 
                             {!isOwner && (
                                 <>
-                                    <div className="h-px bg-border mx-2 my-1" />
+                                    <div className="h-px bg-border mx-2 my-1.5" />
                                     <button
                                         onClick={() => {
                                             setShowHeaderMenu(false);
                                             handleLeaveServer();
                                         }}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-body text-danger hover:bg-danger hover:text-white transition-colors rounded-sm"
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-danger hover:bg-danger/10 transition-colors rounded-lg"
                                     >
-                                        <LogOut className="w-4 h-4" />
+                                        <LogOut className="w-3.5 h-3.5" />
                                         Leave Server
                                     </button>
                                 </>
@@ -220,40 +218,39 @@ export function ChannelList({
             </div>
 
             {/* Channel list */}
-            <div className="flex-1 overflow-y-auto px-2 py-1 scrollbar-none">
+            <div className="flex-1 overflow-y-auto px-1.5 py-2 scrollbar-none">
                 {categories.map((category) => {
                     const categoryChannels = channels.filter((c) => c.category === category);
                     const isCollapsed = collapsedCategories.includes(category);
 
-                    // Check if collapsed category has unread channels
                     const hasUnread = isCollapsed && categoryChannels.some(
                         (c) => (channelUnread[c.id] || 0) > 0
                     );
 
                     return (
-                        <div key={category} className="mb-3">
+                        <div key={category} className="mb-1">
                             {/* Category header */}
-                            <div className="flex items-center justify-between pr-1">
+                            <div className="flex items-center justify-between px-1 mb-0.5">
                                 <button
                                     onClick={() => toggleCategory(category)}
-                                    className="flex-1 flex items-center gap-1 px-1 py-1 text-micro font-semibold text-text-muted hover:text-text-secondary uppercase tracking-[0.06em] transition-colors group"
+                                    className="flex-1 flex items-center gap-1 py-1.5 text-[11px] font-semibold text-text-faint hover:text-text-muted uppercase tracking-[0.08em] transition-colors group/cat"
                                 >
-                                    <div className="transition-transform duration-150">
+                                    <span className={`transition-transform duration-150 ${isCollapsed ? "" : "rotate-0"}`}>
                                         {isCollapsed ? (
                                             <ChevronRight className="w-3 h-3" />
                                         ) : (
                                             <ChevronDown className="w-3 h-3" />
                                         )}
-                                    </div>
-                                    {category}
+                                    </span>
+                                    <span className="group-hover/cat:text-text-secondary transition-colors">{category}</span>
                                     {hasUnread && (
-                                        <span className="w-2 h-2 rounded-full bg-accent-violet ml-1" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-accent-violet ml-1 animate-pulse" />
                                     )}
                                 </button>
                                 {isAdmin && (
                                     <button
                                         onClick={onCreateChannel}
-                                        className="w-4 h-4 rounded hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all"
+                                        className="w-5 h-5 rounded flex items-center justify-center text-text-faint hover:text-text-secondary hover:bg-hover-row transition-all opacity-0 group-hover:opacity-100"
                                         title="Create Channel"
                                     >
                                         <Plus className="w-3 h-3" />
@@ -263,7 +260,7 @@ export function ChannelList({
 
                             {/* Channels */}
                             {!isCollapsed && (
-                                <div className="space-y-[2px] mt-0.5">
+                                <div className="space-y-[1px]">
                                     {categoryChannels.map((channel) => {
                                         const Icon = getChannelIcon(channel.type);
                                         const isVoice = channel.type === "voice" || channel.type === "stage";
@@ -281,47 +278,51 @@ export function ChannelList({
                                                 <button
                                                     onClick={() => handleChannelClick(channel)}
                                                     disabled={isJoining}
-                                                    className={`w-full flex items-center gap-2 px-2 py-[6px] rounded-md transition-all duration-150 group relative ${isActive
-                                                        ? isVoice
-                                                            ? "bg-accent-teal/10 text-accent-teal"
-                                                            : "bg-active-row text-text-primary"
-                                                        : "text-text-muted hover:bg-hover-row hover:text-text-secondary"
-                                                        } ${isJoining ? "opacity-50" : ""}`}
-                                                >
-                                                    {/* Active indicator */}
-                                                    {isActive && !isVoice && (
-                                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-accent-violet" />
-                                                    )}
-                                                    <Icon
-                                                        className={`w-[18px] h-[18px] flex-shrink-0 ${isActive
+                                                    className={`w-full flex items-center gap-2 px-2.5 py-[5px] rounded-lg transition-all duration-150 group/ch relative ${
+                                                        isActive
                                                             ? isVoice
-                                                                ? "text-accent-teal"
-                                                                : "text-text-primary"
-                                                            : "text-text-faint"
-                                                            }`}
+                                                                ? "bg-active-row-teal text-accent-teal"
+                                                                : "bg-active-row text-text-primary"
+                                                            : "text-text-muted hover:bg-hover-row hover:text-text-secondary"
+                                                    } ${isJoining ? "opacity-50 cursor-wait" : ""}`}
+                                                >
+                                                    {/* Active left bar */}
+                                                    {isActive && !isVoice && (
+                                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-full bg-accent-violet shadow-[0_0_6px_rgba(124,106,247,0.5)]" />
+                                                    )}
+
+                                                    <Icon
+                                                        className={`w-[15px] h-[15px] flex-shrink-0 ${
+                                                            isActive
+                                                                ? isVoice ? "text-accent-teal" : "text-text-secondary"
+                                                                : "text-text-faint group-hover/ch:text-text-muted"
+                                                        }`}
                                                     />
-                                                    <span className={`text-body truncate ${
+                                                    <span className={`text-[13px] truncate flex-1 text-left transition-colors ${
                                                         isActive && !isVoice
-                                                            ? "font-medium"
+                                                            ? "font-medium text-text-primary"
                                                             : !isVoice && unreadCount > 0
-                                                                ? "font-medium text-text-primary"
+                                                                ? "font-semibold text-text-primary"
                                                                 : ""
                                                     }`}>
                                                         {channel.name}
                                                     </span>
 
-                                                    <div className="ml-auto flex items-center gap-1">
+                                                    <div className="ml-auto flex items-center gap-1 flex-shrink-0">
+                                                        {/* Mention badge */}
                                                         {!isVoice && mentionCount > 0 && (
-                                                            <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-danger text-white text-[11px] font-semibold leading-5 text-center">
+                                                            <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-bold leading-[18px] text-center">
                                                                 {mentionCount > 99 ? "99+" : mentionCount}
                                                             </span>
                                                         )}
+                                                        {/* Unread dot */}
                                                         {showUnreadDot && (
-                                                            <span className="w-2 h-2 rounded-full bg-accent-violet" />
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-text-secondary" />
                                                         )}
+                                                        {/* Hover actions */}
                                                         {isActive && !isVoice && (
-                                                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <div className="w-5 h-5 rounded hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary">
+                                                            <div className="flex items-center gap-0.5 opacity-0 group-hover/ch:opacity-100 transition-opacity">
+                                                                <div className="w-[18px] h-[18px] rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-hover-row-strong transition-colors">
                                                                     <Settings className="w-3 h-3" />
                                                                 </div>
                                                             </div>
@@ -331,17 +332,18 @@ export function ChannelList({
 
                                                 {/* Voice channel participants */}
                                                 {isVoice && participants.length > 0 && (
-                                                    <div className="ml-7 space-y-0.5 mt-0.5 mb-1">
+                                                    <div className="ml-8 space-y-0.5 mt-0.5 mb-1 pl-1 border-l border-border">
                                                         {participants.map((p) => (
                                                             <div
                                                                 key={p.userId}
-                                                                className="flex items-center gap-2 px-2 py-0.5"
+                                                                className="flex items-center gap-1.5 px-1 py-0.5 rounded-md hover:bg-hover-row transition-colors"
                                                             >
                                                                 <div
-                                                                    className={`relative w-5 h-5 rounded-full overflow-hidden flex-shrink-0 ${p.isSpeaking
-                                                                        ? "ring-[2px] ring-accent-teal"
-                                                                        : ""
-                                                                        }`}
+                                                                    className={`relative w-4 h-4 rounded-full overflow-hidden flex-shrink-0 ${
+                                                                        p.isSpeaking
+                                                                            ? "ring-[1.5px] ring-accent-teal shadow-glow-teal-sm"
+                                                                            : ""
+                                                                    }`}
                                                                 >
                                                                     <UserAvatar
                                                                         avatarUrl={p.avatarUrl}
@@ -350,13 +352,13 @@ export function ChannelList({
                                                                     />
                                                                 </div>
                                                                 <span
-                                                                    className="text-micro font-semibold truncate flex-1"
+                                                                    className="text-[11px] font-medium truncate flex-1"
                                                                     style={{ color: getUsernameColor(p.username) }}
                                                                 >
                                                                     {p.displayName}
                                                                 </span>
                                                                 {p.isMuted && (
-                                                                    <MicOff className="w-3 h-3 text-danger flex-shrink-0" />
+                                                                    <MicOff className="w-2.5 h-2.5 text-danger flex-shrink-0" />
                                                                 )}
                                                             </div>
                                                         ))}

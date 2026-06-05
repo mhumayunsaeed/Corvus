@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
-import { broadcastToChannel } from "../ws.js";
+import { broadcastToChannel } from "../services/realtime.js";
 import { extractUrls, unfurlUrl } from "../lib/unfurl.js";
 import { executeSlashCommand } from "../lib/slash-commands.js";
 
@@ -48,7 +48,7 @@ messages.get("/unfurl", async (c) => {
     });
 
     if (!parsed.success) {
-        return c.json({ error: parsed.error.errors[0]?.message || "Invalid URL" }, 400);
+        return c.json({ error: parsed.error.issues[0]?.message || "Invalid URL" }, 400);
     }
 
     const embed = await unfurlUrl(parsed.data.url);
@@ -196,7 +196,7 @@ messages.post("/channels/:channelId/messages", async (c) => {
     const result = createMessageSchema.safeParse(body);
 
     if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
+        return c.json({ error: result.error.issues[0].message }, 400);
     }
 
     const { content, type, replyToId } = result.data;
@@ -339,7 +339,7 @@ messages.patch("/messages/:id", async (c) => {
     const result = updateMessageSchema.safeParse(body);
 
     if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
+        return c.json({ error: result.error.issues[0].message }, 400);
     }
 
     const updated = await prisma.message.update({

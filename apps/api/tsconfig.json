@@ -12,13 +12,11 @@
         "declaration": true,
         "sourceMap": true,
         "types": [
-            "node",
-            "ws"
+            "node"
         ],
-        "baseUrl": ".",
         "paths": {
             "@/*": [
-                "src/*"
+                "./src/*"
             ]
         }
     },

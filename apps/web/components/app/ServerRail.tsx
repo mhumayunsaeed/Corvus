@@ -35,8 +35,8 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
                 if (serverIconsRef.current) {
                     gsap.fromTo(
                         serverIconsRef.current.children,
-                        { opacity: 0, y: 8 },
-                        { opacity: 1, y: 0, duration: 0.3, stagger: 0.05, ease: "power2.out" }
+                        { opacity: 0, y: 10, scale: 0.85 },
+                        { opacity: 1, y: 0, scale: 1, duration: 0.35, stagger: 0.055, ease: "back.out(1.4)" }
                     );
                 }
             }, railRef);
@@ -56,44 +56,56 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
     return (
         <div
             ref={railRef}
-            className="w-full lg:w-[72px] bg-bg-deep flex flex-row lg:flex-col items-center py-2 lg:py-3 px-2 lg:px-0 gap-2 border-b lg:border-b-0 lg:border-r border-border-subtle flex-shrink-0"
+            className="w-full lg:w-[72px] bg-bg-deep flex flex-row lg:flex-col items-center py-2 lg:py-3 px-2 lg:px-0 gap-1.5 border-b lg:border-b-0 lg:border-r border-border-subtle flex-shrink-0"
         >
-            {/* Home button */}
+            {/* Home / DM button */}
             <div className="relative group flex-shrink-0">
                 <button
                     onClick={() => {
                         setActiveServer(null);
                         setActiveDMConversation(null);
                     }}
-                    className={`w-12 h-12 rounded-[24px] flex items-center justify-center transition-all duration-300 ${activeServerId === null
-                            ? "rounded-2xl bg-accent-violet shadow-glow ring-1 ring-accent-violet/30"
-                            : "bg-[#5865F2] hover:rounded-2xl hover:bg-accent-violet hover:shadow-glow"
-                        }`}
+                    className={`w-11 h-11 rounded-[22px] flex items-center justify-center transition-all duration-300 relative overflow-hidden ${
+                        activeServerId === null
+                            ? "rounded-[14px] shadow-glow"
+                            : "hover:rounded-[14px]"
+                    }`}
+                    style={
+                        activeServerId === null
+                            ? { background: "linear-gradient(135deg, #7C6AF7 0%, #5B4FBD 100%)" }
+                            : { background: "linear-gradient(135deg, #4F46E5 0%, #4338CA 100%)" }
+                    }
                 >
-                    <span className="text-white font-bold text-lg">V</span>
+                    {/* Subtle shimmer overlay on active */}
+                    {activeServerId === null && (
+                        <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+                    )}
+                    <span className="text-white font-bold text-[15px] tracking-tight relative z-10">V</span>
                 </button>
                 {/* Active indicator pill */}
                 {activeServerId === null && (
-                    <div className="absolute -left-[11px] top-1/2 -translate-y-1/2 w-[4px] h-10 rounded-r-full bg-white" />
+                    <div className="absolute -left-[10px] top-1/2 -translate-y-1/2 w-[3px] h-9 rounded-r-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.4)]" />
                 )}
                 {/* DM unread badge */}
                 {activeServerId !== null && totalDMUnread > 0 && (
-                    <div className="absolute -bottom-0.5 -right-0.5 h-5 min-w-[20px] px-1 rounded-full bg-danger text-white text-[11px] font-bold leading-5 text-center border-2 border-bg-deep">
+                    <div className="absolute -bottom-0.5 -right-0.5 h-[18px] min-w-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-bold leading-[18px] text-center border-2 border-bg-deep shadow-sm">
                         {totalDMUnread > 99 ? "99+" : totalDMUnread}
                     </div>
                 )}
-                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-surface-overlay border border-border-highlight rounded-lg text-micro text-text-primary whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-float animate-fade-in">
-                    Home
-                    <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-surface-overlay border-l border-b border-border-highlight rotate-45" />
+                {/* Tooltip */}
+                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-surface-overlay border border-border-highlight rounded-lg text-micro text-text-primary whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-float-lg animate-fade-in">
+                    <span className="font-medium">Home</span>
+                    <div className="absolute -left-[5px] top-1/2 -translate-y-1/2 w-[10px] h-[10px] bg-surface-overlay border-l border-b border-border-highlight rotate-45" />
                 </div>
             </div>
 
-            <div className="h-8 w-[2px] lg:h-[2px] lg:w-8 bg-border rounded-full flex-shrink-0" />
+            {/* Divider */}
+            <div className="h-7 w-px lg:h-px lg:w-7 bg-border rounded-full flex-shrink-0 opacity-60" />
 
             {/* Scrollable server list */}
             <div
                 ref={serverIconsRef}
-                className="flex-1 min-h-0 min-w-0 flex flex-row lg:flex-col items-center gap-2 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto scrollbar-none py-1"
+                className="flex-1 min-h-0 min-w-0 flex flex-row lg:flex-col items-center gap-1.5 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto scrollbar-none py-0.5"
             >
                 {servers.map((server) => {
                     const isActive = server.id === activeServerId;
@@ -102,66 +114,84 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
                     const hasMentions = !!serverBadge && serverBadge.mentions > 0;
                     return (
                         <div key={server.id} className="relative group flex-shrink-0">
-                            {/* Active / hover / unread indicator pill */}
+                            {/* Active / unread indicator pill */}
                             <div
-                                className={`absolute -left-[11px] top-1/2 -translate-y-1/2 w-[4px] rounded-r-full bg-white transition-all duration-300 ${isActive
-                                        ? "h-10 opacity-100"
+                                className={`absolute -left-[10px] top-1/2 -translate-y-1/2 w-[3px] rounded-r-full bg-white transition-all duration-300 shadow-[0_0_6px_rgba(255,255,255,0.4)] ${
+                                    isActive
+                                        ? "h-9 opacity-100"
                                         : hasUnread && !isActive
-                                            ? "h-2 opacity-100 group-hover:h-5"
-                                            : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-100"
-                                    }`}
+                                            ? "h-2 opacity-80 group-hover:h-6"
+                                            : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-80"
+                                }`}
                             />
 
                             <button
                                 onClick={() => setActiveServer(server.id)}
-                                className={`w-12 h-12 rounded-[24px] hover:rounded-2xl flex items-center justify-center transition-all duration-300 overflow-hidden relative ${isActive ? "rounded-2xl shadow-glow ring-1 ring-white/10" : ""
-                                    }`}
+                                className={`w-11 h-11 rounded-[22px] hover:rounded-[14px] flex items-center justify-center transition-all duration-300 overflow-hidden relative ${
+                                    isActive ? "rounded-[14px] shadow-glow-sm ring-1 ring-white/8" : ""
+                                }`}
                             >
                                 {server.iconUrl ? (
                                     <img
                                         src={server.iconUrl}
                                         alt={server.name}
-                                        className="w-full h-full object-cover bg-surface"
+                                        className="w-full h-full object-cover"
                                     />
                                 ) : (
-                                    <div className={`w-full h-full flex items-center justify-center text-text-primary font-semibold text-body transition-colors duration-300 ${isActive ? "bg-accent-violet text-white" : "bg-surface-raised hover:bg-accent-violet/80 hover:text-white"
-                                        }`}>
-                                        {getServerInitials(server.name)}
+                                    <div
+                                        className={`w-full h-full flex items-center justify-center font-semibold text-[13px] tracking-tight transition-all duration-300 ${
+                                            isActive
+                                                ? "text-white"
+                                                : "bg-surface-raised text-text-secondary hover:text-white group-hover:bg-accent-violet/85"
+                                        }`}
+                                        style={isActive ? { background: "linear-gradient(135deg, #7C6AF7 0%, #5B4FBD 100%)" } : {}}
+                                    >
+                                        <div className={`absolute inset-0 bg-gradient-to-b from-white/8 to-transparent pointer-events-none ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity`} />
+                                        <span className="relative z-10">{getServerInitials(server.name)}</span>
                                     </div>
                                 )}
                             </button>
 
                             {/* Mention badge */}
                             {hasMentions && (
-                                <div className="absolute -bottom-0.5 -right-0.5 h-5 min-w-[20px] px-1 rounded-full bg-danger text-white text-[11px] font-bold leading-5 text-center border-2 border-bg-deep">
+                                <div className="absolute -bottom-0.5 -right-0.5 h-[18px] min-w-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-bold leading-[18px] text-center border-2 border-bg-deep shadow-sm">
                                     {serverBadge.mentions > 99 ? "99+" : serverBadge.mentions}
                                 </div>
                             )}
+                            {/* Unread dot (no mention) */}
+                            {hasUnread && !hasMentions && !isActive && (
+                                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-white border-2 border-bg-deep" />
+                            )}
 
-                            <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-surface-overlay border border-border-highlight rounded-lg text-micro text-text-primary whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-float animate-fade-in">
-                                {server.name}
-                                <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-surface-overlay border-l border-b border-border-highlight rotate-45" />
+                            {/* Tooltip */}
+                            <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-surface-overlay border border-border-highlight rounded-lg text-micro text-text-primary whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-float-lg animate-fade-in">
+                                <span className="font-medium">{server.name}</span>
+                                {hasMentions && (
+                                    <span className="ml-2 text-danger font-semibold">{serverBadge.mentions} mention{serverBadge.mentions > 1 ? "s" : ""}</span>
+                                )}
+                                <div className="absolute -left-[5px] top-1/2 -translate-y-1/2 w-[10px] h-[10px] bg-surface-overlay border-l border-b border-border-highlight rotate-45" />
                             </div>
                         </div>
                     );
                 })}
             </div>
 
-            {/* Pinned bottom actions — always visible */}
-            <div className="h-8 w-[2px] lg:h-[2px] lg:w-8 bg-border rounded-full flex-shrink-0" />
+            {/* Divider */}
+            <div className="h-7 w-px lg:h-px lg:w-7 bg-border rounded-full flex-shrink-0 opacity-60" />
 
-            <div className="flex flex-row lg:flex-col items-center gap-2 flex-shrink-0">
+            {/* Bottom actions */}
+            <div className="flex flex-row lg:flex-col items-center gap-1.5 flex-shrink-0">
                 {/* Add server */}
                 <div className="relative group">
                     <button
                         onClick={onCreateServer}
-                        className="w-12 h-12 rounded-[24px] hover:rounded-2xl bg-surface hover:bg-success border border-border hover:border-success flex items-center justify-center transition-all duration-300"
+                        className="w-11 h-11 rounded-[22px] hover:rounded-[14px] bg-surface hover:bg-success/90 border border-border hover:border-success/40 flex items-center justify-center transition-all duration-300 group/btn"
                     >
-                        <Plus className="w-5 h-5 text-success group-hover:text-white transition-colors" />
+                        <Plus className="w-[18px] h-[18px] text-success group-hover/btn:text-white transition-colors" />
                     </button>
-                    <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-surface-overlay border border-border-highlight rounded-lg text-micro text-text-primary whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-float animate-fade-in">
-                        Add a Server
-                        <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-surface-overlay border-l border-b border-border-highlight rotate-45" />
+                    <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-surface-overlay border border-border-highlight rounded-lg text-micro text-text-primary whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-float-lg animate-fade-in">
+                        <span className="font-medium">Add a Server</span>
+                        <div className="absolute -left-[5px] top-1/2 -translate-y-1/2 w-[10px] h-[10px] bg-surface-overlay border-l border-b border-border-highlight rotate-45" />
                     </div>
                 </div>
 
@@ -169,13 +199,13 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
                 <div className="relative group">
                     <button
                         onClick={onJoinServer}
-                        className="w-12 h-12 rounded-[24px] hover:rounded-2xl bg-surface hover:bg-success border border-border hover:border-success flex items-center justify-center transition-all duration-300"
+                        className="w-11 h-11 rounded-[22px] hover:rounded-[14px] bg-surface hover:bg-info/90 border border-border hover:border-info/40 flex items-center justify-center transition-all duration-300 group/btn"
                     >
-                        <Compass className="w-5 h-5 text-success group-hover:text-white transition-colors" />
+                        <Compass className="w-[18px] h-[18px] text-info group-hover/btn:text-white transition-colors" />
                     </button>
-                    <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-surface-overlay border border-border-highlight rounded-lg text-micro text-text-primary whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-float animate-fade-in">
-                        Join a Server
-                        <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-surface-overlay border-l border-b border-border-highlight rotate-45" />
+                    <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-surface-overlay border border-border-highlight rounded-lg text-micro text-text-primary whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-float-lg animate-fade-in">
+                        <span className="font-medium">Join a Server</span>
+                        <div className="absolute -left-[5px] top-1/2 -translate-y-1/2 w-[10px] h-[10px] bg-surface-overlay border-l border-b border-border-highlight rotate-45" />
                     </div>
                 </div>
             </div>

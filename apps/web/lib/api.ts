@@ -591,6 +591,38 @@ export async function uploadAttachment(file: File) {
     return data as UploadAttachmentResponse;
 }
 
+/**
+ * Upload an image (avatar or server icon) to Supabase Storage via the API and
+ * return its public URL.
+ */
+export async function uploadImage(file: File | Blob, target: "avatar" | "icon"): Promise<string> {
+    const baseUrl = ensureApiUrl();
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file, file instanceof File ? file.name : "image.webp");
+
+    const headers: Record<string, string> = {};
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+
+    const endpoint = target === "avatar" ? "/uploads/avatar" : "/uploads/icon";
+    const res = await fetch(`${baseUrl}${endpoint}`, {
+        method: "POST",
+        headers,
+        body: formData,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        const errObj = data as { error?: string; message?: string; details?: string };
+        const baseMessage = errObj?.error || errObj?.message || `Request failed (${res.status})`;
+        throw new Error(errObj?.details ? `${baseMessage}: ${errObj.details}` : baseMessage);
+    }
+
+    return (data as { url: string }).url;
+}
+
 export function editDMMessage(conversationId: string, messageId: string, content: string) {
     return api<{ message: DMMessageData }>(`/dms/${conversationId}/messages/${messageId}`, {
         method: "PATCH",
@@ -737,7 +769,7 @@ export function endDMCall(conversationId: string) {
 export interface StickerData {
     id: string;
     name: string;
-    imageData: string;
+    imageUrl: string;
     createdAt: string;
 }
 

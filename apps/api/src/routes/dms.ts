@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
-import { broadcastToDMConversation } from "../ws.js";
+import { broadcastToDMConversation } from "../services/realtime.js";
 import { executeSlashCommand } from "../lib/slash-commands.js";
 
 const dms = new Hono<AuthEnv>();
@@ -225,7 +225,7 @@ dms.post("/dms", async (c) => {
     const parsed = createConversationSchema.safeParse(body);
 
     if (!parsed.success) {
-        return c.json({ error: parsed.error.errors[0].message }, 400);
+        return c.json({ error: parsed.error.issues[0].message }, 400);
     }
 
     const dedupedParticipantIds = [...new Set(parsed.data.participantIds)].filter(
@@ -439,7 +439,7 @@ dms.post("/dms/:id/messages", async (c) => {
     const parsed = sendDMMessageSchema.safeParse(body);
 
     if (!parsed.success) {
-        return c.json({ error: parsed.error.errors[0].message }, 400);
+        return c.json({ error: parsed.error.issues[0].message }, 400);
     }
 
     let resolvedContent = parsed.data.content;
@@ -571,7 +571,7 @@ dms.patch("/dms/:conversationId/messages/:messageId", async (c) => {
     const parsed = updateDMMessageSchema.safeParse(body);
 
     if (!parsed.success) {
-        return c.json({ error: parsed.error.errors[0].message }, 400);
+        return c.json({ error: parsed.error.issues[0].message }, 400);
     }
 
     const updated = await db.dMMessage.update({
@@ -625,7 +625,7 @@ dms.post("/dms/:conversationId/messages/:messageId/reactions", async (c) => {
     const body = await c.req.json();
     const parsed = dmReactionSchema.safeParse(body);
     if (!parsed.success) {
-        return c.json({ error: parsed.error.errors[0]?.message || "Invalid emoji." }, 400);
+        return c.json({ error: parsed.error.issues[0]?.message || "Invalid emoji." }, 400);
     }
 
     const emoji = parsed.data.emoji.trim();

@@ -1,13 +1,17 @@
-import { Hono } from "hono";
-import { randomBytes } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { Hono, type Context } from "hono";
 import path from "node:path";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
+import {
+    STORAGE_BUCKETS,
+    generateObjectKey,
+    uploadObject,
+    type StorageBucket,
+} from "../services/storage.js";
 
 const attachments = new Hono<AuthEnv>();
 
-const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
 const FREE_ATTACHMENT_MAX_BYTES = Number(process.env.FREE_ATTACHMENT_MAX_BYTES || 10 * 1024 * 1024);
+const IMAGE_MAX_BYTES = Number(process.env.IMAGE_UPLOAD_MAX_BYTES || 5 * 1024 * 1024);
 
 type AttachmentKind = "image" | "video" | "document";
 
@@ -89,30 +93,14 @@ function sanitizeName(fileName: string): string {
     return withoutControl.slice(0, 120) || "attachment";
 }
 
-function isSafeFileName(fileName: string): boolean {
-    return /^[A-Za-z0-9._-]+$/.test(fileName);
+interface UploadedFile {
+    arrayBuffer: () => Promise<ArrayBuffer>;
+    size: number;
+    type: string;
+    name: string;
 }
 
-function getPublicOrigin(requestUrl: string, forwardedHost?: string | null, forwardedProto?: string | null) {
-    const explicit = process.env.PUBLIC_API_URL?.trim() || process.env.API_PUBLIC_URL?.trim();
-    if (explicit) {
-        return explicit.replace(/\/+$/, "");
-    }
-
-    const host = forwardedHost?.split(",")[0]?.trim();
-    const proto = forwardedProto?.split(",")[0]?.trim();
-    if (host) {
-        const safeProto = proto || (host.includes("localhost") ? "http" : "https");
-        return `${safeProto}://${host}`;
-    }
-
-    return new URL(requestUrl).origin;
-}
-
-attachments.post("/attachments", authMiddleware, async (c) => {
-    const formData = await c.req.formData();
-    const fileField = formData.get("file");
-
+function extractFile(fileField: unknown): UploadedFile | null {
     if (
         !fileField ||
         typeof fileField !== "object" ||
@@ -121,15 +109,20 @@ attachments.post("/attachments", authMiddleware, async (c) => {
         !("type" in fileField) ||
         !("name" in fileField)
     ) {
+        return null;
+    }
+    return fileField as UploadedFile;
+}
+
+// ─── POST /attachments — message attachments (image/video/document) ──
+
+attachments.post("/attachments", authMiddleware, async (c) => {
+    const formData = await c.req.formData();
+    const uploadedFile = extractFile(formData.get("file"));
+
+    if (!uploadedFile) {
         return c.json({ error: "File is required." }, 400);
     }
-
-    const uploadedFile = fileField as {
-        arrayBuffer: () => Promise<ArrayBuffer>;
-        size: number;
-        type: string;
-        name: string;
-    };
 
     const kind = inferAttachmentKind(uploadedFile.type || "", uploadedFile.name || "");
     if (!kind) {
@@ -152,24 +145,20 @@ attachments.post("/attachments", authMiddleware, async (c) => {
 
     const originalName = sanitizeName(uploadedFile.name || "attachment");
     const ext = sanitizeExt(originalName) || extFromMime(uploadedFile.type || "");
-    const uniqueName = `${Date.now()}_${randomBytes(8).toString("hex")}${ext}`;
-    const filePath = path.join(UPLOADS_DIR, uniqueName);
-
-    await mkdir(UPLOADS_DIR, { recursive: true });
-    const bytes = Buffer.from(await uploadedFile.arrayBuffer());
-    await writeFile(filePath, bytes);
-
-    const origin = getPublicOrigin(
-        c.req.url,
-        c.req.header("x-forwarded-host"),
-        c.req.header("x-forwarded-proto")
-    );
     const mimeType = uploadedFile.type || EXT_TO_MIME[ext] || "application/octet-stream";
+    const bytes = Buffer.from(await uploadedFile.arrayBuffer());
+
+    const url = await uploadObject({
+        bucket: STORAGE_BUCKETS.attachments,
+        key: generateObjectKey(ext),
+        data: bytes,
+        contentType: mimeType,
+    });
 
     return c.json(
         {
             attachment: {
-                url: `${origin}/uploads/${uniqueName}`,
+                url,
                 name: originalName,
                 size: uploadedFile.size,
                 mimeType,
@@ -181,34 +170,45 @@ attachments.post("/attachments", authMiddleware, async (c) => {
     );
 });
 
-attachments.get("/uploads/:fileName", async (c) => {
-    const fileName = c.req.param("fileName");
-    if (!isSafeFileName(fileName)) {
-        return c.json({ error: "Invalid file path." }, 400);
+// ─── Image uploads (avatars, server icons) ──────────────────────────
+
+async function handleImageUpload(c: Context<AuthEnv>, bucket: StorageBucket) {
+    const formData = await c.req.formData();
+    const uploadedFile = extractFile(formData.get("file"));
+
+    if (!uploadedFile) {
+        return c.json({ error: "File is required." }, 400);
     }
 
-    const filePath = path.join(UPLOADS_DIR, fileName);
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(UPLOADS_DIR)) {
-        return c.json({ error: "Invalid file path." }, 400);
+    if (!(uploadedFile.type || "").toLowerCase().startsWith("image/")) {
+        return c.json({ error: "File must be an image." }, 400);
     }
 
-    try {
-        const data = await readFile(resolved);
-        const ext = path.extname(fileName).toLowerCase();
-        const mimeType = EXT_TO_MIME[ext] || "application/octet-stream";
-        const isRenderable = mimeType.startsWith("image/") || mimeType.startsWith("video/");
-        const disposition = isRenderable ? "inline" : `attachment; filename="${fileName}"`;
-        return new Response(data, {
-            headers: {
-                "Content-Type": mimeType,
-                "Content-Disposition": disposition,
-                "Cache-Control": "public, max-age=31536000, immutable",
-            },
-        });
-    } catch {
-        return c.json({ error: "File not found." }, 404);
+    if (uploadedFile.size <= 0) {
+        return c.json({ error: "File cannot be empty." }, 400);
     }
-});
+
+    if (uploadedFile.size > IMAGE_MAX_BYTES) {
+        return c.json(
+            { error: `Image exceeds limit of ${Math.floor(IMAGE_MAX_BYTES / (1024 * 1024))}MB.` },
+            413
+        );
+    }
+
+    const ext = sanitizeExt(uploadedFile.name || "") || extFromMime(uploadedFile.type) || ".png";
+    const bytes = Buffer.from(await uploadedFile.arrayBuffer());
+
+    const url = await uploadObject({
+        bucket,
+        key: generateObjectKey(ext),
+        data: bytes,
+        contentType: uploadedFile.type || "image/png",
+    });
+
+    return c.json({ url }, 201);
+}
+
+attachments.post("/uploads/avatar", authMiddleware, (c) => handleImageUpload(c, STORAGE_BUCKETS.avatars));
+attachments.post("/uploads/icon", authMiddleware, (c) => handleImageUpload(c, STORAGE_BUCKETS.serverIcons));
 
 export default attachments;

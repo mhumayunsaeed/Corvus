@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -232,7 +233,7 @@ model Block {
 model Sticker {
   id        String   @id @default(cuid())
   name      String
-  imageData String   @map("image_data") // base64 data URI
+  imageUrl  String   @map("image_url") // Supabase Storage public URL
   creatorId String   @map("creator_id")
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -343,6 +344,59 @@ model ServerMemberRole {
 
   @@unique([memberId, roleId])
   @@map("server_member_roles")
+}
+
+// ─── Realtime / call state ───────────────────────────────────────
+// Previously held in-memory in the WebSocket server. Moved to the DB so it
+// survives across stateless (serverless) API invocations.
+
+model VoiceParticipant {
+  id          String   @id @default(cuid())
+  channelId   String   @map("channel_id")
+  userId      String   @map("user_id")
+  username    String
+  displayName String   @map("display_name")
+  avatarUrl   String?  @map("avatar_url")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+  @@map("voice_participants")
+}
+
+model StageParticipant {
+  id        String @id @default(cuid())
+  channelId String @map("channel_id")
+  userId    String @map("user_id")
+  role      String // "speaker" | "raised_hand"
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+  @@map("stage_participants")
+}
+
+model CallRoom {
+  id             String   @id @default(cuid())
+  conversationId String   @unique @map("conversation_id")
+  roomName       String   @map("room_name")
+  startedAt      DateTime @default(now()) @map("started_at")
+
+  participants CallParticipant[]
+
+  @@map("call_rooms")
+}
+
+model CallParticipant {
+  id       String   @id @default(cuid())
+  roomId   String   @map("room_id")
+  userId   String   @map("user_id")
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  room CallRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@map("call_participants")
 }
 
 model ChannelPermissionOverride {

@@ -1,15 +1,14 @@
 import { Hono } from "hono";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
-import { broadcastToChannel } from "../ws.js";
+import { broadcastToChannel } from "../services/realtime.js";
 
 const stage = new Hono<AuthEnv>();
 
 stage.use("*", authMiddleware);
 
-// In-memory stage state: channelId -> Set of userIds with speak permission
-const stageSpeakers = new Map<string, Set<string>>();
-const stageRaiseHands = new Map<string, Set<string>>();
+// Stage state is persisted in the `stage_participants` table (role =
+// "speaker" | "raised_hand") so it survives stateless API invocations.
 
 // ─── POST /channels/:channelId/stage/request-speak ───────────────
 
@@ -24,11 +23,12 @@ stage.post("/channels/:channelId/stage/request-speak", async (c) => {
         return c.json({ error: "Stage channel not found." }, 404);
     }
 
-    // Track raised hand
-    if (!stageRaiseHands.has(channelId)) {
-        stageRaiseHands.set(channelId, new Set());
-    }
-    stageRaiseHands.get(channelId)!.add(userId);
+    // Track raised hand (no-op if already a speaker)
+    await prisma.stageParticipant.upsert({
+        where: { channelId_userId: { channelId, userId } },
+        create: { channelId, userId, role: "raised_hand" },
+        update: {},
+    });
 
     // Get user details
     const user = await prisma.user.findUnique({
@@ -77,14 +77,12 @@ stage.post("/channels/:channelId/stage/grant-speak", async (c) => {
         return c.json({ error: "Only moderators can grant speak permission." }, 403);
     }
 
-    // Grant speaker status
-    if (!stageSpeakers.has(channelId)) {
-        stageSpeakers.set(channelId, new Set());
-    }
-    stageSpeakers.get(channelId)!.add(targetUserId);
-
-    // Remove from raised hands
-    stageRaiseHands.get(channelId)?.delete(targetUserId);
+    // Grant speaker status (clears the raised-hand state via the role update)
+    await prisma.stageParticipant.upsert({
+        where: { channelId_userId: { channelId, userId: targetUserId } },
+        create: { channelId, userId: targetUserId, role: "speaker" },
+        update: { role: "speaker" },
+    });
 
     broadcastToChannel(channelId, {
         type: "stage_speaker_added",
@@ -121,8 +119,10 @@ stage.post("/channels/:channelId/stage/revoke-speak", async (c) => {
         return c.json({ error: "Only moderators can revoke speak permission." }, 403);
     }
 
-    // Revoke speaker status
-    stageSpeakers.get(channelId)?.delete(targetUserId);
+    // Revoke speaker status entirely (removes them from the stage roster)
+    await prisma.stageParticipant.deleteMany({
+        where: { channelId, userId: targetUserId, role: "speaker" },
+    });
 
     broadcastToChannel(channelId, {
         type: "stage_speaker_removed",
@@ -137,9 +137,14 @@ stage.post("/channels/:channelId/stage/revoke-speak", async (c) => {
 stage.get("/channels/:channelId/stage/state", async (c) => {
     const channelId = c.req.param("channelId");
 
+    const rows = await prisma.stageParticipant.findMany({
+        where: { channelId },
+        select: { userId: true, role: true },
+    });
+
     return c.json({
-        speakers: Array.from(stageSpeakers.get(channelId) || []),
-        raisedHands: Array.from(stageRaiseHands.get(channelId) || []),
+        speakers: rows.filter((r) => r.role === "speaker").map((r) => r.userId),
+        raisedHands: rows.filter((r) => r.role === "raised_hand").map((r) => r.userId),
     });
 });
 

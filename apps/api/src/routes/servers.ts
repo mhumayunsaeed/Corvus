@@ -43,7 +43,7 @@ servers.post("/", async (c) => {
 
     const parsed = createServerSchema.safeParse(body);
     if (!parsed.success) {
-        return c.json({ error: parsed.error.errors[0].message }, 400);
+        return c.json({ error: parsed.error.issues[0].message }, 400);
     }
 
     const { name, iconUrl, description, channels: templateChannels } = parsed.data;
@@ -256,7 +256,7 @@ servers.patch("/:id", async (c) => {
     const result = updateServerSchema.safeParse(body);
 
     if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
+        return c.json({ error: result.error.issues[0].message }, 400);
     }
 
     const updateData: Record<string, unknown> = {};

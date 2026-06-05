@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 
-const PUBLIC_ROUTES = ["/", "/login", "/register", "/confirm-email", "/forgot-password", "/reset-password"];
+const PUBLIC_ROUTES = ["/", "/login", "/register", "/confirm-email", "/forgot-password", "/reset-password", "/auth/callback"];
 const AUTH_ROUTES = ["/login", "/register"]; // redirect away if already logged in
 
 /** Check if pathname matches any route in the list (handles trailing slashes) */
@@ -18,7 +18,7 @@ function matchesRoute(pathname: string, routes: string[]): boolean {
 export function AuthGuard({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { isAuthenticated, user, token, refreshUser } = useAuthStore();
+    const { isAuthenticated, user, token, refreshUser, restoreSession } = useAuthStore();
     const [isReady, setIsReady] = useState(false);
     const [sessionChecked, setSessionChecked] = useState(false);
 
@@ -47,6 +47,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
                 await refreshUser().catch(() => {
                     // refreshUser already handles invalid token state reset
                 });
+            } else {
+                await restoreSession().catch(() => {
+                    // No Supabase session to recover.
+                });
             }
             if (!cancelled) {
                 setSessionChecked(true);
@@ -56,7 +60,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         return () => {
             cancelled = true;
         };
-    }, [isReady, token, refreshUser]);
+    }, [isReady, token, refreshUser, restoreSession]);
 
     useEffect(() => {
         if (!isReady || !sessionChecked) return;

@@ -45,7 +45,7 @@ invites.post("/servers/:serverId/invites", async (c) => {
     const result = createInviteSchema.safeParse(body);
 
     if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
+        return c.json({ error: result.error.issues[0].message }, 400);
     }
 
     const expiresAt = result.data.expiresInHours

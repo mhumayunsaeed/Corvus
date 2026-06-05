@@ -2,14 +2,12 @@
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, EyeOff, KeyRound, CheckCircle2, XCircle } from "lucide-react";
-import { ensureApiUrl } from "@/lib/endpoints";
+import { getActiveSupabaseSession, updatePassword } from "@/lib/auth";
 
 function ResetPasswordContent() {
-    const searchParams = useSearchParams();
     const router = useRouter();
-    const token = searchParams.get("token") ?? "";
 
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -18,9 +16,24 @@ function ResetPasswordContent() {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [isFocused, setIsFocused] = useState<string | null>(null);
+    // null = checking for the recovery session established by the email link
+    const [hasSession, setHasSession] = useState<boolean | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
+
+    // The password-reset email link redirects here and establishes a temporary
+    // Supabase recovery session (handled by detectSessionInUrl).
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const session = await getActiveSupabaseSession();
+            if (!cancelled) setHasSession(Boolean(session));
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
         let ctx: { revert: () => void } | undefined;
@@ -55,30 +68,32 @@ function ResetPasswordContent() {
 
         setLoading(true);
         try {
-            const baseUrl = ensureApiUrl();
-            const res = await fetch(`${baseUrl}/auth/reset-password`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ token, password }),
-            });
-            const data = await res.json();
-
-            if (!res.ok) {
-                setError(data.error || "Something went wrong.");
-                return;
-            }
+            await updatePassword(password);
 
             setSuccess(true);
             setTimeout(() => router.push("/login"), 3000);
-        } catch {
-            setError("Network error. Please try again.");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Network error. Please try again.");
         } finally {
             setLoading(false);
         }
     };
 
-    // No token provided
-    if (!token) {
+    // Still checking whether the email link established a recovery session
+    if (hasSession === null) {
+        return (
+            <div className="h-full bg-background flex items-center justify-center">
+                <img
+                    src="/corvus-logo.png"
+                    alt="Corvus"
+                    className="w-10 h-10 rounded-full shadow-glow animate-pulse"
+                />
+            </div>
+        );
+    }
+
+    // No valid recovery session (link missing, expired, or already used)
+    if (hasSession === false) {
         return (
             <div
                 ref={containerRef}

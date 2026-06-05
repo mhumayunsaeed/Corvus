@@ -34,3 +34,8 @@ pnpm-debug.log*
 
 # Uploads (local dev)
 apps/api/uploads/
+
+# Secrets / signing keys (never commit)
+*.key
+apps/desktop/~/
+.tauri/

@@ -2,20 +2,14 @@ import { Hono } from "hono";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
 import { generateVoiceToken, getLiveKitUrl } from "../lib/livekit.js";
-import { broadcastToDMConversation, broadcastToUsers } from "../ws.js";
+import { broadcastToDMConversation, broadcastToUsers } from "../services/realtime.js";
 
 const calls = new Hono<AuthEnv>();
 
 calls.use("*", authMiddleware);
 
-interface ActiveCallRoom {
-    roomName: string;
-    startTime: number;
-    participants: Set<string>;
-}
-
-// Active call rooms: conversationId -> room info
-const activeCallRooms = new Map<string, ActiveCallRoom>();
+// Active call rooms are persisted (call_rooms / call_participants) so they
+// survive stateless API invocations.
 
 async function assertConversationParticipant(conversationId: string, userId: string) {
     const participant = await prisma.dMParticipant.findUnique({
@@ -25,15 +19,21 @@ async function assertConversationParticipant(conversationId: string, userId: str
 }
 
 async function finalizeRoomIfEmpty(conversationId: string, endedBy: string) {
-    const roomInfo = activeCallRooms.get(conversationId);
-    if (!roomInfo) return false;
+    const room = await prisma.callRoom.findUnique({
+        where: { conversationId },
+        include: { participants: true },
+    });
+    if (!room) return false;
 
-    roomInfo.participants.delete(endedBy);
-    if (roomInfo.participants.size > 0) {
+    await prisma.callParticipant.deleteMany({ where: { roomId: room.id, userId: endedBy } });
+
+    const remaining = room.participants.filter((p) => p.userId !== endedBy).length;
+    if (remaining > 0) {
         return false;
     }
 
-    activeCallRooms.delete(conversationId);
+    // Deleting the room cascades to any remaining participant rows.
+    await prisma.callRoom.delete({ where: { id: room.id } });
 
     const participants = await prisma.dMParticipant.findMany({
         where: { conversationId },
@@ -41,7 +41,7 @@ async function finalizeRoomIfEmpty(conversationId: string, endedBy: string) {
     });
     const participantUserIds = participants.map((p) => p.userId);
 
-    const duration = Math.floor((Date.now() - roomInfo.startTime) / 1000);
+    const duration = Math.floor((Date.now() - room.startedAt.getTime()) / 1000);
 
     const dmMessage = await prisma.dMMessage.create({
         data: {
@@ -112,18 +112,17 @@ calls.post("/dms/:conversationId/call/start", async (c) => {
 
     const displayName = user?.displayName || username;
 
-    let roomInfo = activeCallRooms.get(conversationId);
-    if (!roomInfo) {
-        roomInfo = {
-            roomName: `dm_call_${conversationId}_${Date.now()}`,
-            startTime: Date.now(),
-            participants: new Set(),
-        };
-        activeCallRooms.set(conversationId, roomInfo);
-    }
-
-    roomInfo.participants.add(userId);
-    const roomName = roomInfo.roomName;
+    const room = await prisma.callRoom.upsert({
+        where: { conversationId },
+        create: { conversationId, roomName: `dm_call_${conversationId}_${Date.now()}` },
+        update: {},
+    });
+    await prisma.callParticipant.upsert({
+        where: { roomId_userId: { roomId: room.id, userId } },
+        create: { roomId: room.id, userId },
+        update: {},
+    });
+    const roomName = room.roomName;
 
     const token = await generateVoiceToken(roomName, userId, displayName, {
         canPublish: true,
@@ -161,13 +160,17 @@ calls.post("/dms/:conversationId/call/join", async (c) => {
         return c.json({ error: "You are not a participant in this conversation." }, 403);
     }
 
-    const roomInfo = activeCallRooms.get(conversationId);
-    if (!roomInfo) {
+    const room = await prisma.callRoom.findUnique({ where: { conversationId } });
+    if (!room) {
         return c.json({ error: "No active call in this conversation." }, 404);
     }
 
-    roomInfo.participants.add(userId);
-    const roomName = roomInfo.roomName;
+    await prisma.callParticipant.upsert({
+        where: { roomId_userId: { roomId: room.id, userId } },
+        create: { roomId: room.id, userId },
+        update: {},
+    });
+    const roomName = room.roomName;
 
     const user = await prisma.user.findUnique({
         where: { id: userId },

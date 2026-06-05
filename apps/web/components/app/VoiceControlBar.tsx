@@ -15,6 +15,7 @@ import {
     ChevronUp,
     Check,
     AudioLines,
+    Volume2,
 } from "lucide-react";
 import { useVoiceStore } from "@/stores/voice-store";
 import { SCREEN_SHARE_PRESETS, type ScreenShareQuality } from "@/stores/voice-store";
@@ -80,17 +81,9 @@ export function VoiceControlBar({
         setLocalDeafened(newDeafened);
         onDeafenToggle?.(newDeafened);
         if (newDeafened) {
-            // When deafening, also mute
-            if (!isMuted) {
-                setLocalMuted(true);
-                onMuteToggle?.(true);
-            }
+            if (!isMuted) { setLocalMuted(true); onMuteToggle?.(true); }
         } else {
-            // When un-deafening, also unmute
-            if (isMuted) {
-                setLocalMuted(false);
-                onMuteToggle?.(false);
-            }
+            if (isMuted) { setLocalMuted(false); onMuteToggle?.(false); }
         }
     }, [isDeafened, isMuted, setLocalDeafened, setLocalMuted, onDeafenToggle, onMuteToggle]);
 
@@ -121,42 +114,55 @@ export function VoiceControlBar({
 
     if (!channelId) return null;
 
+    // Shared styles
+    const ctrlBase = "h-9 px-3 rounded-xl flex items-center justify-center gap-1.5 font-medium text-[13px] transition-all duration-150";
+    const ctrlIdle = "bg-surface-raised text-text-secondary hover:bg-hover-row-strong hover:text-text-primary";
+    const ctrlActive = "bg-accent-teal/15 text-accent-teal border border-accent-teal/25";
+    const ctrlDanger = "bg-danger/15 text-danger border border-danger/25";
+
     return (
-        <div className="h-16 bg-surface border-t border-border flex items-center px-4 gap-4 flex-shrink-0">
-            {/* Left zone: channel info */}
+        <div className="bg-surface border-t border-border-subtle flex items-center px-4 gap-3 flex-shrink-0 h-[54px]"
+            style={{ background: "linear-gradient(to bottom, #0E0F16, #0A0B11)" }}
+        >
+            {/* Left: channel info */}
             <button
                 onClick={onToggleVoiceView}
-                className="flex flex-col min-w-0 hover:opacity-80 transition-opacity"
+                className="flex items-center gap-2 min-w-0 max-w-[160px] hover:opacity-80 transition-opacity group"
             >
-                <span className="text-body font-medium text-accent-teal truncate leading-tight">
-                    {channelName}
-                </span>
-                <span className="text-micro text-text-muted truncate leading-tight">
-                    {serverName}
-                </span>
+                <div className="w-7 h-7 rounded-lg bg-success/10 border border-success/20 flex items-center justify-center flex-shrink-0">
+                    <Volume2 className="w-3.5 h-3.5 text-success" />
+                </div>
+                <div className="min-w-0 text-left">
+                    <div className="text-[12px] font-semibold text-success truncate leading-tight">
+                        {channelName}
+                    </div>
+                    {serverName && (
+                        <div className="text-[11px] text-text-faint truncate leading-tight">
+                            {serverName}
+                        </div>
+                    )}
+                </div>
             </button>
 
-            {/* Center zone: controls */}
-            <div className="flex-1 flex items-center justify-center gap-2">
-                {/* Mute + PTT indicator */}
+            <div className="w-px h-6 bg-border flex-shrink-0" />
+
+            {/* Center: controls */}
+            <div className="flex-1 flex items-center justify-center gap-1.5">
+                {/* Mute */}
                 <div className="relative">
                     <button
                         onClick={handleMuteToggle}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                            isMuted
-                                ? "bg-danger/20 text-danger hover:bg-danger/30"
-                                : "bg-surface-raised text-text-primary hover:bg-hover-row"
-                        }`}
+                        className={`${ctrlBase} w-9 ${isMuted ? ctrlDanger : ctrlIdle}`}
                         title={isMuted ? "Unmute" : "Mute"}
                     >
-                        {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                        {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                     </button>
                     {pttEnabled && (
                         <span
-                            className={`absolute -top-1.5 -right-2 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase leading-none transition-all ${
+                            className={`absolute -top-1.5 -right-1.5 px-1 py-px rounded text-[9px] font-bold uppercase leading-none transition-all ${
                                 pttActive
-                                    ? "bg-accent-teal text-white shadow-[0_0_8px_rgba(45,212,191,0.5)] scale-110"
-                                    : "bg-surface-raised text-text-muted border border-border"
+                                    ? "bg-accent-teal text-white shadow-glow-teal-sm scale-110"
+                                    : "bg-surface-raised text-text-faint border border-border text-[8px]"
                             }`}
                         >
                             {pttActive ? "LIVE" : "PTT"}
@@ -167,64 +173,45 @@ export function VoiceControlBar({
                 {/* Deafen */}
                 <button
                     onClick={handleDeafenToggle}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                        isDeafened
-                            ? "bg-danger/20 text-danger hover:bg-danger/30"
-                            : "bg-surface-raised text-text-primary hover:bg-hover-row"
-                    }`}
+                    className={`${ctrlBase} w-9 ${isDeafened ? ctrlDanger : ctrlIdle}`}
                     title={isDeafened ? "Undeafen" : "Deafen"}
                 >
-                    {isDeafened ? (
-                        <HeadphoneOff className="w-5 h-5" />
-                    ) : (
-                        <Headphones className="w-5 h-5" />
-                    )}
+                    {isDeafened ? <HeadphoneOff className="w-4 h-4" /> : <Headphones className="w-4 h-4" />}
                 </button>
 
-                {/* Screen Share with Quality Picker */}
-                <div className="relative" ref={qualityPickerRef}>
-                    <div className="flex items-center">
-                        <button
-                            onClick={handleScreenShareToggle}
-                            className={`w-10 h-10 rounded-l-full flex items-center justify-center transition-all ${
-                                isScreenSharing
-                                    ? "bg-accent-teal/20 text-accent-teal hover:bg-accent-teal/30"
-                                    : "bg-surface-raised text-text-primary hover:bg-hover-row"
-                            }`}
-                            title={isScreenSharing ? "Stop Sharing" : "Share Screen"}
-                        >
-                            <MonitorUp className="w-5 h-5" />
-                        </button>
-                        <button
-                            onClick={() => setShowQualityPicker(!showQualityPicker)}
-                            className={`w-5 h-10 rounded-r-full flex items-center justify-center transition-all border-l border-border/50 ${
-                                isScreenSharing
-                                    ? "bg-accent-teal/20 text-accent-teal hover:bg-accent-teal/30"
-                                    : "bg-surface-raised text-text-primary hover:bg-hover-row"
-                            }`}
-                            title="Screen Share Quality"
-                        >
-                            <ChevronUp className="w-3 h-3" />
-                        </button>
-                    </div>
+                {/* Screen Share + Quality */}
+                <div className="relative flex items-center" ref={qualityPickerRef}>
+                    <button
+                        onClick={handleScreenShareToggle}
+                        className={`${ctrlBase} rounded-r-none border-r border-border/30 w-9 ${isScreenSharing ? ctrlActive : ctrlIdle}`}
+                        title={isScreenSharing ? "Stop Sharing" : "Share Screen"}
+                    >
+                        <MonitorUp className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => setShowQualityPicker(!showQualityPicker)}
+                        className={`h-9 w-5 rounded-r-xl flex items-center justify-center transition-all ${
+                            isScreenSharing ? ctrlActive : ctrlIdle
+                        }`}
+                        title="Quality"
+                    >
+                        <ChevronUp className={`w-3 h-3 transition-transform ${showQualityPicker ? "rotate-180" : ""}`} />
+                    </button>
                     {showQualityPicker && (
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-surface-raised border border-border rounded-lg shadow-xl py-1 z-50">
-                            <div className="px-3 py-1.5 text-micro text-text-muted font-medium uppercase tracking-wider">
+                        <div className="absolute bottom-full left-0 mb-2 w-44 bg-surface-overlay border border-border-highlight rounded-xl shadow-float-lg py-1.5 z-50 animate-slide-up">
+                            <div className="px-3 py-1 text-[10px] text-text-faint font-semibold uppercase tracking-[0.08em]">
                                 Stream Quality
                             </div>
                             {(Object.entries(SCREEN_SHARE_PRESETS) as [ScreenShareQuality, typeof SCREEN_SHARE_PRESETS[ScreenShareQuality]][]).map(([key, preset]) => (
                                 <button
                                     key={key}
-                                    onClick={() => {
-                                        setScreenShareQuality(key);
-                                        setShowQualityPicker(false);
-                                    }}
-                                    className={`w-full px-3 py-1.5 text-left text-body flex items-center justify-between hover:bg-hover-row transition-colors ${
-                                        screenShareQuality === key ? "text-accent-teal" : "text-text-primary"
+                                    onClick={() => { setScreenShareQuality(key); setShowQualityPicker(false); }}
+                                    className={`w-full px-3 py-1.5 text-left text-[13px] flex items-center justify-between hover:bg-hover-row transition-colors ${
+                                        screenShareQuality === key ? "text-accent-teal" : "text-text-secondary"
                                     }`}
                                 >
-                                    <span>{preset ? preset.label : "Source Quality"}</span>
-                                    {screenShareQuality === key && <Check className="w-4 h-4" />}
+                                    <span>{preset ? preset.label : "Source"}</span>
+                                    {screenShareQuality === key && <Check className="w-3.5 h-3.5" />}
                                 </button>
                             ))}
                         </div>
@@ -234,51 +221,44 @@ export function VoiceControlBar({
                 {/* Camera */}
                 <button
                     onClick={handleVideoToggle}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                        hasVideo
-                            ? "bg-accent-teal/20 text-accent-teal hover:bg-accent-teal/30"
-                            : "bg-surface-raised text-text-primary hover:bg-hover-row"
-                    }`}
+                    className={`${ctrlBase} w-9 ${hasVideo ? ctrlActive : ctrlIdle}`}
                     title={hasVideo ? "Turn Off Camera" : "Turn On Camera"}
                 >
-                    {hasVideo ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+                    {hasVideo ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
                 </button>
 
                 {/* Noise Suppression */}
                 <button
                     onClick={() => setNoiseSuppression(!noiseSuppression)}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                        noiseSuppression
-                            ? "bg-accent-teal/20 text-accent-teal hover:bg-accent-teal/30"
-                            : "bg-surface-raised text-text-primary hover:bg-hover-row"
-                    }`}
+                    className={`${ctrlBase} w-9 ${noiseSuppression ? ctrlActive : ctrlIdle}`}
                     title={noiseSuppression ? "Disable Noise Suppression" : "Enable Noise Suppression"}
                 >
-                    <AudioLines className="w-5 h-5" />
+                    <AudioLines className="w-4 h-4" />
                 </button>
 
                 {/* End Call */}
                 <button
                     onClick={handleEndCall}
                     disabled={isLeaving}
-                    className={`w-12 h-10 rounded-full bg-danger hover:bg-danger/80 flex items-center justify-center text-white transition-all ${isLeaving ? "opacity-50 cursor-not-allowed" : ""}`}
+                    className={`${ctrlBase} px-3.5 bg-danger hover:bg-danger/85 text-white rounded-xl ${isLeaving ? "opacity-50 cursor-not-allowed" : ""}`}
                     title="Disconnect"
                 >
-                    <PhoneOff className="w-5 h-5" />
+                    <PhoneOff className="w-4 h-4" />
                 </button>
             </div>
 
-            {/* Right zone */}
+            {/* Right: expand + settings */}
+            <div className="w-px h-6 bg-border flex-shrink-0" />
             <div className="flex items-center gap-1">
                 <button
                     onClick={onToggleVoiceView}
-                    className="w-8 h-8 rounded-md hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                    className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-faint hover:text-text-secondary transition-colors"
                     title="Toggle Voice View"
                 >
-                    <Maximize2 className="w-4 h-4" />
+                    <Maximize2 className="w-3.5 h-3.5" />
                 </button>
-                <button className="w-8 h-8 rounded-md hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors">
-                    <Settings className="w-4 h-4" />
+                <button className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-faint hover:text-text-secondary transition-colors">
+                    <Settings className="w-3.5 h-3.5" />
                 </button>
             </div>
         </div>

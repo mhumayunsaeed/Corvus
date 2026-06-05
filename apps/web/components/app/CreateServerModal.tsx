@@ -15,9 +15,9 @@ import {
     X,
     type LucideIcon,
 } from "lucide-react";
-import { uploadAttachment } from "@/lib/api";
-import { resolveAttachmentUrl, validateAttachmentFile } from "@/lib/attachments";
-import { API_URL, ensureApiUrl } from "@/lib/endpoints";
+import { uploadImage } from "@/lib/api";
+import { validateAttachmentFile } from "@/lib/attachments";
+import { ensureApiUrl } from "@/lib/endpoints";
 import { useAppStore } from "@/stores/app-store";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -153,11 +153,8 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
         setUploadingIcon(true);
         setError("");
         try {
-            const result = await uploadAttachment(file);
-            if (result.attachment.kind !== "image") {
-                throw new Error("Server icon must be an image.");
-            }
-            setIconUrl(resolveAttachmentUrl(result.attachment.url, API_URL));
+            const url = await uploadImage(file, "icon");
+            setIconUrl(url);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to upload server icon.");
         } finally {

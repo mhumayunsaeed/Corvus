@@ -1,13 +1,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { hash, verify } from "@node-rs/argon2";
+import { verify } from "@node-rs/argon2";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
-import { signToken, generateVerifyToken, verifyToken } from "../lib/jwt.js";
-import { sendConfirmationEmail, sendPasswordResetEmail, hasSmtpConfig } from "../lib/email.js";
-import {
-    broadcastPresenceUpdate,
-    type PresenceStatus,
-} from "../ws.js";
+import { userRepository } from "../repositories/userRepository.js";
+import { signToken, verifyToken } from "../lib/jwt.js";
+import { verifySupabaseToken } from "../lib/supabase.js";
 
 const auth = new Hono();
 
@@ -52,26 +50,21 @@ function getClientIp(c: any): string {
 
 // ─── Validation Schemas ─────────────────────────────────────────
 
-const registerSchema = z.object({
-    displayName: z.string().min(1, "Display name is required").max(50),
-    username: z
+const usernameRegex = /^[a-zA-Z0-9_]+$/;
+
+const sessionExchangeSchema = z.object({
+    preferredDisplayName: z.string().trim().min(1).max(50).optional(),
+    preferredUsername: z
         .string()
+        .trim()
         .min(3, "Username must be at least 3 characters")
         .max(30)
         .regex(
-            /^[a-zA-Z0-9_]+$/,
+            usernameRegex,
             "Username can only contain letters, numbers, and underscores"
         )
-        .transform((v) => v.toLowerCase()),
-    email: z
-        .string()
-        .trim()
-        .toLowerCase()
-        .email("Invalid email address"),
-    password: z
-        .string()
-        .min(8, "Password must be at least 8 characters")
-        .max(128),
+        .transform((value) => value.toLowerCase())
+        .optional(),
 });
 
 const profileUpdateSchema = z.object({
@@ -82,203 +75,143 @@ const profileUpdateSchema = z.object({
     onboardingCompleted: z.boolean().optional(),
 }).strict();
 
-const loginSchema = z.object({
-    email: z
-        .string()
-        .trim()
-        .toLowerCase()
-        .email("Invalid email address"),
-    password: z.string().min(1, "Password is required"),
-});
+function serializeUser(user: {
+    id: string;
+    email: string;
+    displayName: string;
+    username: string;
+    avatarUrl: string | null;
+    bio: string | null;
+    status: string;
+    onboardingCompleted: boolean;
+}) {
+    return {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        username: user.username,
+        avatar: user.avatarUrl,
+        bio: user.bio,
+        status: user.status,
+        onboardingCompleted: user.onboardingCompleted,
+    };
+}
 
-// ─── POST /auth/register ────────────────────────────────────────
+function normalizeUsernameCandidate(value: string): string {
+    return value.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase().slice(0, 30);
+}
 
-auth.post("/register", async (c) => {
-    const ip = getClientIp(c);
-    if (!checkRateLimit(`register:${ip}`, 5)) {
-        return c.json({ error: "Too many registration attempts. Please try again later." }, 429);
-    }
+async function findUserByEmail(email: string) {
+    return userRepository.findByEmailInsensitive(email);
+}
 
-    const body = await c.req.json();
-    const result = registerSchema.safeParse(body);
+async function findAvailableUsername(
+    preferredUsername: string | undefined,
+    email: string,
+    displayName: string
+): Promise<string> {
+    const candidates = [
+        preferredUsername ?? "",
+        normalizeUsernameCandidate(displayName),
+        normalizeUsernameCandidate(email.split("@")[0] ?? ""),
+        "user",
+    ];
 
-    if (!result.success) {
-        const firstError = result.error.errors[0];
-        return c.json({ error: firstError.message }, 400);
-    }
+    const seen = new Set<string>();
 
-    const { displayName, username, email, password } = result.data;
+    for (const candidate of candidates) {
+        if (!candidate || candidate.length < 3 || seen.has(candidate)) {
+            continue;
+        }
 
-    // Check if email already exists
-    const existingEmail = await prisma.user.findFirst({
-        where: { email: { equals: email, mode: "insensitive" } },
-    });
-    if (existingEmail) {
-        // If the account is unverified (stuck from a failed email send),
-        // delete it so the user can re-register cleanly.
-        if (!existingEmail.emailVerified) {
-            await prisma.user.delete({ where: { id: existingEmail.id } });
-        } else {
-            return c.json({ error: "An account with this email already exists." }, 409);
+        seen.add(candidate);
+        const existing = await userRepository.findByUsername(candidate);
+        if (!existing) {
+            return candidate;
         }
     }
 
-    // Check if username already exists (skip if it was the deleted unverified user)
-    const existingUsername = await prisma.user.findUnique({
-        where: { username },
-    });
-    if (existingUsername) {
-        return c.json(
-            { error: "Username is already taken. Please choose another." },
-            409
-        );
+    const base = normalizeUsernameCandidate(preferredUsername ?? displayName) || "user";
+
+    for (let attempt = 0; attempt < 20; attempt++) {
+        const suffix = Math.floor(Math.random() * 10000)
+            .toString()
+            .padStart(4, "0");
+        const candidate = `${base.slice(0, 25)}_${suffix}`;
+        const existing = await userRepository.findByUsername(candidate);
+        if (!existing) {
+            return candidate;
+        }
     }
 
-    // Hash password with Argon2id (OWASP recommended)
-    const passwordHash = await hash(password, {
-        memoryCost: 19456,
-        timeCost: 2,
-        outputLen: 32,
-        parallelism: 1,
-    });
+    return `${base.slice(0, 20)}_${Date.now().toString(36)}`;
+}
 
-    // Generate email verification token
-    const verifyEmailToken = generateVerifyToken();
-    const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+// ─── POST /auth/session/exchange ───────────────────────────────
 
-    // Auto-verify only when SMTP is not configured (no email provider available)
-    const hasSmtp = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
-    const autoVerify = !hasSmtp;
-
-    // Create user
-    const user = await prisma.user.create({
-        data: {
-            email,
-            username,
-            displayName,
-            passwordHash,
-            status: "offline",
-            emailVerified: autoVerify,
-            emailVerifyToken: autoVerify ? null : verifyEmailToken,
-            emailVerifyExpires: autoVerify ? null : verifyExpires,
-        },
-    });
-
-    if (autoVerify) {
-        console.log(`✓ Auto-verified ${email} (no SMTP configured)`);
-        return c.json(
-            {
-                message: "Account created and verified.",
-                confirmEmail: false,
-                email,
-            },
-            201
-        );
+auth.post("/session/exchange", async (c) => {
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+        return c.json({ error: "Supabase session token is required." }, 401);
     }
 
-    // Send confirmation email — if it fails, auto-verify so the user isn't stuck
+    const ip = getClientIp(c);
+    if (!checkRateLimit(`session-exchange:${ip}`, 20, 10 * 60 * 1000)) {
+        return c.json({ error: "Too many sign-in attempts. Please try again later." }, 429);
+    }
+
+    const body = await c.req.json().catch(() => ({}));
+    const result = sessionExchangeSchema.safeParse(body);
+    if (!result.success) {
+        return c.json({ error: result.error.issues[0].message }, 400);
+    }
+
+    let authUser;
     try {
-        await sendConfirmationEmail(email, displayName, verifyEmailToken);
-    } catch (err) {
-        console.error(`Email delivery failed for ${email}, auto-verifying:`, err);
-        // The user record may have been replaced by a concurrent re-registration
-        // attempt (unverified accounts are cleaned up). Use updateMany to avoid
-        // P2025 "record not found" errors.
-        await prisma.user.updateMany({
-            where: { id: user.id },
-            data: {
-                emailVerified: true,
-                emailVerifyToken: null,
-                emailVerifyExpires: null,
-            },
+        authUser = await verifySupabaseToken(authHeader.slice(7));
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid Supabase session.";
+        return c.json({ error: message }, 401);
+    }
+
+    const preferredDisplayName = result.data.preferredDisplayName?.trim();
+    const existingUser = await findUserByEmail(authUser.email);
+
+    let user;
+    let isNewUser = false;
+
+    if (existingUser) {
+        const nextStatus = existingUser.status === "offline" ? "online" : existingUser.status;
+        user = await userRepository.update(existingUser.id, {
+                status: nextStatus,
+                emailVerified: existingUser.emailVerified || authUser.emailVerified,
+                ...(authUser.avatarUrl && !existingUser.avatarUrl
+                    ? { avatarUrl: authUser.avatarUrl }
+                    : {}),
+                ...(preferredDisplayName && existingUser.displayName === existingUser.username
+                    ? { displayName: preferredDisplayName }
+                    : {}),
         });
-        return c.json(
-            {
-                message: "Account created and verified.",
-                confirmEmail: false,
-                email,
-            },
-            201
+    } else {
+        const username = await findAvailableUsername(
+            result.data.preferredUsername,
+            authUser.email,
+            preferredDisplayName ?? authUser.displayName
         );
+
+        user = await userRepository.create({
+            email: authUser.email,
+            username,
+            displayName: preferredDisplayName ?? authUser.displayName,
+            passwordHash: null,
+            avatarUrl: authUser.avatarUrl,
+            status: "online",
+            emailVerified: authUser.emailVerified,
+            onboardingCompleted: false,
+        });
+        isNewUser = true;
     }
 
-    return c.json(
-        {
-            message: "Account created. Please check your email to verify.",
-            confirmEmail: true,
-            email,
-        },
-        201
-    );
-});
-
-// ─── POST /auth/login ───────────────────────────────────────────
-
-auth.post("/login", async (c) => {
-    const ip = getClientIp(c);
-    if (!checkRateLimit(`login:${ip}`, 10)) {
-        return c.json({ error: "Too many login attempts. Please try again later." }, 429);
-    }
-
-    const body = await c.req.json();
-    const result = loginSchema.safeParse(body);
-
-    if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
-    }
-
-    const { email, password } = result.data;
-
-    const user = await prisma.user.findFirst({
-        where: { email: { equals: email, mode: "insensitive" } },
-    });
-    if (!user) {
-        return c.json({ error: "Invalid email or password." }, 401);
-    }
-
-    // Verify password (Google-only accounts have no passwordHash)
-    if (!user.passwordHash) {
-        return c.json({ error: "This account uses Google sign-in. Please log in with Google." }, 401);
-    }
-    const valid = await verify(user.passwordHash, password);
-    if (!valid) {
-        return c.json({ error: "Invalid email or password." }, 401);
-    }
-
-    // Check email verification
-    if (!user.emailVerified) {
-        // If SMTP is not configured or the verify token has expired,
-        // auto-verify so the user isn't permanently locked out.
-        const tokenExpired = user.emailVerifyExpires && user.emailVerifyExpires < new Date();
-        if (!hasSmtpConfig() || tokenExpired) {
-            await prisma.user.update({
-                where: { id: user.id },
-                data: {
-                    emailVerified: true,
-                    emailVerifyToken: null,
-                    emailVerifyExpires: null,
-                },
-            });
-        } else {
-            return c.json(
-                {
-                    error: "Please verify your email before logging in.",
-                    needsVerification: true,
-                    email: user.email,
-                },
-                403
-            );
-        }
-    }
-
-    const userStatus = user.status === "offline" ? "online" : user.status;
-    const activeUser = await prisma.user.update({
-        where: { id: user.id },
-        data: { status: userStatus },
-    });
-    broadcastPresenceUpdate(activeUser.id, activeUser.status as PresenceStatus);
-
-    // Generate JWT
     const token = await signToken({
         userId: user.id,
         email: user.email,
@@ -287,246 +220,53 @@ auth.post("/login", async (c) => {
 
     return c.json({
         token,
-        user: {
-            id: activeUser.id,
-            email: activeUser.email,
-            displayName: activeUser.displayName,
-            username: activeUser.username,
-            avatar: activeUser.avatarUrl,
-            bio: activeUser.bio,
-            status: activeUser.status,
-            onboardingCompleted: activeUser.onboardingCompleted,
-        },
+        user: serializeUser(user),
+        isNewUser,
     });
 });
 
-// ─── GET /auth/verify-email?token=xxx ───────────────────────────
+// ─── Deprecated custom auth routes ─────────────────────────────
+
+auth.post("/register", async (c) => {
+    return c.json({
+        error: "Email/password sign-up is handled by Supabase Auth on the client.",
+    }, 410);
+});
+
+auth.post("/login", async (c) => {
+    return c.json({
+        error: "Email/password sign-in is handled by Supabase Auth on the client.",
+    }, 410);
+});
 
 auth.get("/verify-email", async (c) => {
-    const token = c.req.query("token");
-    if (!token) {
-        return c.json({ error: "Verification token is required." }, 400);
-    }
-
-    const user = await prisma.user.findUnique({
-        where: { emailVerifyToken: token },
-    });
-
-    if (!user) {
-        return c.json({ error: "Invalid or expired verification link." }, 400);
-    }
-
-    if (user.emailVerifyExpires && user.emailVerifyExpires < new Date()) {
-        return c.json(
-            { error: "Verification link has expired. Please register again." },
-            400
-        );
-    }
-
-    // Mark email as verified
-    await prisma.user.update({
-        where: { id: user.id },
-        data: {
-            emailVerified: true,
-            emailVerifyToken: null,
-            emailVerifyExpires: null,
-        },
-    });
-
-    return c.json({ message: "Email verified successfully. You can now log in." });
+    return c.json({
+        error: "Email verification is handled by Supabase Auth on the client.",
+    }, 410);
 });
-
-// ─── POST /auth/resend-verification ─────────────────────────────
 
 auth.post("/resend-verification", async (c) => {
-    const ip = getClientIp(c);
-    if (!checkRateLimit(`resend:${ip}`, 3)) {
-        return c.json({ error: "Too many requests. Please try again later." }, 429);
-    }
-
-    const body = await c.req.json().catch(() => ({}));
-    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-    if (!email) {
-        return c.json({ error: "Email is required." }, 400);
-    }
-
-    const user = await prisma.user.findFirst({
-        where: { email: { equals: email, mode: "insensitive" } },
-    });
-    if (!user) {
-        // Don't reveal whether the email exists
-        return c.json({ message: "If that email exists, a new verification link has been sent." });
-    }
-
-    if (user.emailVerified) {
-        return c.json({ message: "Email is already verified." });
-    }
-
-    // Generate new token
-    const verifyEmailToken = generateVerifyToken();
-    const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    await prisma.user.update({
-        where: { id: user.id },
-        data: {
-            emailVerifyToken: verifyEmailToken,
-            emailVerifyExpires: verifyExpires,
-        },
-    });
-
-    await sendConfirmationEmail(email, user.displayName, verifyEmailToken);
-
-    return c.json({ message: "Verification email sent." });
+    return c.json({
+        error: "Verification emails are handled by Supabase Auth on the client.",
+    }, 410);
 });
-
-// ─── POST /auth/forgot-password ──────────────────────────────────
 
 auth.post("/forgot-password", async (c) => {
-    const ip = getClientIp(c);
-    if (!checkRateLimit(`forgot:${ip}`, 3)) {
-        return c.json({ error: "Too many requests. Please try again later." }, 429);
-    }
-
-    const body = await c.req.json().catch(() => ({}));
-    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-    if (!email) {
-        return c.json({ error: "Email is required." }, 400);
-    }
-
-    // Always return success to prevent email enumeration
-    const successMsg = "If an account with that email exists, a password reset link has been sent.";
-
-    const user = await prisma.user.findFirst({
-        where: { email: { equals: email, mode: "insensitive" } },
-    });
-
-    if (!user) {
-        return c.json({ message: successMsg });
-    }
-
-    const resetToken = generateVerifyToken();
-    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-    await prisma.user.update({
-        where: { id: user.id },
-        data: {
-            passwordResetToken: resetToken,
-            passwordResetExpires: resetExpires,
-        },
-    });
-
-    await sendPasswordResetEmail(email, user.displayName, resetToken);
-
-    return c.json({ message: successMsg });
+    return c.json({
+        error: "Password reset emails are handled by Supabase Auth on the client.",
+    }, 410);
 });
-
-// ─── POST /auth/reset-password ──────────────────────────────────
 
 auth.post("/reset-password", async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const token = typeof body.token === "string" ? body.token : "";
-    const password = typeof body.password === "string" ? body.password : "";
-
-    if (!token) {
-        return c.json({ error: "Reset token is required." }, 400);
-    }
-
-    if (!password || password.length < 8) {
-        return c.json({ error: "Password must be at least 8 characters." }, 400);
-    }
-
-    if (password.length > 128) {
-        return c.json({ error: "Password is too long." }, 400);
-    }
-
-    const user = await prisma.user.findUnique({
-        where: { passwordResetToken: token },
-    });
-
-    if (!user) {
-        return c.json({ error: "Invalid or expired reset link." }, 400);
-    }
-
-    if (user.passwordResetExpires && user.passwordResetExpires < new Date()) {
-        return c.json({ error: "Reset link has expired. Please request a new one." }, 400);
-    }
-
-    const passwordHash = await hash(password, {
-        memoryCost: 19456,
-        timeCost: 2,
-        outputLen: 32,
-        parallelism: 1,
-    });
-
-    await prisma.user.update({
-        where: { id: user.id },
-        data: {
-            passwordHash,
-            passwordResetToken: null,
-            passwordResetExpires: null,
-        },
-    });
-
-    return c.json({ message: "Password reset successfully. You can now log in." });
+    return c.json({
+        error: "Password resets are handled by Supabase Auth on the client.",
+    }, 410);
 });
 
-// ─── POST /auth/change-password (requires token) ────────────────
-
 auth.post("/change-password", async (c) => {
-    const authHeader = c.req.header("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-        return c.json({ error: "Unauthorized." }, 401);
-    }
-
-    try {
-        const payload = await verifyToken(authHeader.slice(7));
-        const body = await c.req.json();
-
-        const currentPassword = typeof body.currentPassword === "string" ? body.currentPassword : "";
-        const newPassword = typeof body.newPassword === "string" ? body.newPassword : "";
-
-        if (!currentPassword) {
-            return c.json({ error: "Current password is required." }, 400);
-        }
-
-        if (!newPassword || newPassword.length < 8) {
-            return c.json({ error: "New password must be at least 8 characters." }, 400);
-        }
-
-        if (newPassword.length > 128) {
-            return c.json({ error: "New password is too long." }, 400);
-        }
-
-        const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-        if (!user) {
-            return c.json({ error: "User not found." }, 404);
-        }
-
-        if (!user.passwordHash) {
-            return c.json({ error: "This account uses Google sign-in. Set a password via 'Forgot Password' first." }, 400);
-        }
-
-        const valid = await verify(user.passwordHash, currentPassword);
-        if (!valid) {
-            return c.json({ error: "Current password is incorrect." }, 401);
-        }
-
-        const passwordHash = await hash(newPassword, {
-            memoryCost: 19456,
-            timeCost: 2,
-            outputLen: 32,
-            parallelism: 1,
-        });
-
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { passwordHash },
-        });
-
-        return c.json({ message: "Password changed successfully." });
-    } catch {
-        return c.json({ error: "Invalid or expired token." }, 401);
-    }
+    return c.json({
+        error: "Password changes are handled by Supabase Auth on the client.",
+    }, 410);
 });
 
 // ─── DELETE /auth/account (requires token) ──────────────────────
@@ -546,7 +286,7 @@ auth.delete("/account", async (c) => {
             return c.json({ error: "Password is required to delete your account." }, 400);
         }
 
-        const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+        const user = await userRepository.findById(payload.userId);
         if (!user) {
             return c.json({ error: "User not found." }, 404);
         }
@@ -557,9 +297,6 @@ auth.delete("/account", async (c) => {
                 return c.json({ error: "Incorrect password." }, 401);
             }
         }
-
-        // Set user offline before deletion
-        broadcastPresenceUpdate(user.id, "offline");
 
         // Cascade delete handles most relations. Transfer server ownership or delete owned servers.
         const ownedServers = await prisma.server.findMany({
@@ -573,7 +310,7 @@ auth.delete("/account", async (c) => {
             });
         }
 
-        await prisma.user.delete({ where: { id: user.id } });
+        await userRepository.deleteById(user.id);
 
         return c.json({ message: "Account deleted successfully." });
     } catch {
@@ -593,7 +330,7 @@ auth.get("/check-username", async (c) => {
         return c.json({ available: false, error: "Invalid characters in username." });
     }
 
-    const existing = await prisma.user.findUnique({ where: { username } });
+    const existing = await userRepository.findByUsername(username);
     return c.json({ available: !existing });
 });
 
@@ -607,25 +344,14 @@ auth.get("/me", async (c) => {
 
     try {
         const payload = await verifyToken(authHeader.slice(7));
-        const user = await prisma.user.findUnique({
-            where: { id: payload.userId },
-        });
+        const user = await userRepository.findById(payload.userId);
 
         if (!user) {
             return c.json({ error: "User not found." }, 404);
         }
 
         return c.json({
-            user: {
-                id: user.id,
-                email: user.email,
-                displayName: user.displayName,
-                username: user.username,
-                avatar: user.avatarUrl,
-                bio: user.bio,
-                status: user.status,
-                onboardingCompleted: user.onboardingCompleted,
-            },
+            user: serializeUser(user),
         });
     } catch {
         return c.json({ error: "Invalid or expired token." }, 401);
@@ -646,10 +372,10 @@ auth.patch("/profile", async (c) => {
 
         const result = profileUpdateSchema.safeParse(body);
         if (!result.success) {
-            return c.json({ error: result.error.errors[0].message }, 400);
+            return c.json({ error: result.error.issues[0].message }, 400);
         }
 
-        const updateData: Record<string, unknown> = {};
+        const updateData: Prisma.UserUpdateInput = {};
         if (result.data.displayName !== undefined) updateData.displayName = result.data.displayName;
         if (result.data.bio !== undefined) updateData.bio = result.data.bio;
         if (result.data.avatarUrl !== undefined) updateData.avatarUrl = result.data.avatarUrl;
@@ -657,26 +383,14 @@ auth.patch("/profile", async (c) => {
         if (result.data.onboardingCompleted !== undefined)
             updateData.onboardingCompleted = result.data.onboardingCompleted;
 
-        const user = await prisma.user.update({
-            where: { id: payload.userId },
-            data: updateData,
-        });
+        const user = await userRepository.update(payload.userId, updateData);
 
-        if (result.data.status !== undefined) {
-            broadcastPresenceUpdate(user.id, user.status as PresenceStatus);
-        }
+        // Presence (online/offline + status) is now propagated client-side via
+        // Supabase Realtime Presence; the persisted status above is the source
+        // of truth the client re-broadcasts when it changes.
 
         return c.json({
-            user: {
-                id: user.id,
-                email: user.email,
-                displayName: user.displayName,
-                username: user.username,
-                avatar: user.avatarUrl,
-                bio: user.bio,
-                status: user.status,
-                onboardingCompleted: user.onboardingCompleted,
-            },
+            user: serializeUser(user),
         });
     } catch {
         return c.json({ error: "Invalid or expired token." }, 401);
@@ -694,15 +408,9 @@ auth.post("/logout", async (c) => {
     try {
         const payload = await verifyToken(authHeader.slice(7));
 
-        // Always set the user offline on explicit logout.
-        // If there are still active WS connections (multi-tab), the WS connection
-        // handler in ws.ts will restore the correct presence when the next tab
-        // calls resolveConnectedPresence().
-        await prisma.user.update({
-            where: { id: payload.userId },
-            data: { status: "offline" },
-        });
-        broadcastPresenceUpdate(payload.userId, "offline");
+        // Persist offline on explicit logout. The client also leaves the
+        // Supabase Presence channel, which notifies other users in realtime.
+        await userRepository.update(payload.userId, { status: "offline" });
 
         return c.json({ message: "Logged out." });
     } catch {

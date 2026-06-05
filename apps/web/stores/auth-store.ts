@@ -1,6 +1,17 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { ensureApiUrl } from "@/lib/endpoints";
+import {
+    clearPendingSignupProfile,
+    exchangeSupabaseSession,
+    getActiveSupabaseSession,
+    getPendingSignupProfile,
+    savePendingSignupProfile,
+    signInWithEmail,
+    signInWithGoogle,
+    signOutSupabase,
+    signUpWithEmail,
+} from "@/lib/auth";
 
 export interface User {
     id: string;
@@ -21,13 +32,14 @@ interface AuthState {
 
     // Actions
     login: (email: string, password: string) => Promise<void>;
-    googleLogin: (credential: string) => Promise<{ isNewUser: boolean }>;
+    googleLogin: () => Promise<void>;
     register: (data: {
         displayName: string;
         username: string;
         email: string;
         password: string;
     }) => Promise<{ confirmEmail: boolean; email: string }>;
+    restoreSession: () => Promise<boolean>;
     logout: () => void;
     updateUser: (data: Partial<User>) => void;
     completeOnboarding: () => Promise<void>;
@@ -137,11 +149,23 @@ export const useAuthStore = create<AuthState>()(
                 set({ isLoading: true });
 
                 try {
-                    const data = await api<{ token: string; user: User }>("/auth/login", {
-                        method: "POST",
-                        body: JSON.stringify({ email: normalizedEmail, password }),
-                    });
+                    await signInWithEmail(normalizedEmail, password);
 
+                    const pendingSignup = getPendingSignupProfile(normalizedEmail);
+                    const data = await exchangeSupabaseSession(
+                        pendingSignup
+                            ? {
+                                displayName: pendingSignup.displayName,
+                                username: pendingSignup.username,
+                            }
+                            : undefined
+                    );
+
+                    if (!data) {
+                        throw new Error("Sign-in succeeded, but no Supabase session was returned.");
+                    }
+
+                    clearPendingSignupProfile(normalizedEmail);
                     set({
                         user: data.user,
                         token: data.token,
@@ -152,26 +176,13 @@ export const useAuthStore = create<AuthState>()(
                 }
             },
 
-            googleLogin: async (credential: string) => {
+            googleLogin: async () => {
                 set({ isLoading: true });
 
                 try {
-                    const data = await api<{
-                        token: string;
-                        user: User;
-                        isNewUser: boolean;
-                    }>("/auth/google", {
-                        method: "POST",
-                        body: JSON.stringify({ credential }),
-                    });
-
-                    set({
-                        user: data.user,
-                        token: data.token,
-                        isAuthenticated: true,
-                    });
-
-                    return { isNewUser: data.isNewUser };
+                    // Redirects the browser to Google; the session is finalized
+                    // on /auth/callback via restoreSession().
+                    await signInWithGoogle();
                 } finally {
                     set({ isLoading: false });
                 }
@@ -181,21 +192,90 @@ export const useAuthStore = create<AuthState>()(
                 set({ isLoading: true });
 
                 try {
-                    const result = await api<{
-                        confirmEmail: boolean;
-                        email: string;
-                        message: string;
-                    }>("/auth/register", {
-                        method: "POST",
-                        body: JSON.stringify(data),
+                    const normalizedEmail = data.email.trim().toLowerCase();
+                    const displayName = data.displayName.trim();
+                    const username = data.username.trim().toLowerCase();
+
+                    const { needsConfirmation } = await signUpWithEmail({
+                        email: normalizedEmail,
+                        password: data.password,
+                        displayName,
                     });
 
+                    savePendingSignupProfile({
+                        email: normalizedEmail,
+                        displayName,
+                        username,
+                    });
+
+                    // If email confirmation is disabled, Supabase returns a live
+                    // session immediately and we can finish sign-in now.
+                    if (!needsConfirmation) {
+                        const exchanged = await exchangeSupabaseSession({
+                            displayName,
+                            username,
+                        });
+
+                        if (exchanged) {
+                            clearPendingSignupProfile(normalizedEmail);
+                            set({
+                                user: exchanged.user,
+                                token: exchanged.token,
+                                isAuthenticated: true,
+                            });
+
+                            return {
+                                confirmEmail: false,
+                                email: normalizedEmail,
+                            };
+                        }
+                    }
+
                     return {
-                        confirmEmail: result.confirmEmail,
-                        email: result.email,
+                        confirmEmail: true,
+                        email: normalizedEmail,
                     };
                 } finally {
                     set({ isLoading: false });
+                }
+            },
+
+            restoreSession: async () => {
+                if (get().token) {
+                    return true;
+                }
+
+                try {
+                    const session = await getActiveSupabaseSession();
+                    const email = session?.user?.email?.trim().toLowerCase();
+
+                    if (!email) {
+                        return false;
+                    }
+
+                    const pendingSignup = getPendingSignupProfile(email);
+                    const data = await exchangeSupabaseSession(
+                        pendingSignup
+                            ? {
+                                displayName: pendingSignup.displayName,
+                                username: pendingSignup.username,
+                            }
+                            : undefined
+                    );
+
+                    if (!data) {
+                        return false;
+                    }
+
+                    clearPendingSignupProfile(email);
+                    set({
+                        user: data.user,
+                        token: data.token,
+                        isAuthenticated: true,
+                    });
+                    return true;
+                } catch (err) {
+                    throw err;
                 }
             },
 
@@ -220,6 +300,14 @@ export const useAuthStore = create<AuthState>()(
                     }).catch((err) => {
                         console.warn("Failed to sync logout presence:", err);
                     });
+                }
+
+                try {
+                    void signOutSupabase().catch((err: unknown) => {
+                        console.warn("Failed to clear Supabase session:", err);
+                    });
+                } catch {
+                    // Supabase auth not configured in this build.
                 }
             },
 

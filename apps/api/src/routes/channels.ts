@@ -57,7 +57,7 @@ channels.post("/servers/:serverId/channels", async (c) => {
     const result = createChannelSchema.safeParse(body);
 
     if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
+        return c.json({ error: result.error.issues[0].message }, 400);
     }
 
     // Get max position in this category
@@ -122,7 +122,7 @@ channels.patch("/channels/:id", async (c) => {
     const result = updateChannelSchema.safeParse(body);
 
     if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
+        return c.json({ error: result.error.issues[0].message }, 400);
     }
 
     const updateData: Record<string, unknown> = {};

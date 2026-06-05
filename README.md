@@ -87,9 +87,9 @@ Discord is great, but it's closed-source, collects extensive user data, and lock
 | Layer | Technology |
 |-------|-----------|
 | **Frontend** | Next.js 15, React 19, Tailwind CSS, Zustand, LiveKit Client |
-| **Backend** | Hono (HTTP + WebSocket), Prisma 6, PostgreSQL |
+| **Backend** | Hono (serverless on Vercel), Prisma 6, Supabase (PostgreSQL, Auth, Storage, Realtime) |
 | **Desktop** | Tauri 2 (Rust), custom window chrome, system tray, auto-updater |
-| **Auth** | JWT (JOSE), Argon2 password hashing |
+| **Auth** | Supabase Auth (email/password + Google OAuth); API issues short-lived app JWTs (JOSE) |
 | **Voice/Video** | LiveKit SFU (WebRTC) |
 | **Monorepo** | pnpm workspaces, Turborepo |
 
@@ -100,7 +100,7 @@ Discord is great, but it's closed-source, collects extensive user data, and lock
 - [Node.js](https://nodejs.org/) 20+
 - [pnpm](https://pnpm.io/) 9+
 - [Rust](https://www.rust-lang.org/tools/install) (stable, for desktop builds)
-- [PostgreSQL](https://www.postgresql.org/) database
+- [Supabase](https://supabase.com/) project (provides PostgreSQL, Auth, and Storage)
 - [LiveKit](https://livekit.io/) server (for voice/video features)
 
 ### 1. Clone & install
@@ -115,19 +115,20 @@ pnpm install
 
 Create `.env` files for the API and web apps:
 
-**`apps/api/.env`**
+**`apps/api/.env`** (see [`apps/api/.env.example`](apps/api/.env.example) for the full list)
 ```env
 PORT=3001
-DATABASE_URL=postgresql://user:password@localhost:5432/corvus
+# Supabase Postgres — pooled (6543) for the app, direct (5432) for migrations
+DATABASE_URL=postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true
+DIRECT_URL=postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
+
+# Supabase (server-side)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_ANON_KEY=your-anon-key
+
 JWT_SECRET=your-secret-key
 FRONTEND_URL=http://localhost:3000
-
-# Optional
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_USER=your-email
-SMTP_PASS=your-password
-EMAIL_FROM=Corvus <noreply@corvus.app>
 
 # Voice/Video (required for voice features)
 LIVEKIT_URL=ws://localhost:7880
@@ -138,14 +139,59 @@ LIVEKIT_API_SECRET=your-livekit-secret
 **`apps/web/.env.local`**
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_WS_URL=ws://localhost:3001/ws
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
+> **Auth setup:** In the Supabase dashboard, enable the **Email** provider (and **Google** under
+> Authentication → Providers if you want Google sign-in). Add `http://localhost:3000/auth/callback`
+> and `http://localhost:3000/reset-password` to **Authentication → URL Configuration → Redirect URLs**.
+
 ### 3. Set up the database
+
+Either apply the SQL migration (tables + indexes + storage buckets in one file)…
+
+```bash
+supabase db push     # applies supabase/migrations/*.sql
+# (or paste supabase/migrations/20260605000000_init.sql into the Supabase SQL editor)
+```
+
+…or use Prisma directly:
 
 ```bash
 pnpm --filter @corvus/api db:generate
 pnpm --filter @corvus/api db:push
 ```
+
+### 3b. Set up Supabase Storage buckets
+
+Creates all required buckets (idempotent — safe to re-run on every deploy):
+
+```bash
+pnpm --filter @corvus/api setup:storage
+```
+
+| Bucket | Visibility | Used for |
+|--------|-----------|----------|
+| `avatars` | public | User profile pictures |
+| `server-icons` | public | Server icons |
+| `attachments` | public | Message attachments (images, video, documents) |
+| `stickers` | public | Custom stickers |
+| `releases` | public | Desktop installers served by the download button |
+
+Upload an installer for the download button to serve:
+
+```bash
+pnpm --filter @corvus/api release:upload -- ./Corvus_x64-setup.exe windows
+```
+
+> All buckets are **public-read**; uploads always go through the API
+> (authenticated with the app JWT) using the Supabase **service-role** key, so
+> the browser never writes to Storage directly. Object keys are random, so URLs
+> are unguessable. To make `attachments` private later, flip the bucket to
+> private in `scripts/setup-storage.ts` and serve via signed URLs from
+> `services/storage.ts`.
 
 ### 4. Run in development
 
@@ -171,24 +217,42 @@ pnpm build:desktop   # Build desktop installer
 ```
 corvus/
 ├── apps/
-│   ├── web/          # Next.js frontend (web + desktop UI)
-│   ├── api/          # Hono API + WebSocket server + Prisma
+│   ├── web/          # Next.js frontend (web + desktop UI) — deploys to Vercel
+│   │   └── vercel.json
+│   ├── api/          # Hono API (Prisma + Supabase) — deploys to Vercel functions
+│   │   ├── api/          # Vercel serverless entrypoint
+│   │   ├── scripts/      # setup-storage.ts (bucket provisioning)
+│   │   └── vercel.json
 │   └── desktop/      # Tauri v2 desktop shell (Rust)
 ├── packages/
 │   ├── ui/           # Shared React component library
-│   ├── config/       # Shared TS, Tailwind, ESLint configs
-│   ├── db/           # Database package (stub)
-│   └── trpc/         # tRPC package (stub)
-├── render.yaml       # Render deployment blueprint
+│   └── config/       # Shared TS, Tailwind, ESLint, Prettier configs
+├── supabase/         # realtime-policies.sql (optional private-channel RLS)
 ├── turbo.json        # Turborepo pipeline config
 └── package.json      # Root workspace config
 ```
 
 ## Deployment
 
-The project includes a `render.yaml` blueprint for deploying the API and web app to [Render](https://render.com/). Desktop releases are built via GitHub Actions and published to GitHub Releases.
+Both apps deploy to **Vercel** as two separate Vercel projects (set the project
+**Root Directory** to `apps/web` and `apps/api` respectively); connect the repo
+and Vercel auto-deploys on push.
 
-See the [GitHub Actions workflow](.github/workflows/release.yml) for the desktop release pipeline.
+- **`apps/web`** — Next.js, deployed as a standard Vercel app.
+- **`apps/api`** — Hono, deployed as a Vercel **serverless function** (`apps/api/api/index.ts`);
+  `vercel.json` rewrites all paths to it. Set the Supabase + LiveKit + `JWT_SECRET` env vars.
+- **Realtime** runs on **Supabase Realtime** (Broadcast + Presence), so there is no
+  always-on server. See [`apps/api/src/services/realtime.ts`](apps/api/src/services/realtime.ts).
+- **Storage buckets** — run `pnpm --filter @corvus/api setup:storage` once after setting env vars.
+
+Desktop releases are built via GitHub Actions and published to GitHub Releases —
+see the [release workflow](.github/workflows/release.yml). CI (typecheck + lint)
+runs via [`ci.yml`](.github/workflows/ci.yml).
+
+> **Note:** the Vercel serverless config for the API is conventional but was not
+> deploy-tested in this environment — verify the function build + the catch-all
+> rewrite on your first Vercel deploy. The API can alternatively run as a
+> long-running Node server (`pnpm --filter @corvus/api start`) on any host.
 
 ## Contributing
 

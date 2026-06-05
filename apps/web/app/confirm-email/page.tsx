@@ -2,22 +2,17 @@
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation";
-import { Mail, ArrowLeft, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
-import { ensureApiUrl } from "@/lib/endpoints";
+import { useSearchParams } from "next/navigation";
+import { Mail, ArrowLeft, RefreshCw } from "lucide-react";
+import { resendVerificationEmail } from "@/lib/auth";
 
 function ConfirmEmailContent() {
     const searchParams = useSearchParams();
-    const router = useRouter();
     const email = searchParams.get("email") ?? "";
-    const token = searchParams.get("token") ?? "";
 
     const [resending, setResending] = useState(false);
     const [resent, setResent] = useState(false);
     const [cooldown, setCooldown] = useState(0);
-    const [verifying, setVerifying] = useState(!!token);
-    const [verified, setVerified] = useState(false);
-    const [verifyError, setVerifyError] = useState<string | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
@@ -40,34 +35,6 @@ function ConfirmEmailContent() {
         return () => ctx?.revert();
     }, []);
 
-    // Auto-verify if token is present in URL
-    useEffect(() => {
-        if (!token) return;
-        const baseUrl = ensureApiUrl();
-
-        async function verify() {
-            setVerifying(true);
-            try {
-                const res = await fetch(`${baseUrl}/auth/verify-email?token=${token}`);
-                const data = await res.json();
-
-                if (res.ok) {
-                    setVerified(true);
-                    // Redirect to login after 3 seconds
-                    setTimeout(() => router.push("/login"), 3000);
-                } else {
-                    setVerifyError(data.error || "Verification failed.");
-                }
-            } catch {
-                setVerifyError("Network error. Please try again.");
-            } finally {
-                setVerifying(false);
-            }
-        }
-
-        verify();
-    }, [token, router]);
-
     // Cooldown timer
     useEffect(() => {
         if (cooldown <= 0) return;
@@ -77,16 +44,11 @@ function ConfirmEmailContent() {
 
     const handleResend = async () => {
         if (resending || cooldown > 0 || !email) return;
-        const baseUrl = ensureApiUrl();
         setResending(true);
         setResent(false);
 
         try {
-            await fetch(`${baseUrl}/auth/resend-verification`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email }),
-            });
+            await resendVerificationEmail(email);
             setResent(true);
             setCooldown(60);
         } catch {
@@ -95,78 +57,6 @@ function ConfirmEmailContent() {
             setResending(false);
         }
     };
-
-    // ─── Token verification view ────────────────────────────
-
-    if (token) {
-        return (
-            <div
-                ref={containerRef}
-                className="h-full bg-background flex items-center justify-center px-6 relative overflow-hidden"
-            >
-                <div className="absolute inset-0 pointer-events-none" aria-hidden>
-                    <div className="absolute top-[20%] left-[15%] w-[500px] h-[500px] bg-accent-violet/[0.06] rounded-full blur-[180px] animate-pulse" />
-                    <div className="absolute bottom-[15%] right-[10%] w-[400px] h-[400px] bg-accent-teal/[0.05] rounded-full blur-[160px] animate-pulse" style={{ animationDelay: "2s" }} />
-                </div>
-
-                <div ref={cardRef} className="w-full max-w-[480px] relative z-10 opacity-0">
-                    <div className="relative">
-                        <div className="absolute -inset-[1px] bg-gradient-to-br from-accent-violet/30 via-border to-accent-teal/20 rounded-2xl" />
-                        <div className="relative bg-surface rounded-2xl p-10 text-center">
-                            {verifying ? (
-                                <>
-                                    <div className="flex justify-center mb-6">
-                                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-accent-violet/20 to-accent-teal/10 flex items-center justify-center border border-border">
-                                            <svg className="animate-spin w-9 h-9 text-accent-violet" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                            </svg>
-                                        </div>
-                                    </div>
-                                    <h1 className="text-heading font-bold text-text-primary mb-2">Verifying your email…</h1>
-                                    <p className="text-body text-text-muted">Please wait a moment.</p>
-                                </>
-                            ) : verified ? (
-                                <>
-                                    <div className="flex justify-center mb-6">
-                                        <div className="w-20 h-20 rounded-2xl bg-success/10 flex items-center justify-center border border-success/20">
-                                            <CheckCircle2 className="w-9 h-9 text-success" />
-                                        </div>
-                                    </div>
-                                    <h1 className="text-heading font-bold text-text-primary mb-2">Email verified!</h1>
-                                    <p className="text-body text-text-muted mb-6">Your account is now active. Redirecting to login…</p>
-                                    <Link
-                                        href="/login"
-                                        className="inline-flex items-center gap-2 px-6 py-3 bg-accent-violet text-white rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(124,106,247,0.35)] hover:bg-[#6B59E6]"
-                                    >
-                                        Go to Login
-                                    </Link>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="flex justify-center mb-6">
-                                        <div className="w-20 h-20 rounded-2xl bg-danger/10 flex items-center justify-center border border-danger/20">
-                                            <XCircle className="w-9 h-9 text-danger" />
-                                        </div>
-                                    </div>
-                                    <h1 className="text-heading font-bold text-text-primary mb-2">Verification failed</h1>
-                                    <p className="text-body text-text-muted mb-6">{verifyError}</p>
-                                    <Link
-                                        href="/register"
-                                        className="inline-flex items-center gap-2 px-6 py-3 bg-accent-violet text-white rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(124,106,247,0.35)] hover:bg-[#6B59E6]"
-                                    >
-                                        Try Again
-                                    </Link>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    // ─── "Check your email" view ────────────────────────────
 
     return (
         <div
@@ -213,7 +103,7 @@ function ConfirmEmailContent() {
                                 {[
                                     "Open your email inbox",
                                     "Click the confirmation link from Corvus",
-                                    "You\u2019ll be redirected to log in",
+                                    "You’ll be signed in automatically",
                                 ].map((step, i) => (
                                     <li key={i} className="flex items-start gap-3">
                                         <span className="flex-shrink-0 w-6 h-6 rounded-full bg-accent-violet/10 text-accent-violet text-micro font-bold flex items-center justify-center mt-0.5">
@@ -247,7 +137,7 @@ function ConfirmEmailContent() {
 
                         {/* Spam notice */}
                         <p className="mt-4 text-micro text-text-muted text-center">
-                            Didn&apos;t receive it? Check your spam folder or try a different email address.
+                            Didn&apos;t receive it? Check your spam folder or resend the verification email.
                         </p>
                     </div>
                 </div>

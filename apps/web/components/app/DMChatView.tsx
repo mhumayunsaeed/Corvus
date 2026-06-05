@@ -705,7 +705,7 @@ export function DMChatView({
 
             return (
                 <img
-                    src={sticker.imageData}
+                    src={sticker.imageUrl}
                     alt={sticker.name}
                     className="w-24 h-24 rounded-lg object-contain"
                     loading="lazy"
@@ -991,10 +991,10 @@ export function DMChatView({
     return (
         <div className="flex-1 min-w-0 min-h-0 bg-channel-sidebar flex">
             <div className="flex-1 min-w-0 flex flex-col border-r border-border-subtle">
-                <div className="h-12 border-b border-border-subtle flex items-center px-4 gap-3 flex-shrink-0">
-                    <div className="w-7 h-7 rounded-full overflow-hidden bg-surface-raised flex items-center justify-center text-text-secondary">
+                <div className="h-[52px] border-b border-border-subtle flex items-center px-4 gap-3 flex-shrink-0">
+                    <div className="w-8 h-8 rounded-xl overflow-hidden bg-surface-raised flex items-center justify-center text-text-secondary flex-shrink-0">
                         {conversation.type === "group" || !peer ? (
-                            <Users className="w-4 h-4" />
+                            <Users className="w-3.5 h-3.5" />
                         ) : (
                             <UserAvatar
                                 avatarUrl={peer.avatarUrl}
@@ -1005,49 +1005,49 @@ export function DMChatView({
                     </div>
                     <div className="min-w-0">
                         <p
-                            className="text-body font-semibold truncate"
+                            className="text-[14px] font-semibold truncate tracking-[-0.01em]"
                             style={{ color: peer ? getUsernameColor(peer.username) : "inherit" }}
                         >
                             {title}
                         </p>
-                        <p className="text-micro text-text-muted truncate">
+                        <p className="text-[11px] text-text-faint truncate leading-tight">
                             {conversation.type === "group"
                                 ? `${conversation.participants.length} members`
                                 : peer?.status || "offline"}
                         </p>
                     </div>
                     {activeCall && (
-                        <span className="text-micro text-accent-teal font-medium">In call</span>
+                        <span className="text-[11px] text-accent-teal font-semibold bg-accent-teal/10 px-2 py-0.5 rounded-full">In call</span>
                     )}
-                    <div className="ml-auto flex items-center gap-1">
+                    <div className="ml-auto flex items-center gap-0.5">
                         <button
                             onClick={() => handleStartCall(false)}
                             disabled={startingCall || !!activeCall}
                             title={activeCall ? "Call already active" : "Start voice call"}
-                            className="w-8 h-8 rounded-lg text-text-muted hover:text-text-primary hover:bg-hover-row disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                            className="w-8 h-8 rounded-lg text-text-faint hover:text-text-secondary hover:bg-hover-row disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                         >
-                            <Phone className="w-4 h-4" />
+                            <Phone className="w-[15px] h-[15px]" />
                         </button>
                         <button
                             onClick={() => handleStartCall(true)}
                             disabled={startingCall || !!activeCall}
                             title={activeCall ? "Call already active" : "Start video call"}
-                            className="w-8 h-8 rounded-lg text-text-muted hover:text-text-primary hover:bg-hover-row disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                            className="w-8 h-8 rounded-lg text-text-faint hover:text-text-secondary hover:bg-hover-row disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                         >
-                            <Video className="w-4 h-4" />
+                            <Video className="w-[15px] h-[15px]" />
                         </button>
                         <button
                             type="button"
                             title={showPinsPanel ? "Hide pinned messages" : "Pinned messages"}
                             onClick={() => setShowPinsPanel((prev) => !prev)}
-                            className={`w-8 h-8 rounded-lg hover:bg-hover-row transition-colors flex items-center justify-center ${showPinsPanel ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                            className={`w-8 h-8 rounded-lg hover:bg-hover-row transition-colors flex items-center justify-center ${showPinsPanel ? "text-accent-violet" : "text-text-faint hover:text-text-secondary"}`}
                         >
-                            <Pin className="w-4 h-4" />
+                            <Pin className="w-[15px] h-[15px]" />
                         </button>
                         <button
                             type="button"
                             title="Search"
-                            className="w-8 h-8 rounded-lg text-text-muted hover:text-text-primary hover:bg-hover-row transition-colors flex items-center justify-center"
+                            className="w-8 h-8 rounded-lg text-text-faint hover:text-text-secondary hover:bg-hover-row transition-colors flex items-center justify-center"
                         >
                             <Search className="w-4 h-4" />
                         </button>

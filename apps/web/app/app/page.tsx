@@ -504,7 +504,14 @@ export default function AppPage() {
     if (loading) {
         return (
             <div className="flex h-full items-center justify-center bg-background">
-                <Loader2 className="w-8 h-8 text-accent-violet animate-spin" />
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-glow"
+                        style={{ background: "linear-gradient(135deg, #7C6AF7 0%, #5B4FBD 100%)" }}
+                    >
+                        <span className="text-white font-bold text-xl">V</span>
+                    </div>
+                    <Loader2 className="w-5 h-5 text-accent-violet animate-spin" />
+                </div>
             </div>
         );
     }
@@ -535,7 +542,7 @@ export default function AppPage() {
             {activeServerId && activeServer && (
                 <div
                     onPointerDown={handleServerPaneResizeStart}
-                    className="hidden lg:block w-1 bg-border-subtle hover:bg-accent-violet/30 cursor-col-resize flex-shrink-0 transition-colors"
+                    className="hidden lg:block w-[3px] bg-border-subtle hover:bg-accent-violet/25 active:bg-accent-violet/40 cursor-col-resize flex-shrink-0 transition-colors"
                     role="separator"
                     aria-orientation="vertical"
                     aria-label="Resize channel pane"
@@ -569,7 +576,7 @@ export default function AppPage() {
 
                         <div
                             onPointerDown={handleDMPaneResizeStart}
-                            className="hidden lg:block w-1 bg-border-subtle hover:bg-accent-violet/30 cursor-col-resize flex-shrink-0 transition-colors"
+                            className="hidden lg:block w-[3px] bg-border-subtle hover:bg-accent-violet/25 active:bg-accent-violet/40 cursor-col-resize flex-shrink-0 transition-colors"
                             role="separator"
                             aria-orientation="vertical"
                             aria-label="Resize DM pane"
@@ -612,26 +619,34 @@ export default function AppPage() {
                     />
                 ) : (
                     <div className="flex-1 flex items-center justify-center bg-background">
-                        <div className="text-center">
+                        <div className="text-center max-w-sm">
                             {servers.length === 0 ? (
                                 <>
-                                    <img src="/corvus-logo.png" alt="Corvus" className="w-16 h-16 rounded-full mx-auto mb-4" />
-                                    <h2 className="text-heading font-bold text-text-primary mb-2">
+                                    <div className="relative mx-auto mb-6 w-20 h-20">
+                                        <div className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-glow"
+                                            style={{ background: "linear-gradient(135deg, #7C6AF7 0%, #5B4FBD 100%)" }}
+                                        >
+                                            <span className="text-white font-bold text-3xl">V</span>
+                                        </div>
+                                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+                                    </div>
+                                    <h2 className="text-[20px] font-bold text-text-primary mb-2 tracking-[-0.02em]">
                                         Welcome to Corvus
                                     </h2>
-                                    <p className="text-body text-text-muted mb-6 max-w-sm">
+                                    <p className="text-[13px] text-text-muted mb-6 leading-relaxed">
                                         Create a server to get started, or join an existing one with an invite link.
                                     </p>
-                                    <div className="flex gap-3 justify-center">
+                                    <div className="flex gap-2.5 justify-center">
                                         <button
                                             onClick={() => setShowCreateServer(true)}
-                                            className="px-6 py-2.5 bg-accent-violet text-white rounded-xl font-medium text-body hover:bg-accent-violet/90 transition-all"
+                                            className="px-5 h-9 rounded-xl text-[13px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.98]"
+                                            style={{ background: "linear-gradient(135deg, #7C6AF7, #5B4FBD)" }}
                                         >
                                             Create a Server
                                         </button>
                                         <button
                                             onClick={() => setShowInviteJoin(true)}
-                                            className="px-6 py-2.5 bg-surface border border-border text-text-primary rounded-xl font-medium text-body hover:bg-surface-raised transition-all"
+                                            className="px-5 h-9 bg-surface-raised border border-border-highlight text-text-secondary rounded-xl text-[13px] font-medium hover:bg-hover-row transition-all"
                                         >
                                             Join a Server
                                         </button>
@@ -639,11 +654,13 @@ export default function AppPage() {
                                 </>
                             ) : (
                                 <>
-                                    <Hash className="w-12 h-12 text-text-muted mx-auto mb-3 opacity-30" />
-                                    <h2 className="text-heading font-bold text-text-primary mb-1">
+                                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-surface-raised border border-border mb-4">
+                                        <Hash className="w-5 h-5 text-text-faint" />
+                                    </div>
+                                    <h2 className="text-[16px] font-semibold text-text-primary mb-1.5 tracking-[-0.01em]">
                                         Select a channel
                                     </h2>
-                                    <p className="text-body text-text-muted">
+                                    <p className="text-[13px] text-text-muted">
                                         Choose a channel from the sidebar to start chatting.
                                     </p>
                                 </>

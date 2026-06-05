@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
-import { ensureApiUrl } from "@/lib/endpoints";
+import { requestPasswordReset } from "@/lib/auth";
 
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState("");
@@ -44,22 +44,10 @@ export default function ForgotPasswordPage() {
 
         setLoading(true);
         try {
-            const baseUrl = ensureApiUrl();
-            const res = await fetch(`${baseUrl}/auth/forgot-password`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: trimmed }),
-            });
-            const data = await res.json();
-
-            if (!res.ok) {
-                setError(data.error || "Something went wrong.");
-                return;
-            }
-
+            await requestPasswordReset(trimmed);
             setSent(true);
-        } catch {
-            setError("Network error. Please try again.");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Network error. Please try again.");
         } finally {
             setLoading(false);
         }

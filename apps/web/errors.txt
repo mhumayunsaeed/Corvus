@@ -1,2 +1,0 @@
-hooks/useWebSocket.ts(104,113): error TS2339: Property '__TAURI_INTERNALS__' does not exist on type 'Window & typeof globalThis'.
-hooks/useWebSocket.ts(167,121): error TS2339: Property '__TAURI_INTERNALS__' does not exist on type 'Window & typeof globalThis'.

@@ -14,6 +14,7 @@ import {
     createRole,
     updateRole,
     deleteRole,
+    uploadImage,
     type MemberData,
     type RoleData,
 } from "@/lib/api";
@@ -188,7 +189,20 @@ export function ServerSettingsModal({
                 canvas.width = w;
                 canvas.height = h;
                 canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
-                setIconPreview(canvas.toDataURL("image/webp", 0.85));
+                // Upload the resized icon to Supabase Storage and keep its URL.
+                canvas.toBlob(
+                    async (blob) => {
+                        if (!blob) return;
+                        try {
+                            const url = await uploadImage(blob, "icon");
+                            setIconPreview(url);
+                        } catch (err) {
+                            setSaveMessage(err instanceof Error ? err.message : "Failed to upload icon.");
+                        }
+                    },
+                    "image/webp",
+                    0.85
+                );
             };
             img.src = event.target?.result as string;
         };

@@ -38,10 +38,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build Web
-        run: pnpm --filter @veyra/web build
+        run: pnpm --filter @corvus/web build
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
-          NEXT_PUBLIC_WS_URL: ${{ secrets.NEXT_PUBLIC_WS_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - uses: tauri-apps/tauri-action@v0
         env:
@@ -49,12 +50,27 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
-          NEXT_PUBLIC_WS_URL: ${{ secrets.NEXT_PUBLIC_WS_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         with:
           tagName: v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
-          releaseName: 'Veyra v__VERSION__'
+          releaseName: 'Corvus v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
           projectPath: ./apps/desktop
+
+      # Publish the built installer to the Supabase `releases` bucket so the
+      # landing-page download button serves it directly (no GitHub flow).
+      - name: Upload installer to Supabase Storage
+        if: matrix.os == 'windows'
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          installer=$(find "$GITHUB_WORKSPACE/apps/desktop/src-tauri/target/release/bundle/nsis" -name "*-setup.exe" | head -n1)
+          if [ -z "$installer" ]; then echo "No NSIS installer found"; exit 1; fi
+          echo "Uploading $installer"
+          pnpm --filter @corvus/api exec tsx scripts/upload-release.ts "$installer" windows

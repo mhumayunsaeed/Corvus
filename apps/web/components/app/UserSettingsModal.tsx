@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useNotificationStore } from "@/stores/notification-store";
 import { useVoiceStore } from "@/stores/voice-store";
 import { playNotificationTone } from "@/lib/notifications";
+import { uploadImage } from "@/lib/api";
 import { UserAvatar } from "./UserAvatar";
 
 interface UserSettingsModalProps {
@@ -139,8 +140,20 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                 const ctx = canvas.getContext("2d")!;
                 ctx.drawImage(img, 0, 0, w, h);
 
-                const dataUrl = canvas.toDataURL("image/webp", 0.85);
-                updateUser({ avatar: dataUrl });
+                // Upload the resized image to Supabase Storage and store its URL.
+                canvas.toBlob(
+                    async (blob) => {
+                        if (!blob) return;
+                        try {
+                            const url = await uploadImage(blob, "avatar");
+                            updateUser({ avatar: url });
+                        } catch (err) {
+                            alert(err instanceof Error ? err.message : "Failed to upload avatar.");
+                        }
+                    },
+                    "image/webp",
+                    0.85
+                );
             };
             img.src = event.target?.result as string;
         };

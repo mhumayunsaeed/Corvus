@@ -7,19 +7,27 @@ import { useDMStore } from "@/stores/dm-store";
 import { useAppStore } from "@/stores/app-store";
 import { useVoiceStore } from "@/stores/voice-store";
 import { useNotificationStore } from "@/stores/notification-store";
-import { ensureWsUrl } from "@/lib/endpoints";
 import {
     playNotificationTone,
     showSystemNotification,
     summarizeNotificationBody,
 } from "@/lib/notifications";
 import { useToastStore } from "@/stores/toast-store";
+import {
+    initPresence,
+    sendChannelTyping,
+    sendDMTyping,
+    setRealtimeHandler,
+    subscribeChannel as rtSubscribeChannel,
+    subscribeDM as rtSubscribeDM,
+    subscribeUser as rtSubscribeUser,
+    teardownRealtime,
+    unsubscribeChannel as rtUnsubscribeChannel,
+    unsubscribeDM as rtUnsubscribeDM,
+    updateSelfPresence,
+    type RealtimeMessage,
+} from "@/lib/supabase/realtime";
 
-let globalWs: WebSocket | null = null;
-let globalReconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let globalReconnectAttempts = 0;
-let globalShouldReconnect = false;
-const MAX_RECONNECT_DELAY = 30000;
 const globalSubscribedChannels = new Set<string>();
 const globalSubscribedDMConversations = new Set<string>();
 const PRESENCE_STATUSES = new Set([
@@ -106,6 +114,7 @@ export function useWebSocket() {
     const userId = useAuthStore((s) => s.user?.id);
     const username = useAuthStore((s) => s.user?.username);
     const displayName = useAuthStore((s) => s.user?.displayName);
+    const userStatus = useAuthStore((s) => s.user?.status);
     const applyPresence = useAuthStore((s) => s.applyPresence);
     const addMessage = useChatStore((s) => s.addMessage);
     const updateMessage = useChatStore((s) => s.updateMessage);
@@ -217,49 +226,15 @@ export function useWebSocket() {
 
     useEffect(() => {
         if (!token) {
-            globalShouldReconnect = false;
-            if (globalReconnectTimer) {
-                clearTimeout(globalReconnectTimer);
-                globalReconnectTimer = null;
-            }
-            if (globalWs) {
-                globalWs.close();
-                globalWs = null;
-            }
-            globalReconnectAttempts = 0;
+            teardownRealtime();
+            setRealtimeHandler(null);
             globalSubscribedChannels.clear();
             globalSubscribedDMConversations.clear();
             return;
         }
 
-        globalShouldReconnect = true;
-        const wsUrl = ensureWsUrl();
-
-        function connect() {
-            if (!globalShouldReconnect) {
-                return;
-            }
-            if (globalWs?.readyState === WebSocket.OPEN || globalWs?.readyState === WebSocket.CONNECTING) {
-                return;
-            }
-
-            globalWs = new WebSocket(`${wsUrl}?token=${token}`);
-
-            globalWs.onopen = () => {
-                globalReconnectAttempts = 0;
-
-                // Re-subscribe after reconnect
-                for (const channelId of globalSubscribedChannels) {
-                    globalWs?.send(JSON.stringify({ type: "subscribe_channel", channelId }));
-                }
-                for (const conversationId of globalSubscribedDMConversations) {
-                    globalWs?.send(JSON.stringify({ type: "subscribe_dm", conversationId }));
-                }
-            };
-
-            globalWs.onmessage = (event) => {
-                try {
-                    const msg = JSON.parse(event.data);
+        function handleRealtimeMessage(msg: RealtimeMessage) {
+            try {
                     const h = handlersRef.current;
                     const currentUserId = h.userId || "";
 
@@ -652,90 +627,73 @@ export function useWebSocket() {
                 }
             };
 
-            globalWs.onclose = () => {
-                globalWs = null;
-                if (!globalShouldReconnect) {
-                    return;
-                }
-                // Reconnect with exponential backoff
-                const delay = Math.min(1000 * Math.pow(2, globalReconnectAttempts), MAX_RECONNECT_DELAY);
-                globalReconnectAttempts++;
-                globalReconnectTimer = setTimeout(connect, delay);
-            };
+        // Wire the Supabase Realtime transport.
+        setRealtimeHandler(handleRealtimeMessage);
 
-            globalWs.onerror = () => {
-                // onclose will fire after onerror
-            };
+        const h = handlersRef.current;
+        if (h.userId) {
+            const status = useAuthStore.getState().user?.status ?? "online";
+            initPresence(h.userId, status);
+            rtSubscribeUser(h.userId);
         }
 
-        connect();
+        // (Re)subscribe to any topics requested before this effect ran.
+        for (const channelId of globalSubscribedChannels) rtSubscribeChannel(channelId);
+        for (const conversationId of globalSubscribedDMConversations) rtSubscribeDM(conversationId);
 
         return () => {
-            globalShouldReconnect = false;
-            if (globalReconnectTimer) {
-                clearTimeout(globalReconnectTimer);
-                globalReconnectTimer = null;
-            }
-            if (globalWs) {
-                globalWs.close();
-                globalWs = null;
-            }
-            globalReconnectAttempts = 0;
+            teardownRealtime();
+            setRealtimeHandler(null);
             globalSubscribedChannels.clear();
             globalSubscribedDMConversations.clear();
         };
     }, [token]);
 
+    // Re-broadcast our own presence when the chosen status changes.
+    useEffect(() => {
+        if (token && userStatus) {
+            updateSelfPresence(userStatus);
+        }
+    }, [token, userStatus]);
+
     const subscribe = useCallback((channelId: string) => {
         globalSubscribedChannels.add(channelId);
-        if (globalWs?.readyState === WebSocket.OPEN) {
-            globalWs.send(JSON.stringify({ type: "subscribe_channel", channelId }));
-        }
+        rtSubscribeChannel(channelId);
     }, []);
 
     const unsubscribe = useCallback((channelId: string) => {
         globalSubscribedChannels.delete(channelId);
-        if (globalWs?.readyState === WebSocket.OPEN) {
-            globalWs.send(JSON.stringify({ type: "unsubscribe_channel", channelId }));
-        }
+        rtUnsubscribeChannel(channelId);
     }, []);
 
     const sendTypingStart = useCallback((channelId: string) => {
-        if (globalWs?.readyState === WebSocket.OPEN) {
-            globalWs.send(JSON.stringify({ type: "typing_start", channelId }));
-        }
+        const h = handlersRef.current;
+        if (h.userId) sendChannelTyping(channelId, h.userId, h.username || "", true);
     }, []);
 
     const sendTypingStop = useCallback((channelId: string) => {
-        if (globalWs?.readyState === WebSocket.OPEN) {
-            globalWs.send(JSON.stringify({ type: "typing_stop", channelId }));
-        }
+        const h = handlersRef.current;
+        if (h.userId) sendChannelTyping(channelId, h.userId, h.username || "", false);
     }, []);
 
     const subscribeDM = useCallback((conversationId: string) => {
         globalSubscribedDMConversations.add(conversationId);
-        if (globalWs?.readyState === WebSocket.OPEN) {
-            globalWs.send(JSON.stringify({ type: "subscribe_dm", conversationId }));
-        }
+        rtSubscribeDM(conversationId);
     }, []);
 
     const unsubscribeDM = useCallback((conversationId: string) => {
         globalSubscribedDMConversations.delete(conversationId);
-        if (globalWs?.readyState === WebSocket.OPEN) {
-            globalWs.send(JSON.stringify({ type: "unsubscribe_dm", conversationId }));
-        }
+        rtUnsubscribeDM(conversationId);
     }, []);
 
     const sendDMTypingStart = useCallback((conversationId: string) => {
-        if (globalWs?.readyState === WebSocket.OPEN) {
-            globalWs.send(JSON.stringify({ type: "typing_start_dm", conversationId }));
-        }
+        const h = handlersRef.current;
+        if (h.userId) sendDMTyping(conversationId, h.userId, h.username || "", true);
     }, []);
 
     const sendDMTypingStop = useCallback((conversationId: string) => {
-        if (globalWs?.readyState === WebSocket.OPEN) {
-            globalWs.send(JSON.stringify({ type: "typing_stop_dm", conversationId }));
-        }
+        const h = handlersRef.current;
+        if (h.userId) sendDMTyping(conversationId, h.userId, h.username || "", false);
     }, []);
 
     return {

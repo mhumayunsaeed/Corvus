@@ -2,18 +2,41 @@ import { Hono } from "hono";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
 import { generateVoiceToken, getLiveKitUrl } from "../lib/livekit.js";
-import {
-    broadcastToChannel,
-    addVoiceParticipant,
-    removeVoiceParticipant,
-    getVoiceParticipants,
-    getUserVoiceChannel,
-    getAllVoiceChannelStates,
-} from "../ws.js";
+import { broadcastToChannel } from "../services/realtime.js";
 
 const voice = new Hono<AuthEnv>();
 
 voice.use("*", authMiddleware);
+
+interface VoiceParticipantView {
+    userId: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+}
+
+function toParticipantView(p: {
+    userId: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+}): VoiceParticipantView {
+    return {
+        userId: p.userId,
+        username: p.username,
+        displayName: p.displayName,
+        avatarUrl: p.avatarUrl,
+    };
+}
+
+async function listParticipants(channelId: string): Promise<VoiceParticipantView[]> {
+    const rows = await prisma.voiceParticipant.findMany({
+        where: { channelId },
+        select: { userId: true, username: true, displayName: true, avatarUrl: true },
+        orderBy: { joinedAt: "asc" },
+    });
+    return rows.map(toParticipantView);
+}
 
 // ─── POST /channels/:channelId/voice/join ────────────────────────
 
@@ -22,7 +45,6 @@ voice.post("/channels/:channelId/voice/join", async (c) => {
     const username = c.get("username");
     const channelId = c.req.param("channelId");
 
-    // Verify channel exists and is voice/stage type
     const channel = await prisma.channel.findUnique({
         where: { id: channelId },
         include: { server: { select: { name: true } } },
@@ -32,7 +54,6 @@ voice.post("/channels/:channelId/voice/join", async (c) => {
         return c.json({ error: "Voice channel not found." }, 404);
     }
 
-    // Verify membership
     const membership = await prisma.serverMember.findUnique({
         where: { serverId_userId: { serverId: channel.serverId, userId } },
     });
@@ -41,7 +62,6 @@ voice.post("/channels/:channelId/voice/join", async (c) => {
         return c.json({ error: "You are not a member of this server." }, 403);
     }
 
-    // Get user details
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { displayName: true, avatarUrl: true },
@@ -49,17 +69,21 @@ voice.post("/channels/:channelId/voice/join", async (c) => {
 
     const displayName = user?.displayName || username;
 
-    // Leave any existing voice channel first
-    const currentVoiceChannel = getUserVoiceChannel(userId);
-    if (currentVoiceChannel && currentVoiceChannel !== channelId) {
-        removeVoiceParticipant(currentVoiceChannel, userId);
-        broadcastToChannel(currentVoiceChannel, {
-            type: "voice_participant_leave",
-            data: { channelId: currentVoiceChannel, userId },
-        });
+    // Leave any other voice channels first (single active voice channel per user).
+    const existing = await prisma.voiceParticipant.findMany({
+        where: { userId, NOT: { channelId } },
+        select: { channelId: true },
+    });
+    if (existing.length > 0) {
+        await prisma.voiceParticipant.deleteMany({ where: { userId, NOT: { channelId } } });
+        for (const row of existing) {
+            broadcastToChannel(row.channelId, {
+                type: "voice_participant_leave",
+                data: { channelId: row.channelId, userId },
+            });
+        }
     }
 
-    // Generate LiveKit token
     const roomName = `channel_${channelId}`;
     const isStage = channel.type === "stage";
     const canPublish = isStage ? ["owner", "admin"].includes(membership.role) : true;
@@ -76,10 +100,12 @@ voice.post("/channels/:channelId/voice/join", async (c) => {
         avatarUrl: user?.avatarUrl || null,
     };
 
-    // Track participant
-    addVoiceParticipant(channelId, participant);
+    await prisma.voiceParticipant.upsert({
+        where: { channelId_userId: { channelId, userId } },
+        create: { channelId, ...participant },
+        update: { username, displayName, avatarUrl: participant.avatarUrl },
+    });
 
-    // Broadcast join to channel subscribers
     broadcastToChannel(channelId, {
         type: "voice_participant_join",
         data: { channelId, participant },
@@ -93,7 +119,7 @@ voice.post("/channels/:channelId/voice/join", async (c) => {
         serverName: channel.server.name,
         serverId: channel.serverId,
         channelType: channel.type,
-        participants: getVoiceParticipants(channelId),
+        participants: await listParticipants(channelId),
     });
 });
 
@@ -103,7 +129,7 @@ voice.post("/channels/:channelId/voice/leave", async (c) => {
     const userId = c.get("userId");
     const channelId = c.req.param("channelId");
 
-    removeVoiceParticipant(channelId, userId);
+    await prisma.voiceParticipant.deleteMany({ where: { channelId, userId } });
 
     broadcastToChannel(channelId, {
         type: "voice_participant_leave",
@@ -117,17 +143,15 @@ voice.post("/channels/:channelId/voice/leave", async (c) => {
 
 voice.get("/channels/:channelId/voice/participants", async (c) => {
     const channelId = c.req.param("channelId");
-    return c.json({ participants: getVoiceParticipants(channelId) });
+    return c.json({ participants: await listParticipants(channelId) });
 });
 
 // ─── GET /servers/:serverId/voice/states ─────────────────────────
-// Returns all voice channel participant states for a server
 
 voice.get("/servers/:serverId/voice/states", async (c) => {
     const userId = c.get("userId");
     const serverId = c.req.param("serverId");
 
-    // Verify membership
     const membership = await prisma.serverMember.findUnique({
         where: { serverId_userId: { serverId, userId } },
     });
@@ -136,23 +160,24 @@ voice.get("/servers/:serverId/voice/states", async (c) => {
         return c.json({ error: "You are not a member of this server." }, 403);
     }
 
-    // Get all voice channels for this server
     const voiceChannels = await prisma.channel.findMany({
         where: { serverId, type: { in: ["voice", "stage"] } },
         select: { id: true },
     });
+    const channelIds = voiceChannels.map((ch) => ch.id);
 
-    const channelIds = new Set(voiceChannels.map((ch) => ch.id));
-    const allStates = getAllVoiceChannelStates();
+    const rows = await prisma.voiceParticipant.findMany({
+        where: { channelId: { in: channelIds } },
+        select: { channelId: true, userId: true, username: true, displayName: true, avatarUrl: true },
+        orderBy: { joinedAt: "asc" },
+    });
 
-    const serverVoiceStates: Record<string, typeof allStates[string]> = {};
-    for (const [channelId, participants] of Object.entries(allStates)) {
-        if (channelIds.has(channelId)) {
-            serverVoiceStates[channelId] = participants;
-        }
+    const voiceStates: Record<string, VoiceParticipantView[]> = {};
+    for (const row of rows) {
+        (voiceStates[row.channelId] ??= []).push(toParticipantView(row));
     }
 
-    return c.json({ voiceStates: serverVoiceStates });
+    return c.json({ voiceStates });
 });
 
 export default voice;

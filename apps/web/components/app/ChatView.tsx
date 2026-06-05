@@ -642,7 +642,7 @@ export function ChatView({
 
             return (
                 <img
-                    src={sticker.imageData}
+                    src={sticker.imageUrl}
                     alt={sticker.name}
                     className="w-24 h-24 rounded-lg object-contain"
                     loading="lazy"
@@ -726,9 +726,10 @@ export function ChatView({
             parts.push(
                 <pre
                     key={match.index}
-                    className="bg-bg-deep rounded-lg p-4 my-2 overflow-x-auto border-l-[3px] border-accent-violet"
+                    className="bg-bg-deep rounded-xl px-4 py-3 my-2 overflow-x-auto border border-border-subtle border-l-[2px] border-l-accent-violet"
+                    style={{ borderLeftColor: "#7C6AF7" }}
                 >
-                    <code className="text-sm font-mono text-accent-teal leading-relaxed">
+                    <code className="text-[12.5px] font-mono text-accent-teal leading-relaxed">
                         {code}
                     </code>
                 </pre>
@@ -787,7 +788,7 @@ export function ChatView({
 
     /* Action pill buttons */
     const ActionPill = ({ message }: { message: MessageData }) => (
-        <div className="absolute -top-4 right-4 flex items-center gap-0.5 bg-surface border border-border rounded-lg px-1 py-1 shadow-[0_4px_12px_rgba(0,0,0,0.2)] z-20">
+        <div className="absolute -top-4 right-2 flex items-center gap-0.5 bg-surface-overlay border border-border-highlight rounded-xl px-1 py-1 shadow-float z-20 animate-scale-in-sm">
             {["👍", "❤️", "😂"].map((emoji) => (
                 <button
                     key={`${message.id}-quick-${emoji}`}
@@ -860,26 +861,28 @@ export function ChatView({
     return (
         <div className="flex-1 min-w-0 min-h-0 flex flex-col bg-channel-sidebar">
             {/* Top bar */}
-            <div className="h-12 border-b border-border-subtle flex items-center px-4 gap-3 flex-shrink-0">
-                <Hash className="w-5 h-5 text-text-muted flex-shrink-0" />
-                <span className="text-emphasis font-semibold text-text-primary">
+            <div className="h-[52px] border-b border-border-subtle flex items-center px-4 gap-2.5 flex-shrink-0 bg-channel-sidebar">
+                <div className="flex items-center justify-center w-6 h-6 rounded-md bg-accent-violet/10 flex-shrink-0">
+                    <Hash className="w-3.5 h-3.5 text-accent-violet" />
+                </div>
+                <span className="text-[14px] font-semibold text-text-primary tracking-[-0.01em]">
                     {channelName}
                 </span>
                 {channelDescription && (
                     <>
-                        <div className="w-px h-5 bg-border" />
-                        <span className="text-body text-text-muted truncate">
+                        <div className="w-px h-4 bg-border mx-0.5" />
+                        <span className="text-[12px] text-text-muted truncate">
                             {channelDescription}
                         </span>
                     </>
                 )}
-                <div className="ml-auto flex items-center gap-1">
+                <div className="ml-auto flex items-center gap-0.5">
                     {[Search, Users, Bookmark].map((Icon, i) => (
                         <button
                             key={i}
-                            className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                            className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-faint hover:text-text-secondary transition-colors"
                         >
-                            <Icon className="w-[18px] h-[18px]" />
+                            <Icon className="w-[16px] h-[16px]" />
                         </button>
                     ))}
                 </div>
@@ -889,7 +892,7 @@ export function ChatView({
             <div
                 ref={messagesContainerRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto px-4 py-4 space-y-5"
+                className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
             >
                 {/* Load more indicator */}
                 {loadingOlder && (
@@ -899,11 +902,14 @@ export function ChatView({
                 )}
 
                 {!hasMore && messages.length > 0 && (
-                    <div className="text-center py-4">
-                        <div className="text-heading font-bold text-text-primary mb-1">
-                            Welcome to #{channelName}!
+                    <div className="text-center py-6 mb-2">
+                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-accent-violet/10 border border-accent-violet/20 mb-3">
+                            <Hash className="w-5 h-5 text-accent-violet" />
                         </div>
-                        <div className="text-body text-text-muted">
+                        <div className="text-[16px] font-bold text-text-primary mb-1 tracking-[-0.01em]">
+                            Welcome to #{channelName}
+                        </div>
+                        <div className="text-[13px] text-text-muted">
                             This is the beginning of the channel.
                         </div>
                     </div>
@@ -912,11 +918,13 @@ export function ChatView({
                 {messages.length === 0 && (
                     <div className="flex-1 flex items-center justify-center min-h-[200px]">
                         <div className="text-center">
-                            <Hash className="w-12 h-12 text-text-muted mx-auto mb-3 opacity-30" />
-                            <div className="text-heading font-bold text-text-primary mb-1">
-                                Welcome to #{channelName}!
+                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-accent-violet/10 border border-accent-violet/20 mb-4">
+                                <Hash className="w-6 h-6 text-accent-violet" />
                             </div>
-                            <div className="text-body text-text-muted">
+                            <div className="text-[16px] font-bold text-text-primary mb-1.5 tracking-[-0.01em]">
+                                Welcome to #{channelName}
+                            </div>
+                            <div className="text-[13px] text-text-muted">
                                 No messages yet. Start the conversation!
                             </div>
                         </div>
@@ -934,7 +942,7 @@ export function ChatView({
                     const authorColor = getUsernameColor(author.username);
 
                     return (
-                        <div key={key} ref={measureRef} className="flex gap-3 group/msggroup">
+                        <div key={key} ref={measureRef} className="flex gap-3 group/msggroup hover:bg-hover-row/40 -mx-4 px-4 py-0.5 rounded-lg transition-colors duration-100">
                             <UserAvatar
                                 avatarUrl={author.avatarUrl}
                                 username={author.username}
@@ -944,19 +952,18 @@ export function ChatView({
                             <div className="flex-1 min-w-0">
                                 {/* First message */}
                                 <div
-                                    className={`relative p-1 -m-1 rounded-md transition-colors duration-100 ${hoveredMessage === firstMessage.id ? "bg-hover-row" : ""
-                                        }`}
+                                    className="relative transition-colors duration-100"
                                     onMouseEnter={() => setHoveredMessage(firstMessage.id)}
                                     onMouseLeave={() => setHoveredMessage(null)}
                                 >
                                     {/* Reply reference */}
                                     {firstMessage.replyTo && (
-                                        <div className="flex items-center gap-1.5 mb-1 text-micro text-text-muted">
-                                            <CornerDownRight className="w-3 h-3" />
-                                            <span className="text-accent-violet font-medium">
+                                        <div className="flex items-center gap-1.5 mb-1 text-[11px] text-text-muted pl-0.5">
+                                            <CornerDownRight className="w-3 h-3 flex-shrink-0 text-text-faint" />
+                                            <span className="font-medium" style={{ color: authorColor }}>
                                                 {firstMessage.replyTo.author.displayName}
                                             </span>
-                                            <span className="truncate max-w-[300px]">
+                                            <span className="truncate max-w-[280px] text-text-faint">
                                                 {formatReplyContent(firstMessage.replyTo.content)}
                                             </span>
                                         </div>
@@ -964,24 +971,24 @@ export function ChatView({
 
                                     <div className="flex items-baseline gap-2 mb-0.5">
                                         <span
-                                            className="font-semibold text-[15px] hover:underline cursor-pointer"
+                                            className="font-semibold text-[14px] hover:underline cursor-pointer leading-snug"
                                             style={{ color: authorColor }}
                                         >
                                             {author.displayName}
                                         </span>
-                                        <span className="text-micro text-text-muted">
+                                        <span className="text-[11px] text-text-faint">
                                             {formatTime(firstMessage.createdAt)}
                                         </span>
                                         {firstMessage.editedAt && (
-                                            <span className="text-micro text-text-muted">(edited)</span>
+                                            <span className="text-[11px] text-text-faint italic">(edited)</span>
                                         )}
                                     </div>
                                     {editingMessageId === firstMessage.id ? (
-                                        <div className="space-y-2">
+                                        <div className="space-y-1.5 mt-1">
                                             <textarea
                                                 value={editContent}
                                                 onChange={(e) => setEditContent(e.target.value)}
-                                                className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-text-primary text-[14px] outline-none focus:border-accent-violet resize-none"
+                                                className="w-full px-3 py-2 bg-surface-raised border border-border-highlight rounded-xl text-text-primary text-[13px] outline-none focus:border-accent-violet/50 focus:shadow-focus-violet resize-none transition-all"
                                                 rows={2}
                                                 autoFocus
                                                 onKeyDown={(e) => {
@@ -994,18 +1001,18 @@ export function ChatView({
                                                     }
                                                 }}
                                             />
-                                            <div className="flex items-center gap-2 text-micro text-text-muted">
-                                                <span>Press Enter to save, Escape to cancel</span>
+                                            <div className="flex items-center gap-2 text-[11px] text-text-faint pl-0.5">
+                                                <span>Enter to save · Escape to cancel</span>
                                                 <button
                                                     onClick={() => setEditingMessageId(null)}
-                                                    className="text-danger hover:underline"
+                                                    className="text-danger hover:text-danger/80 transition-colors ml-auto"
                                                 >
                                                     Cancel
                                                 </button>
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="text-[14px] text-text-primary leading-[1.6]">
+                                        <div className="text-[13.5px] text-text-primary leading-[1.65] break-words">
                                             {renderContent(firstMessage.content)}
                                         </div>
                                     )}
@@ -1155,19 +1162,19 @@ export function ChatView({
 
             {/* Typing indicator */}
             {typingUsers.length > 0 && (
-                <div className="px-4 py-1">
-                    <div className="flex items-center gap-2 text-micro text-[#8E93A3]">
-                        <div className="flex gap-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#8E93A3] animate-bounce" style={{ animationDelay: "0ms" }} />
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#8E93A3] animate-bounce" style={{ animationDelay: "150ms" }} />
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#8E93A3] animate-bounce" style={{ animationDelay: "300ms" }} />
+                <div className="px-4 py-1 h-7 flex items-center">
+                    <div className="flex items-center gap-2 text-[11px] text-text-faint">
+                        <div className="flex gap-[3px] items-end">
+                            <span className="w-[5px] h-[5px] rounded-full bg-text-muted animate-bounce" style={{ animationDelay: "0ms", animationDuration: "0.9s" }} />
+                            <span className="w-[5px] h-[5px] rounded-full bg-text-muted animate-bounce" style={{ animationDelay: "180ms", animationDuration: "0.9s" }} />
+                            <span className="w-[5px] h-[5px] rounded-full bg-text-muted animate-bounce" style={{ animationDelay: "360ms", animationDuration: "0.9s" }} />
                         </div>
-                        <span>
+                        <span className="text-text-muted">
                             {typingUsers.length === 1
-                                ? `${typingUsers[0].username} is typing...`
+                                ? <><span className="font-medium text-text-secondary">{typingUsers[0].username}</span> is typing...</>
                                 : typingUsers.length === 2
-                                    ? `${typingUsers[0].username} and ${typingUsers[1].username} are typing...`
-                                    : `${typingUsers[0].username} and ${typingUsers.length - 1} others are typing...`
+                                    ? <><span className="font-medium text-text-secondary">{typingUsers[0].username}</span> and <span className="font-medium text-text-secondary">{typingUsers[1].username}</span> are typing...</>
+                                    : <><span className="font-medium text-text-secondary">{typingUsers[0].username}</span> and {typingUsers.length - 1} others are typing...</>
                             }
                         </span>
                     </div>
@@ -1177,20 +1184,20 @@ export function ChatView({
             {/* Reply preview */}
             {replyTo && (
                 <div className="px-4 pt-2">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-surface-raised border border-border rounded-t-xl">
-                        <Reply className="w-4 h-4 text-accent-violet flex-shrink-0" />
-                        <span className="text-micro text-text-muted">Replying to</span>
-                        <span className="text-micro text-accent-violet font-medium">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-surface-raised border border-border-highlight rounded-t-xl border-b-0">
+                        <Reply className="w-3.5 h-3.5 text-accent-violet flex-shrink-0" />
+                        <span className="text-[11px] text-text-muted">Replying to</span>
+                        <span className="text-[11px] text-accent-violet font-semibold">
                             {replyTo.author.displayName}
                         </span>
-                        <span className="text-micro text-text-muted truncate flex-1">
+                        <span className="text-[11px] text-text-faint truncate flex-1">
                             {formatReplyContent(replyTo.content)}
                         </span>
                         <button
                             onClick={() => setReplyTo(null)}
-                            className="w-5 h-5 rounded hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                            className="w-5 h-5 rounded-md hover:bg-hover-row flex items-center justify-center text-text-faint hover:text-text-secondary transition-colors"
                         >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="w-3 h-3" />
                         </button>
                     </div>
                 </div>
@@ -1198,7 +1205,7 @@ export function ChatView({
 
             {/* Message input */}
             <div className={`px-4 pb-4 ${replyTo ? "pt-0" : "pt-2"}`}>
-                <div className={`relative bg-surface-raised border border-border focus-within:border-accent-violet/40 focus-within:shadow-[0_0_0_1px_rgba(124,106,247,0.15)] transition-all ${replyTo ? "rounded-b-xl" : "rounded-xl"
+                <div className={`relative bg-surface-raised border border-border-highlight focus-within:border-accent-violet/35 focus-within:shadow-focus-violet transition-all ${replyTo ? "rounded-b-xl" : "rounded-xl"
                     }`}>
                     {showSlashCommandMenu && (
                         <SlashCommandMenu
@@ -1216,17 +1223,17 @@ export function ChatView({
                             onHover={setSelectedMentionIndex}
                         />
                     )}
-                    <div className="flex items-center gap-2 p-3">
+                    <div className="flex items-center gap-2 px-3 py-2.5">
                         <button
                             onClick={() => attachmentInputRef.current?.click()}
                             disabled={uploadingAttachment}
-                            className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors flex-shrink-0 disabled:opacity-50"
+                            className="w-7 h-7 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-faint hover:text-text-secondary transition-colors flex-shrink-0 disabled:opacity-50"
                             title="Upload file"
                         >
                             {uploadingAttachment ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             ) : (
-                                <Plus className="w-5 h-5" />
+                                <Plus className="w-4 h-4" />
                             )}
                         </button>
                         <input
@@ -1244,7 +1251,7 @@ export function ChatView({
                             onKeyDown={handleKeyPress}
                             onSelect={(e) => setCursorPosition((e.target as HTMLTextAreaElement).selectionStart || 0)}
                             placeholder={`Message #${channelName}`}
-                            className="flex-1 bg-transparent text-text-primary placeholder:text-text-muted resize-none outline-none min-h-[22px] max-h-[200px] py-1 text-[14px] leading-[1.45]"
+                            className="flex-1 bg-transparent text-text-primary placeholder:text-text-faint resize-none outline-none min-h-[22px] max-h-[200px] py-0.5 text-[13.5px] leading-[1.5]"
                             rows={1}
                         />
 
@@ -1256,10 +1263,10 @@ export function ChatView({
                                         setShowGifPicker(false);
                                         setShowEmojiPicker(false);
                                     }}
-                                    className={`w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showStickerPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                                    className={`w-7 h-7 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showStickerPicker ? "text-accent-violet" : "text-text-faint hover:text-text-secondary"}`}
                                     title="Sticker"
                                 >
-                                    <ImageIcon className="w-[18px] h-[18px]" />
+                                    <ImageIcon className="w-[15px] h-[15px]" />
                                 </button>
                                 {showStickerPicker && (
                                     <div className="absolute bottom-full right-0 mb-2 z-50">
@@ -1277,10 +1284,10 @@ export function ChatView({
                                         setShowEmojiPicker(false);
                                         setShowStickerPicker(false);
                                     }}
-                                    className={`w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showGifPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                                    className={`w-7 h-7 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showGifPicker ? "text-accent-violet" : "text-text-faint hover:text-text-secondary"}`}
                                     title="GIF"
                                 >
-                                    <span className="text-[11px] font-bold leading-none">GIF</span>
+                                    <span className="text-[10px] font-bold leading-none tracking-tight">GIF</span>
                                 </button>
                                 {showGifPicker && (
                                     <div className="absolute bottom-full right-0 mb-2 z-50">
@@ -1302,10 +1309,10 @@ export function ChatView({
                                         setShowGifPicker(false);
                                         setShowStickerPicker(false);
                                     }}
-                                    className={`w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showEmojiPicker ? "text-accent-violet" : "text-text-muted hover:text-text-primary"}`}
+                                    className={`w-7 h-7 rounded-lg hover:bg-hover-row flex items-center justify-center transition-colors ${showEmojiPicker ? "text-accent-violet" : "text-text-faint hover:text-text-secondary"}`}
                                     title="Emoji"
                                 >
-                                    <Smile className="w-[18px] h-[18px]" />
+                                    <Smile className="w-[15px] h-[15px]" />
                                 </button>
                                 {showEmojiPicker && (
                                     <div className="absolute bottom-full right-0 mb-2 z-50">
@@ -1323,9 +1330,9 @@ export function ChatView({
                     </div>
                 </div>
 
-                <div className="mt-1.5 flex items-center justify-between text-micro text-text-muted px-1">
-                    <span>Press Enter to send, Shift+Enter for new line</span>
-                    <span>Free uploads: {FREE_ATTACHMENT_MAX_LABEL} per file</span>
+                <div className="mt-1 flex items-center justify-between text-[11px] text-text-faint px-1">
+                    <span>Enter to send · Shift+Enter for new line</span>
+                    <span className="text-text-faint/70">Max: {FREE_ATTACHMENT_MAX_LABEL}</span>
                 </div>
             </div>
         </div>

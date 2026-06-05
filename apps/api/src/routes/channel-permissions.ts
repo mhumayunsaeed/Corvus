@@ -77,7 +77,7 @@ channelPermissions.put("/channels/:channelId/permissions/:roleId", async (c) => 
     const body = await c.req.json();
     const result = upsertOverrideSchema.safeParse(body);
     if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
+        return c.json({ error: result.error.issues[0].message }, 400);
     }
 
     const override = await prisma.channelPermissionOverride.upsert({

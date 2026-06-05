@@ -209,7 +209,7 @@ friends.post("/friends/requests", async (c) => {
     const result = friendRequestSchema.safeParse(body);
 
     if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
+        return c.json({ error: result.error.issues[0].message }, 400);
     }
 
     const target = result.data.target.trim();
@@ -486,7 +486,7 @@ friends.post("/friends/block", async (c) => {
     const result = blockSchema.safeParse(body);
 
     if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
+        return c.json({ error: result.error.issues[0].message }, 400);
     }
 
     const targetUserId = result.data.userId;

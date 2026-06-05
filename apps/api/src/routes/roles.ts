@@ -76,7 +76,7 @@ roles.post("/servers/:serverId/roles", async (c) => {
     const body = await c.req.json();
     const result = createRoleSchema.safeParse(body);
     if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
+        return c.json({ error: result.error.issues[0].message }, 400);
     }
 
     // Get highest current position
@@ -139,7 +139,7 @@ roles.patch("/roles/:id", async (c) => {
     const body = await c.req.json();
     const result = updateRoleSchema.safeParse(body);
     if (!result.success) {
-        return c.json({ error: result.error.errors[0].message }, 400);
+        return c.json({ error: result.error.issues[0].message }, 400);
     }
 
     const updated = await prisma.role.update({

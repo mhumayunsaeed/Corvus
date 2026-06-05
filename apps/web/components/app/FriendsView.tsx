@@ -213,25 +213,27 @@ export function FriendsView({ onMessageFriend }: FriendsViewProps) {
 
     return (
         <div className="flex-1 flex flex-col bg-background">
-            <div className="h-12 border-b border-border px-4 flex items-center gap-2">
+            <div className="h-[52px] border-b border-border-subtle px-4 flex items-center gap-1.5">
+                <span className="text-[14px] font-semibold text-text-primary mr-3 tracking-[-0.01em]">Friends</span>
                 {(["online", "all", "pending", "blocked", "add"] as FriendTab[]).map((t) => (
                     <button
                         key={t}
                         onClick={() => setTab(t)}
-                        className={`px-3 py-1.5 rounded-md text-body capitalize ${tab === t
-                            ? "bg-surface-raised text-text-primary"
-                            : "text-text-muted hover:text-text-primary hover:bg-hover-row"
-                            }`}
+                        className={`px-3 h-7 rounded-lg text-[12px] font-medium capitalize transition-all duration-150 ${
+                            tab === t
+                                ? "bg-surface-raised text-text-primary"
+                                : "text-text-muted hover:text-text-secondary hover:bg-hover-row"
+                        }`}
                     >
-                        {t === "all" ? "all friends" : t}
+                        {t === "all" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)}
                     </button>
                 ))}
             </div>
 
-            <div className="px-4 py-2 border-b border-border">
-                {error && <p className="text-micro text-danger">{error}</p>}
-                {!error && notice && <p className="text-micro text-success">{notice}</p>}
-                {!error && !notice && <p className="text-micro text-text-muted">Manage your friend network.</p>}
+            <div className="px-5 py-2 border-b border-border-subtle min-h-[32px] flex items-center">
+                {error && <p className="text-[11px] text-danger">{error}</p>}
+                {!error && notice && <p className="text-[11px] text-success">{notice}</p>}
+                {!error && !notice && <p className="text-[11px] text-text-faint">Manage your friends and connections.</p>}
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -245,38 +247,41 @@ export function FriendsView({ onMessageFriend }: FriendsViewProps) {
                         {friendRows.map((entry) => {
                             const loadingRow = actionId === `friend-${entry.user.id}`;
                             return (
-                                <div key={entry.user.id} className="rounded-xl border border-border bg-surface p-3 flex items-center gap-3">
-                                    <UserAvatar avatarUrl={entry.user.avatarUrl} username={entry.user.username} className="w-10 h-10" />
+                                <div key={entry.user.id} className="rounded-xl border border-border bg-surface hover:bg-surface-raised p-3 flex items-center gap-3 transition-colors inner-shine">
+                                    <UserAvatar avatarUrl={entry.user.avatarUrl} username={entry.user.username} className="w-9 h-9" />
                                     <div className="flex-1 min-w-0">
                                         <p
-                                            className="text-body font-semibold truncate"
+                                            className="text-[13px] font-semibold truncate"
                                             style={{ color: getUsernameColor(entry.user.username) }}
                                         >
                                             {entry.user.displayName}
                                         </p>
-                                        <p className="text-micro text-text-muted truncate">@{entry.user.username} • {entry.user.status}</p>
+                                        <p className="text-[11px] text-text-faint truncate">@{entry.user.username} · {entry.user.status}</p>
                                     </div>
-                                    <button
-                                        onClick={() => handleMessageFriend(entry.user.id)}
-                                        disabled={dmLoadingId === entry.user.id || !onMessageFriend}
-                                        className="px-3 h-8 rounded-md bg-accent-violet text-micro text-white hover:bg-accent-violet/90 disabled:opacity-50"
-                                    >
-                                        {dmLoadingId === entry.user.id ? "..." : "Message"}
-                                    </button>
-                                    <button
-                                        onClick={() => runAction(`friend-${entry.user.id}`, () => removeFriend(entry.user.id), "Friend removed.")}
-                                        disabled={loadingRow}
-                                        className="px-3 h-8 rounded-md bg-surface-raised text-micro text-text-primary hover:bg-hover-row disabled:opacity-50"
-                                    >
-                                        Remove
-                                    </button>
-                                    <button
-                                        onClick={() => runAction(`friend-${entry.user.id}`, () => blockUser(entry.user.id), "User blocked.")}
-                                        disabled={loadingRow}
-                                        className="px-3 h-8 rounded-md bg-surface-raised text-micro text-danger hover:bg-danger/10 disabled:opacity-50"
-                                    >
-                                        {loadingRow ? "..." : "Block"}
-                                    </button>
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            onClick={() => handleMessageFriend(entry.user.id)}
+                                            disabled={dmLoadingId === entry.user.id || !onMessageFriend}
+                                            className="px-3 h-7 rounded-lg text-[12px] font-medium text-white disabled:opacity-50 transition-all hover:brightness-110"
+                                            style={{ background: "linear-gradient(135deg, #7C6AF7, #5B4FBD)" }}
+                                        >
+                                            {dmLoadingId === entry.user.id ? "..." : "Message"}
+                                        </button>
+                                        <button
+                                            onClick={() => runAction(`friend-${entry.user.id}`, () => removeFriend(entry.user.id), "Friend removed.")}
+                                            disabled={loadingRow}
+                                            className="px-3 h-7 rounded-lg text-[12px] font-medium bg-surface-raised border border-border text-text-secondary hover:bg-hover-row disabled:opacity-50 transition-colors"
+                                        >
+                                            Remove
+                                        </button>
+                                        <button
+                                            onClick={() => runAction(`friend-${entry.user.id}`, () => blockUser(entry.user.id), "User blocked.")}
+                                            disabled={loadingRow}
+                                            className="px-3 h-7 rounded-lg text-[12px] font-medium bg-surface-raised border border-border text-danger hover:bg-danger/10 disabled:opacity-50 transition-colors"
+                                        >
+                                            {loadingRow ? "..." : "Block"}
+                                        </button>
+                                    </div>
                                 </div>
                             );
                         })}
