@@ -19,7 +19,13 @@ export const userRepository = {
     },
 
     /** Case-insensitive email lookup (emails are stored as entered). */
-    findByEmailInsensitive(email: string): Promise<User | null> {
+    async findByEmailInsensitive(email: string): Promise<User | null> {
+        const normalized = email.trim().toLowerCase();
+        const user = await prisma.user.findUnique({
+            where: { email: normalized },
+        });
+        if (user) return user;
+
         return prisma.user.findFirst({
             where: { email: { equals: email, mode: "insensitive" } },
         });

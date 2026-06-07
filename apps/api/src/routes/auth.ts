@@ -118,28 +118,45 @@ async function findAvailableUsername(
     ];
 
     const seen = new Set<string>();
+    const candidateList: string[] = [];
 
     for (const candidate of candidates) {
         if (!candidate || candidate.length < 3 || seen.has(candidate)) {
             continue;
         }
-
         seen.add(candidate);
-        const existing = await userRepository.findByUsername(candidate);
-        if (!existing) {
-            return candidate;
+        candidateList.push(candidate);
+    }
+
+    if (candidateList.length > 0) {
+        const existingUsers = await prisma.user.findMany({
+            where: { username: { in: candidateList } },
+            select: { username: true },
+        });
+        const existingUsernames = new Set(existingUsers.map((u) => u.username));
+
+        for (const candidate of candidateList) {
+            if (!existingUsernames.has(candidate)) {
+                return candidate;
+            }
         }
     }
 
     const base = normalizeUsernameCandidate(preferredUsername ?? displayName) || "user";
 
-    for (let attempt = 0; attempt < 20; attempt++) {
-        const suffix = Math.floor(Math.random() * 10000)
-            .toString()
-            .padStart(4, "0");
-        const candidate = `${base.slice(0, 25)}_${suffix}`;
-        const existing = await userRepository.findByUsername(candidate);
-        if (!existing) {
+    // Batch suffix checks: generate 10 candidate suffixes at once to avoid multiple sequential round-trips
+    const suffixes = Array.from({ length: 10 }, () =>
+        Math.floor(Math.random() * 10000).toString().padStart(4, "0")
+    );
+    const randomCandidates = suffixes.map((suffix) => `${base.slice(0, 25)}_${suffix}`);
+    const existingRandom = await prisma.user.findMany({
+        where: { username: { in: randomCandidates } },
+        select: { username: true },
+    });
+    const existingRandomUsernames = new Set(existingRandom.map((u) => u.username));
+
+    for (const candidate of randomCandidates) {
+        if (!existingRandomUsernames.has(candidate)) {
             return candidate;
         }
     }

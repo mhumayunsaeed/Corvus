@@ -49,13 +49,18 @@ interface AuthState {
     refreshUser: () => Promise<void>;
 }
 
+interface CustomRequestInit extends RequestInit {
+    timeoutMs?: number;
+    maxRetries?: number;
+}
+
 async function api<T>(
     path: string,
-    options: RequestInit = {}
+    options: CustomRequestInit = {}
 ): Promise<T> {
     const baseUrl = ensureApiUrl();
-    const maxRetries = 2;
-    const timeoutMs = 15000;
+    const maxRetries = options.maxRetries !== undefined ? options.maxRetries : 2;
+    const timeoutMs = options.timeoutMs !== undefined ? options.timeoutMs : 15000;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         const controller = new AbortController();
@@ -396,6 +401,8 @@ export const useAuthStore = create<AuthState>()(
                 try {
                     const data = await api<{ user: User }>("/auth/me", {
                         headers: { Authorization: `Bearer ${token}` },
+                        timeoutMs: 5000,
+                        maxRetries: 0,
                     });
                     set({ user: data.user, isAuthenticated: true });
                 } catch {

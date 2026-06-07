@@ -171,6 +171,25 @@ export async function getActiveSupabaseSession(timeoutMs = 4000): Promise<Sessio
     const { data } = await supabase.auth.getSession();
     if (data.session) return data.session;
 
+    // If we're in the browser, check if the URL has any hash or query params indicating
+    // an active OAuth / email link exchange. If not, don't wait for onAuthStateChange.
+    if (typeof window !== "undefined") {
+        const hash = window.location.hash || "";
+        const search = window.location.search || "";
+        const hasAuthParams =
+            hash.includes("access_token=") ||
+            hash.includes("id_token=") ||
+            hash.includes("refresh_token=") ||
+            hash.includes("error=") ||
+            search.includes("code=") ||
+            search.includes("token=") ||
+            search.includes("type=");
+
+        if (!hasAuthParams) {
+            return null;
+        }
+    }
+
     return new Promise<Session | null>((resolve) => {
         const timer = setTimeout(() => {
             subscription.unsubscribe();

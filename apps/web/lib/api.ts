@@ -13,9 +13,14 @@ function getToken(): string | null {
     }
 }
 
+export interface CustomRequestInit extends RequestInit {
+    timeoutMs?: number;
+    maxRetries?: number;
+}
+
 export async function api<T>(
     path: string,
-    options: RequestInit = {}
+    options: CustomRequestInit = {}
 ): Promise<T> {
     const baseUrl = ensureApiUrl();
     const token = getToken();
@@ -28,21 +33,46 @@ export async function api<T>(
         headers.Authorization = `Bearer ${token}`;
     }
 
-    let res: Response;
-    const maxRetries = 2;
+    let res!: Response;
+    const maxRetries = options.maxRetries !== undefined ? options.maxRetries : 2;
+    const timeoutMs = options.timeoutMs !== undefined ? options.timeoutMs : 15000;
+    const outerSignal = options.signal;
 
-    for (let attempt = 0; ; attempt++) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        if (outerSignal) {
+            if (outerSignal.aborted) {
+                controller.abort();
+            } else {
+                outerSignal.addEventListener("abort", () => controller.abort());
+            }
+        }
+
         try {
             res = await fetch(`${baseUrl}${path}`, {
                 ...options,
                 headers,
+                signal: controller.signal,
             });
+            clearTimeout(timeoutId);
             break;
-        } catch {
+        } catch (err) {
+            clearTimeout(timeoutId);
+
             if (attempt < maxRetries) {
                 await new Promise((r) => setTimeout(r, 750 * (attempt + 1)));
                 continue;
             }
+
+            if (err instanceof Error && err.name === "AbortError") {
+                throw new Error(
+                    `Request to ${baseUrl}${path} timed out. ` +
+                    "Please check your connection and try again."
+                );
+            }
+
             throw new Error(
                 `Failed to reach API at ${baseUrl}. ` +
                 "The server may be waking up — please try again in a moment."
