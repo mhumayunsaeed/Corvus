@@ -1,0 +1,142 @@
+/* ============================================================================
+   Corvus — Semantic design tokens (Iridescent Obsidian)
+   ----------------------------------------------------------------------------
+   Single source of truth for color. Values are authored as space-separated
+   RGB *channels* so Tailwind can apply opacity modifiers via
+   `rgb(var(--c-token) / <alpha-value>)` (see packages/config/tailwind.config.ts).
+
+   :root                    → dark theme (default)
+   [data-theme="light"]     → light theme overrides
+
+   Components must reference Tailwind semantic classes (bg-surface, text-secondary,
+   bg-accent, …) — never hardcoded hex.
+   ============================================================================ */
+
+:root,
+[data-theme="dark"] {
+  /* ── Surfaces ─────────────────────────────────────────── */
+  --c-background: 10 11 17; /* #0A0B11 app base */
+  --c-bg-deep: 7 8 13; /* #07080D deepest / sunken */
+  --c-surface: 17 18 25; /* #111219 panels */
+  --c-surface-raised: 23 24 33; /* #171821 cards, inputs, buttons */
+  --c-surface-overlay: 29 30 44; /* #1D1E2C popovers, menus */
+  --c-surface-input: 19 20 28; /* #13141C field bg */
+
+  /* ── Brand accent (interactive electric iris) ─────────── */
+  --c-accent-violet: 124 106 247; /* #7C6AF7 */
+  --c-accent-violet-bright: 146 132 255; /* #9284FF */
+  --c-accent-violet-dim: 91 79 189; /* #5B4FBD */
+  --c-accent-teal: 45 212 191; /* #2DD4BF */
+  --c-accent-teal-dim: 30 158 142; /* #1E9E8E */
+  --c-accent-warm: 245 166 35; /* #F5A623 */
+
+  /* ── Text hierarchy ───────────────────────────────────── */
+  --c-text-primary: 236 237 245; /* #ECEDF5 */
+  --c-text-secondary: 174 179 200; /* #AEB3C8 */
+  --c-text-muted: 101 106 126; /* #656A7E */
+  --c-text-faint: 61 64 87; /* #3D4057 */
+  --c-text-on-accent: 255 255 255;
+
+  /* ── Semantic states ──────────────────────────────────── */
+  --c-success: 34 197 94; /* #22C55E */
+  --c-success-dim: 22 163 74; /* #16A34A */
+  --c-danger: 239 68 68; /* #EF4444 */
+  --c-danger-dim: 185 28 28; /* #B91C1C */
+  --c-warning: 245 158 11; /* #F59E0B */
+  --c-info: 59 130 246; /* #3B82F6 */
+  --c-live: 34 224 214; /* #22E0D6 — "live"/voice signal cyan */
+
+  /* ── Borders ──────────────────────────────────────────── */
+  --c-border: 30 32 48; /* #1E2030 */
+  --c-border-subtle: 22 23 36; /* #161724 */
+  --c-border-highlight: 39 42 64; /* #272A40 */
+  --c-border-active: 61 63 96; /* #3D3F60 */
+
+  /* ── Layout regions ───────────────────────────────────── */
+  --c-titlebar-bg: 7 8 13; /* #07080D */
+  --c-channel-sidebar: 14 15 22; /* #0E0F16 */
+  --c-member-sidebar: 14 15 22; /* #0E0F16 */
+
+  /* ── Interactive row states ───────────────────────────── */
+  --c-hover-row: 20 21 31; /* #14151F */
+  --c-hover-row-strong: 26 27 40; /* #1A1B28 */
+  --c-active-row: 30 32 53; /* #1E2035 */
+  --c-active-row-teal: 13 37 32; /* #0D2520 */
+  --c-reaction-own: 35 26 82; /* #231A52 */
+
+  /* ── Brand devices (full strings, not channels) ───────── */
+  --aurora-gradient: linear-gradient(120deg, #7b5cff 0%, #c44be8 50%, #22e0d6 100%);
+  --aurora-glow: 0 0 24px rgba(124, 106, 247, 0.25);
+
+  /* ── Elevation (e0–e4) ────────────────────────────────── */
+  --shadow-e1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-e2: 0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-e3: 0 16px 40px -8px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --shadow-e4: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06);
+
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  /* ── Surfaces ─────────────────────────────────────────── */
+  --c-background: 244 245 249; /* #F4F5F9 cool paper */
+  --c-bg-deep: 233 235 241; /* #E9EBF1 sunken */
+  --c-surface: 255 255 255; /* #FFFFFF panels */
+  --c-surface-raised: 246 247 250; /* #F6F7FA cards, inputs */
+  --c-surface-overlay: 255 255 255; /* #FFFFFF popovers (rely on shadow) */
+  --c-surface-input: 255 255 255; /* #FFFFFF field bg */
+
+  /* ── Brand accent (darkened for AA on light) ──────────── */
+  --c-accent-violet: 93 75 224; /* #5D4BE0 */
+  --c-accent-violet-bright: 124 106 247; /* #7C6AF7 */
+  --c-accent-violet-dim: 75 60 196; /* #4B3CC4 */
+  --c-accent-teal: 15 184 174; /* #0FB8AE */
+  --c-accent-teal-dim: 14 148 136; /* #0E9488 */
+  --c-accent-warm: 217 119 6; /* #D97706 */
+
+  /* ── Text hierarchy ───────────────────────────────────── */
+  --c-text-primary: 20 21 31; /* #14151F */
+  --c-text-secondary: 74 79 99; /* #4A4F63 */
+  --c-text-muted: 107 113 134; /* #6B7186 */
+  --c-text-faint: 160 165 184; /* #A0A5B8 */
+  --c-text-on-accent: 255 255 255;
+
+  /* ── Semantic states ──────────────────────────────────── */
+  --c-success: 22 163 74; /* #16A34A */
+  --c-success-dim: 21 128 61; /* #15803D */
+  --c-danger: 220 38 38; /* #DC2626 */
+  --c-danger-dim: 185 28 28; /* #B91C1C */
+  --c-warning: 217 119 6; /* #D97706 */
+  --c-info: 37 99 235; /* #2563EB */
+  --c-live: 15 184 174; /* #0FB8AE */
+
+  /* ── Borders ──────────────────────────────────────────── */
+  --c-border: 226 229 236; /* #E2E5EC */
+  --c-border-subtle: 236 238 243; /* #ECEEF3 */
+  --c-border-highlight: 212 216 226; /* #D4D8E2 */
+  --c-border-active: 184 190 206; /* #B8BECE */
+
+  /* ── Layout regions ───────────────────────────────────── */
+  --c-titlebar-bg: 233 235 241; /* #E9EBF1 */
+  --c-channel-sidebar: 239 241 246; /* #EFF1F6 */
+  --c-member-sidebar: 239 241 246; /* #EFF1F6 */
+
+  /* ── Interactive row states ───────────────────────────── */
+  --c-hover-row: 238 240 245; /* #EEF0F5 */
+  --c-hover-row-strong: 230 233 240; /* #E6E9F0 */
+  --c-active-row: 228 231 245; /* #E4E7F5 */
+  --c-active-row-teal: 220 245 240; /* #DCF5F0 */
+  --c-reaction-own: 230 226 251; /* #E6E2FB */
+
+  /* ── Brand devices ────────────────────────────────────── */
+  --aurora-gradient: linear-gradient(120deg, #6b4cf0 0%, #b13fd6 50%, #11b8ae 100%);
+  --aurora-glow: 0 0 24px rgba(93, 75, 224, 0.2);
+
+  /* ── Elevation (softer, neutral shadows on light) ─────── */
+  --shadow-e1: 0 1px 2px rgba(16, 18, 38, 0.06), 0 0 0 1px rgba(16, 18, 38, 0.04);
+  --shadow-e2: 0 4px 12px -2px rgba(16, 18, 38, 0.1), 0 0 0 1px rgba(16, 18, 38, 0.05);
+  --shadow-e3: 0 16px 40px -8px rgba(16, 18, 38, 0.16), 0 0 0 1px rgba(16, 18, 38, 0.06);
+  --shadow-e4: 0 24px 60px -12px rgba(16, 18, 38, 0.2), 0 0 0 1px rgba(16, 18, 38, 0.07);
+
+  color-scheme: light;
+}

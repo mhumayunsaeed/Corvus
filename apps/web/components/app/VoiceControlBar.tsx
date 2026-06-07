@@ -117,27 +117,40 @@ export function VoiceControlBar({
     // Shared styles
     const ctrlBase = "h-9 px-3 rounded-xl flex items-center justify-center gap-1.5 font-medium text-[13px] transition-all duration-150";
     const ctrlIdle = "bg-surface-raised text-text-secondary hover:bg-hover-row-strong hover:text-text-primary";
-    const ctrlActive = "bg-accent-teal/15 text-accent-teal border border-accent-teal/25";
+    const ctrlActive = "bg-live/15 text-live border border-live/25";
     const ctrlDanger = "bg-danger/15 text-danger border border-danger/25";
 
     return (
-        <div className="bg-surface border-t border-border-subtle flex items-center px-4 gap-3 flex-shrink-0 h-[54px]"
-            style={{ background: "linear-gradient(to bottom, #0E0F16, #0A0B11)" }}
+        <div
+            className="flex h-[54px] flex-shrink-0 items-center gap-3 border-t border-border-subtle px-4"
+            style={{
+                background:
+                    "linear-gradient(to bottom, rgb(var(--c-channel-sidebar)), rgb(var(--c-background)))",
+            }}
         >
-            {/* Left: channel info */}
+            {/* Left: live status */}
             <button
                 onClick={onToggleVoiceView}
-                className="flex items-center gap-2 min-w-0 max-w-[160px] hover:opacity-80 transition-opacity group"
+                className="group flex min-w-0 max-w-[180px] items-center gap-2.5 transition-opacity hover:opacity-80"
             >
-                <div className="w-7 h-7 rounded-lg bg-success/10 border border-success/20 flex items-center justify-center flex-shrink-0">
-                    <Volume2 className="w-3.5 h-3.5 text-success" />
-                </div>
+                <span className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-live/25 bg-live/10">
+                    <Volume2 className="h-3.5 w-3.5 text-live" />
+                    <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-live opacity-60" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full border-2 border-channel-sidebar bg-live" />
+                    </span>
+                </span>
                 <div className="min-w-0 text-left">
-                    <div className="text-[12px] font-semibold text-success truncate leading-tight">
-                        {channelName}
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-live">
+                            Live
+                        </span>
+                        <span className="truncate text-[12px] font-semibold leading-tight text-text-primary">
+                            {channelName}
+                        </span>
                     </div>
                     {serverName && (
-                        <div className="text-[11px] text-text-faint truncate leading-tight">
+                        <div className="truncate text-[11px] leading-tight text-text-faint">
                             {serverName}
                         </div>
                     )}
@@ -161,7 +174,7 @@ export function VoiceControlBar({
                         <span
                             className={`absolute -top-1.5 -right-1.5 px-1 py-px rounded text-[9px] font-bold uppercase leading-none transition-all ${
                                 pttActive
-                                    ? "bg-accent-teal text-white shadow-glow-teal-sm scale-110"
+                                    ? "bg-live text-white shadow-glow-teal-sm scale-110"
                                     : "bg-surface-raised text-text-faint border border-border text-[8px]"
                             }`}
                         >
@@ -207,7 +220,7 @@ export function VoiceControlBar({
                                     key={key}
                                     onClick={() => { setScreenShareQuality(key); setShowQualityPicker(false); }}
                                     className={`w-full px-3 py-1.5 text-left text-[13px] flex items-center justify-between hover:bg-hover-row transition-colors ${
-                                        screenShareQuality === key ? "text-accent-teal" : "text-text-secondary"
+                                        screenShareQuality === key ? "text-live" : "text-text-secondary"
                                     }`}
                                 >
                                     <span>{preset ? preset.label : "Source"}</span>

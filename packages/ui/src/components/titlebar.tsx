@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "../lib/utils";
+import { useTheme } from "./theme-provider";
 
 function MinimizeIcon() {
   return (
@@ -67,6 +68,21 @@ export interface TitlebarProps {
 export function Titlebar({ className }: TitlebarProps) {
   const [isMaximized, setIsMaximized] = useState(false);
   const [isTauri, setIsTauri] = useState(false);
+  const { resolvedTheme } = useTheme();
+
+  // Keep the native window chrome (and any OS-drawn surfaces) in sync with the
+  // in-app theme on desktop.
+  useEffect(() => {
+    if (!isTauri) return;
+    (async () => {
+      const win = await getTauriWindow();
+      try {
+        await win?.setTheme?.(resolvedTheme);
+      } catch {
+        // Best-effort; ignore if the platform/capability is unavailable.
+      }
+    })();
+  }, [isTauri, resolvedTheme]);
 
   useEffect(() => {
     const w = window as unknown as Record<string, unknown>;
@@ -140,7 +156,7 @@ export function Titlebar({ className }: TitlebarProps) {
           onClick={handleMinimize}
           className={cn(
             "flex h-full w-[46px] items-center justify-center",
-            "text-text-muted/70 hover:text-text-primary hover:bg-white/[0.06]",
+            "text-text-muted hover:text-text-primary hover:bg-hover-row-strong",
             "transition-all duration-150 active:scale-90"
           )}
           aria-label="Minimize"
@@ -153,7 +169,7 @@ export function Titlebar({ className }: TitlebarProps) {
           onClick={handleMaximize}
           className={cn(
             "flex h-full w-[46px] items-center justify-center",
-            "text-text-muted/70 hover:text-text-primary hover:bg-white/[0.06]",
+            "text-text-muted hover:text-text-primary hover:bg-hover-row-strong",
             "transition-all duration-150 active:scale-90"
           )}
           aria-label={isMaximized ? "Restore" : "Maximize"}

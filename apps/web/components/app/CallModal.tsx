@@ -80,17 +80,17 @@ function CallParticipantTile({
 
     if (isSmall) {
         return (
-            <div className={`flex items-center gap-3 p-2 rounded-lg w-full transition-colors ${isSpeaking ? 'bg-accent-teal/10' : 'bg-surface hover:bg-surface-raised'} border ${isSpeaking ? 'border-accent-teal/30' : 'border-border/30'}`}>
+            <div className={`flex items-center gap-3 p-2 rounded-lg w-full transition-colors ${isSpeaking ? 'bg-live/10' : 'bg-surface hover:bg-surface-raised'} border ${isSpeaking ? 'border-live/30' : 'border-border/30'}`}>
                 <div className="relative shrink-0">
                     {hasVideo && trackRef ? (
-                        <div className={`w-10 h-10 rounded-full overflow-hidden transition-all duration-200 ${isSpeaking ? "ring-2 ring-accent-teal shadow-[0_0_10px_rgba(62,207,207,0.3)]" : "ring-1 ring-border/50"}`}>
+                        <div className={`w-10 h-10 rounded-full overflow-hidden transition-all duration-200 ${isSpeaking ? "ring-2 ring-live shadow-[0_0_10px_rgba(34,224,214,0.3)]" : "ring-1 ring-border/50"}`}>
                             <VideoTrack trackRef={trackRef} className="w-full h-full object-cover" />
                         </div>
                     ) : (
                         <UserAvatar
                             avatarUrl={avatarUrl}
                             username={username}
-                            className={`w-10 h-10 transition-all duration-200 ${isSpeaking ? "ring-2 ring-accent-teal shadow-[0_0_10px_rgba(62,207,207,0.3)]" : "ring-1 ring-border/50"}`}
+                            className={`w-10 h-10 transition-all duration-200 ${isSpeaking ? "ring-2 ring-live shadow-[0_0_10px_rgba(34,224,214,0.3)]" : "ring-1 ring-border/50"}`}
                         />
                     )}
                 </div>
@@ -101,7 +101,7 @@ function CallParticipantTile({
                     >
                         {displayName}
                     </span>
-                    {isSpeaking && <span className="text-[10px] text-accent-teal uppercase font-bold tracking-wider leading-none mt-0.5">Speaking</span>}
+                    {isSpeaking && <span className="text-[10px] text-live uppercase font-bold tracking-wider leading-none mt-0.5">Speaking</span>}
                 </div>
             </div>
         );
@@ -111,7 +111,7 @@ function CallParticipantTile({
         <div className="flex flex-col items-center justify-center gap-2 py-2">
             {hasVideo && trackRef ? (
                 <div
-                    className={`w-24 h-24 ring-[3px] rounded-full overflow-hidden transition-all duration-200 ${isSpeaking ? "ring-accent-teal shadow-[0_0_14px_rgba(62,207,207,0.35)]" : "ring-border"
+                    className={`w-24 h-24 ring-[3px] rounded-full overflow-hidden transition-all duration-200 ${isSpeaking ? "ring-live shadow-[0_0_14px_rgba(34,224,214,0.35)]" : "ring-border"
                         }`}
                 >
                     <VideoTrack trackRef={trackRef} className="w-full h-full object-cover" />
@@ -120,7 +120,7 @@ function CallParticipantTile({
                 <UserAvatar
                     avatarUrl={avatarUrl}
                     username={username}
-                    className={`w-24 h-24 transition-all duration-200 ${isSpeaking ? "ring-[3px] ring-accent-teal shadow-[0_0_14px_rgba(62,207,207,0.35)]" : ""}`}
+                    className={`w-24 h-24 transition-all duration-200 ${isSpeaking ? "ring-[3px] ring-live shadow-[0_0_14px_rgba(34,224,214,0.35)]" : ""}`}
                 />
             )}
             <span
@@ -193,7 +193,7 @@ function CallScreenShareView({
 
             <div className={`absolute bottom-0 left-0 right-0 p-3 pt-12 bg-gradient-to-t from-black/90 to-transparent flex items-end justify-between transition-opacity duration-300 pointer-events-none ${isFullscreen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                 <div className="flex items-center gap-2 pointer-events-auto">
-                    <MonitorUp className="w-5 h-5 text-accent-teal drop-shadow-md" />
+                    <MonitorUp className="w-5 h-5 text-live drop-shadow-md" />
                     <span className="text-sm font-medium text-white drop-shadow-md cursor-default">
                         {screenTrack.participant.name || screenTrack.participant.identity}&apos;s screen
                     </span>
@@ -430,7 +430,7 @@ function CallContent({
                 <button
                     onClick={() => setLocalVideo(!hasVideo)}
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${hasVideo
-                        ? "bg-accent-teal/20 text-accent-teal"
+                        ? "bg-live/20 text-live"
                         : "bg-surface-raised text-text-primary hover:bg-hover-row"
                         }`}
                     title={hasVideo ? "Turn off camera" : "Turn on camera"}
@@ -442,7 +442,7 @@ function CallContent({
                         <button
                             onClick={() => setLocalScreenSharing(!isScreenSharing)}
                             className={`w-10 h-10 rounded-l-full flex items-center justify-center transition-all ${isScreenSharing
-                                ? "bg-accent-teal/20 text-accent-teal"
+                                ? "bg-live/20 text-live"
                                 : "bg-surface-raised text-text-primary hover:bg-hover-row"
                                 }`}
                             title={isScreenSharing ? "Stop sharing" : "Share screen"}
@@ -452,7 +452,7 @@ function CallContent({
                         <button
                             onClick={() => setShowQualityPicker(!showQualityPicker)}
                             className={`w-5 h-10 rounded-r-full flex items-center justify-center transition-all border-l border-border/50 ${isScreenSharing
-                                ? "bg-accent-teal/20 text-accent-teal"
+                                ? "bg-live/20 text-live"
                                 : "bg-surface-raised text-text-primary hover:bg-hover-row"
                                 }`}
                             title="Screen Share Quality"
@@ -472,7 +472,7 @@ function CallContent({
                                         setScreenShareQuality(key);
                                         setShowQualityPicker(false);
                                     }}
-                                    className={`w-full px-3 py-1.5 text-left text-body flex items-center justify-between hover:bg-hover-row transition-colors ${screenShareQuality === key ? "text-accent-teal" : "text-text-primary"
+                                    className={`w-full px-3 py-1.5 text-left text-body flex items-center justify-between hover:bg-hover-row transition-colors ${screenShareQuality === key ? "text-live" : "text-text-primary"
                                         }`}
                                 >
                                     <span>{preset ? preset.label : "Source Quality"}</span>
@@ -486,7 +486,7 @@ function CallContent({
                 <button
                     onClick={() => setNoiseSuppression(!noiseSuppression)}
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${noiseSuppression
-                        ? "bg-accent-teal/20 text-accent-teal"
+                        ? "bg-live/20 text-live"
                         : "bg-surface-raised text-text-primary hover:bg-hover-row"
                         }`}
                     title={noiseSuppression ? "Disable Noise Suppression" : "Enable Noise Suppression"}

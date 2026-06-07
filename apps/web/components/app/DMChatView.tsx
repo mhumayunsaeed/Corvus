@@ -781,7 +781,7 @@ export function DMChatView({
     const ActionPill = ({ message, isOwn }: { message: DMMessageData; isOwn: boolean }) => {
         const isPinned = pinnedMessages.some((p) => p.id === message.id);
         return (
-            <div className="absolute -top-3 right-2 flex items-center gap-0.5 bg-surface border border-border rounded-lg px-1 py-1 shadow-[0_4px_12px_rgba(0,0,0,0.2)] z-20">
+            <div className={`absolute -top-3 flex items-center gap-0.5 bg-surface-overlay border border-border-highlight rounded-xl px-1 py-1 shadow-e2 z-20 animate-scale-in-sm ${isOwn ? "left-2" : "right-2"}`}>
                 {["👍", "❤️", "😂"].map((emoji) => (
                     <button
                         key={`${message.id}-quick-${emoji}`}
@@ -1179,17 +1179,16 @@ export function DMChatView({
                             <div
                                 key={key}
                                 ref={measureRef}
-                                className={`relative flex gap-3 group p-1 pl-1 -m-1 mt-[1px] rounded-md transition-colors ${hoveredMessage === message.id ? "bg-hover-row" : ""
-                                    }`}
+                                className={`relative flex gap-2.5 group px-1 py-1 -mx-1 rounded-xl transition-colors ${hoveredMessage === message.id ? "bg-hover-row/60" : ""} ${isOwn ? "flex-row-reverse" : ""}`}
                                 onMouseEnter={() => setHoveredMessage(message.id)}
                                 onMouseLeave={() => setHoveredMessage(null)}
                             >
                                 <UserAvatar
                                     avatarUrl={message.author.avatarUrl}
                                     username={message.author.username}
-                                    className="w-9 h-9 mt-0.5"
+                                    className="w-8 h-8 mt-0.5 flex-shrink-0"
                                 />
-                                <div className="min-w-0 flex-1">
+                                <div className={`flex min-w-0 max-w-[78%] flex-col ${isOwn ? "items-end" : "items-start"}`}>
                                     {message.replyTo && (
                                         <div className="flex items-center gap-1.5 mb-1 text-micro text-text-muted">
                                             <CornerDownRight className="w-3 h-3" />
@@ -1201,23 +1200,25 @@ export function DMChatView({
                                             </span>
                                         </div>
                                     )}
-                                    <div className="flex items-baseline gap-2">
-                                        <span
-                                            className="text-[15px] font-semibold hover:underline cursor-pointer"
-                                            style={{ color: authorColor }}
-                                        >
-                                            {message.author.displayName}
-                                        </span>
-                                        <span className="text-micro text-text-muted">
+                                    <div className={`flex items-baseline gap-2 mb-0.5 ${isOwn ? "flex-row-reverse" : ""}`}>
+                                        {!isOwn && (
+                                            <span
+                                                className="text-[13px] font-semibold hover:underline cursor-pointer"
+                                                style={{ color: authorColor }}
+                                            >
+                                                {message.author.displayName}
+                                            </span>
+                                        )}
+                                        <span className="text-micro text-text-faint">
                                             {formatTime(message.createdAt)}
                                         </span>
                                         {message.editedAt && (
-                                            <span className="text-micro text-text-muted">(edited)</span>
+                                            <span className="text-micro text-text-faint">(edited)</span>
                                         )}
                                     </div>
 
                                     {editingMessageId === message.id ? (
-                                        <div className="space-y-2 mt-1">
+                                        <div className="w-full space-y-2 mt-1">
                                             <textarea
                                                 value={editContent}
                                                 onChange={(e) => setEditContent(e.target.value)}
@@ -1246,11 +1247,16 @@ export function DMChatView({
                                         </div>
                                     ) : (
                                         <>
-                                            <div className="text-body text-text-primary whitespace-pre-wrap break-words">
+                                            <div
+                                                className={`inline-block rounded-2xl px-3.5 py-2 text-body leading-[1.55] text-text-primary whitespace-pre-wrap break-words ${isOwn
+                                                    ? "rounded-tr-md border border-accent-violet/25 bg-accent-violet/12"
+                                                    : "rounded-tl-md border border-border bg-surface-raised"
+                                                    }`}
+                                            >
                                                 {renderContent(message.content)}
                                             </div>
                                             {messageEmbeds.length > 0 && (
-                                                <div className="mt-1">
+                                                <div className="mt-1 w-full">
                                                     {messageEmbeds.map((embed) => (
                                                         <LinkEmbed key={embed.id} embed={embed} />
                                                     ))}
@@ -1260,12 +1266,12 @@ export function DMChatView({
                                     )}
 
                                     {message.reactions.length > 0 && (
-                                        <div className="flex gap-1.5 mt-2">
+                                        <div className={`flex flex-wrap gap-1.5 mt-1.5 ${isOwn ? "justify-end" : ""}`}>
                                             {message.reactions.map((reaction, idx) => (
                                                 <button
                                                     key={`${message.id}-reaction-${idx}`}
                                                     onClick={() => handleReaction(message.id, reaction.emoji, reaction.reacted)}
-                                                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${reaction.reacted
+                                                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-micro font-medium transition-all ${reaction.reacted
                                                         ? "bg-reaction-own border border-accent-violet"
                                                         : "bg-surface-raised border border-border hover:border-accent-violet/40"
                                                         }`}
@@ -1325,11 +1331,11 @@ export function DMChatView({
                 {/* Typing indicator */}
                 {typingUsers.length > 0 && (
                     <div className="px-4 py-1">
-                        <div className="flex items-center gap-2 text-micro text-[#8E93A3]">
+                        <div className="flex items-center gap-2 text-micro text-text-muted">
                             <div className="flex gap-0.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#8E93A3] animate-bounce" style={{ animationDelay: "0ms" }} />
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#8E93A3] animate-bounce" style={{ animationDelay: "150ms" }} />
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#8E93A3] animate-bounce" style={{ animationDelay: "300ms" }} />
+                                <span className="w-1.5 h-1.5 rounded-full bg-text-muted animate-bounce" style={{ animationDelay: "0ms" }} />
+                                <span className="w-1.5 h-1.5 rounded-full bg-text-muted animate-bounce" style={{ animationDelay: "150ms" }} />
+                                <span className="w-1.5 h-1.5 rounded-full bg-text-muted animate-bounce" style={{ animationDelay: "300ms" }} />
                             </div>
                             <span>
                                 {typingUsers.length === 1
@@ -1366,7 +1372,7 @@ export function DMChatView({
                 )}
 
                 <div className={`px-4 pb-4 ${replyTo ? "pt-0" : "p-4"} border-t border-border-subtle`}>
-                    <div className={`relative flex items-center gap-2 bg-surface-raised border border-border focus-within:border-accent-violet/40 focus-within:shadow-[0_0_0_1px_rgba(124,106,247,0.15)] transition-all px-3 py-2 ${replyTo ? "rounded-b-xl" : "rounded-lg"}`}>
+                    <div className={`relative flex items-center gap-2 bg-surface-raised border border-border shadow-e1 focus-within:border-accent-violet/40 focus-within:shadow-focus-violet transition-all px-3 py-2.5 ${replyTo ? "rounded-b-2xl" : "rounded-2xl"}`}>
                         {showSlashCommandMenu && (
                             <SlashCommandMenu
                                 commands={filteredSlashCommands}

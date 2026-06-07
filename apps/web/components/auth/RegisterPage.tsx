@@ -319,7 +319,7 @@ export function RegisterPage() {
                                                             backgroundColor:
                                                                 level <= strength
                                                                     ? strengthColors[strength]
-                                                                    : "#2A2A35",
+                                                                    : "rgb(var(--c-border-highlight))",
                                                         }}
                                                     />
                                                 ))}
@@ -392,11 +392,11 @@ export function RegisterPage() {
                                     </button>
                                     <label className="text-sm text-text-muted leading-snug cursor-pointer" onClick={() => setAgreedToTerms(!agreedToTerms)}>
                                         I agree to the{" "}
-                                        <a href="#" className="text-accent-violet hover:text-[#6B59E6] transition-colors" onClick={(e) => e.stopPropagation()}>
+                                        <a href="#" className="text-accent-violet hover:text-accent-violet-bright transition-colors" onClick={(e) => e.stopPropagation()}>
                                             Terms of Service
                                         </a>{" "}
                                         and{" "}
-                                        <a href="#" className="text-accent-violet hover:text-[#6B59E6] transition-colors" onClick={(e) => e.stopPropagation()}>
+                                        <a href="#" className="text-accent-violet hover:text-accent-violet-bright transition-colors" onClick={(e) => e.stopPropagation()}>
                                             Privacy Policy
                                         </a>
                                     </label>
@@ -414,7 +414,7 @@ export function RegisterPage() {
                                     <button
                                         type="submit"
                                         disabled={!agreedToTerms || isLoading}
-                                        className="w-full py-3 bg-accent-violet text-white rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(124,106,247,0.35)] hover:bg-[#6B59E6] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:bg-accent-violet disabled:active:scale-100"
+                                        className="w-full py-3 bg-accent-violet text-white rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(124,106,247,0.35)] hover:bg-accent-violet-bright active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:bg-accent-violet disabled:active:scale-100"
                                     >
                                         {isLoading ? (
                                             <span className="flex items-center justify-center gap-2">
@@ -446,7 +446,7 @@ export function RegisterPage() {
                             {/* Login link */}
                             <div className="mt-7 text-center text-sm">
                                 <span className="text-text-muted">Already have an account? </span>
-                                <Link href="/login" className="text-accent-violet hover:text-[#6B59E6] font-medium transition-colors">
+                                <Link href="/login" className="text-accent-violet hover:text-accent-violet-bright font-medium transition-colors">
                                     Log In
                                 </Link>
                             </div>

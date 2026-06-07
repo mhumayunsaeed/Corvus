@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, LogOut, Pencil, Upload, Bell, MessageSquare, AtSign, AppWindow, Volume2, Sparkles } from "lucide-react";
+import { X, LogOut, Pencil, Upload, Bell, MessageSquare, AtSign, AppWindow, Volume2, Sparkles, Monitor } from "lucide-react";
+import { useTheme, type ThemePreference } from "@corvus/ui";
+import { setFeatureFlag, useNewShell } from "@/lib/flags";
 import { useAuthStore } from "@/stores/auth-store";
 import { useNotificationStore } from "@/stores/notification-store";
 import { useVoiceStore } from "@/stores/voice-store";
@@ -43,7 +45,8 @@ function NoiseSuppressionSection() {
 export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
     const { user, logout, updateUser } = useAuthStore();
     const [activeTab, setActiveTab] = useState<Tab>("My Account");
-    const [theme, setTheme] = useState<"light" | "dark">("dark");
+    const { theme, resolvedTheme, setTheme } = useTheme();
+    const newShell = useNewShell();
 
     // Form states
     const [displayName, setDisplayName] = useState("");
@@ -67,12 +70,6 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
     useEffect(() => {
         if (open) {
             setDisplayName(user?.displayName || "");
-
-            // Check current theme 
-            if (typeof document !== "undefined") {
-                const isDark = document.documentElement.classList.contains("dark");
-                setTheme(isDark ? "dark" : "light");
-            }
 
             // Sync media devices
             if (navigator?.mediaDevices?.enumerateDevices) {
@@ -169,15 +166,8 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
         }
     };
 
-    const handleThemeChange = (newTheme: "light" | "dark") => {
+    const handleThemeChange = (newTheme: ThemePreference) => {
         setTheme(newTheme);
-        if (newTheme === "dark") {
-            document.documentElement.classList.add("dark");
-            localStorage.setItem("theme", "dark");
-        } else {
-            document.documentElement.classList.remove("dark");
-            localStorage.setItem("theme", "light");
-        }
     };
 
     const audioInputs = devices.filter(d => d.kind === "audioinput");
@@ -440,34 +430,88 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                 <div>
                                     <h3 className="text-sm font-bold text-text-muted uppercase tracking-wider mb-4">Theme</h3>
                                     <div className="grid grid-cols-3 gap-4">
-                                        <label
-                                            className={`group relative border-2 cursor-pointer rounded-lg overflow-hidden transition-colors ${theme === "light" ? "border-accent-violet" : "border-border hover:border-text-muted"}`}
-                                            onClick={() => handleThemeChange("light")}
-                                        >
-                                            <div className="h-24 bg-[#E3E5E8] p-3 text-left">
-                                                <div className="w-2/3 h-2 bg-[#F2F3F5] rounded-full mb-2" />
-                                                <div className="w-1/2 h-2 bg-[#F2F3F5] rounded-full" />
-                                            </div>
-                                            <div className="p-3 bg-white flex items-center justify-between">
-                                                <span className="text-sm font-medium text-black">Light</span>
-                                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${theme === "light" ? "border-[4px] border-accent-violet bg-white" : "border-gray-300"}`} />
-                                            </div>
-                                        </label>
+                                        {([
+                                            {
+                                                value: "light" as const,
+                                                label: "Light",
+                                                top: "#E9EBF1",
+                                                bar: "#FFFFFF",
+                                                base: "#F4F5F9",
+                                                text: "#14151F",
+                                            },
+                                            {
+                                                value: "dark" as const,
+                                                label: "Dark",
+                                                top: "#171821",
+                                                bar: "#111219",
+                                                base: "#0A0B11",
+                                                text: "#ECEDF5",
+                                            },
+                                        ]).map((opt) => {
+                                            const selected = theme === opt.value;
+                                            return (
+                                                <label
+                                                    key={opt.value}
+                                                    className={`group relative border-2 cursor-pointer rounded-lg overflow-hidden transition-colors ${selected ? "border-accent-violet" : "border-border hover:border-text-muted"}`}
+                                                    onClick={() => handleThemeChange(opt.value)}
+                                                >
+                                                    <div className="h-24 p-3 text-left" style={{ background: opt.top }}>
+                                                        <div className="w-2/3 h-2 rounded-full mb-2" style={{ background: opt.bar }} />
+                                                        <div className="w-1/2 h-2 rounded-full" style={{ background: opt.bar }} />
+                                                    </div>
+                                                    <div className="p-3 flex items-center justify-between" style={{ background: opt.base }}>
+                                                        <span className="text-sm font-medium" style={{ color: opt.text }}>{opt.label}</span>
+                                                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selected ? "border-[4px] border-accent-violet bg-white" : "border-border-active"}`} />
+                                                    </div>
+                                                </label>
+                                            );
+                                        })}
 
                                         <label
-                                            className={`group relative border-2 cursor-pointer rounded-lg overflow-hidden transition-colors ${theme === "dark" ? "border-accent-violet" : "border-border hover:border-text-muted"}`}
-                                            onClick={() => handleThemeChange("dark")}
+                                            className={`group relative border-2 cursor-pointer rounded-lg overflow-hidden transition-colors ${theme === "system" ? "border-accent-violet" : "border-border hover:border-text-muted"}`}
+                                            onClick={() => handleThemeChange("system")}
                                         >
-                                            <div className="h-24 bg-[#313338] p-3 text-left">
-                                                <div className="w-2/3 h-2 bg-[#2B2D31] rounded-full mb-2" />
-                                                <div className="w-1/2 h-2 bg-[#2B2D31] rounded-full" />
+                                            <div className="h-24 flex">
+                                                <div className="w-1/2 p-3" style={{ background: "#F4F5F9" }}>
+                                                    <div className="w-2/3 h-2 rounded-full" style={{ background: "#FFFFFF" }} />
+                                                </div>
+                                                <div className="w-1/2 p-3" style={{ background: "#0A0B11" }}>
+                                                    <div className="w-2/3 h-2 rounded-full ml-auto" style={{ background: "#171821" }} />
+                                                </div>
                                             </div>
-                                            <div className="p-3 bg-[#111214] flex items-center justify-between">
-                                                <span className="text-sm font-medium text-white">Dark</span>
-                                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${theme === "dark" ? "border-[4px] border-accent-violet bg-white" : "border-[#4e5058]"}`} />
+                                            <div className="p-3 bg-surface flex items-center justify-between">
+                                                <span className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+                                                    <Monitor className="w-3.5 h-3.5" /> System
+                                                </span>
+                                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${theme === "system" ? "border-[4px] border-accent-violet bg-white" : "border-border-active"}`} />
                                             </div>
                                         </label>
                                     </div>
+                                    <p className="text-xs text-text-muted mt-3">
+                                        Currently showing the <span className="text-text-secondary font-medium">{resolvedTheme}</span> theme.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <h3 className="text-sm font-bold text-text-muted uppercase tracking-wider mb-4">Layout</h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFeatureFlag("newShell", !newShell)}
+                                        className="w-full flex items-center gap-4 rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:border-border-highlight"
+                                    >
+                                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+                                            <Sparkles className="h-5 w-5" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="text-sm font-semibold text-text-primary">New layout (beta)</div>
+                                            <div className="text-xs text-text-muted">
+                                                Unified sidebar, activity hub, and a ⌘K command palette. Toggle anytime.
+                                            </div>
+                                        </div>
+                                        <div className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${newShell ? "bg-accent" : "bg-surface-raised border border-border-highlight"}`}>
+                                            <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${newShell ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+                                        </div>
+                                    </button>
                                 </div>
                             </div>
                         </div>

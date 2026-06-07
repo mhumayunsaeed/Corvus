@@ -17,6 +17,7 @@ import {
     CornerDownRight,
     Download,
     FileText,
+    ArrowUp,
 } from "lucide-react";
 import { LinkEmbed } from "./LinkEmbed";
 import { EmojiPicker } from "./EmojiPicker";
@@ -727,7 +728,6 @@ export function ChatView({
                 <pre
                     key={match.index}
                     className="bg-bg-deep rounded-xl px-4 py-3 my-2 overflow-x-auto border border-border-subtle border-l-[2px] border-l-accent-violet"
-                    style={{ borderLeftColor: "#7C6AF7" }}
                 >
                     <code className="text-[12.5px] font-mono text-accent-teal leading-relaxed">
                         {code}
@@ -788,7 +788,7 @@ export function ChatView({
 
     /* Action pill buttons */
     const ActionPill = ({ message }: { message: MessageData }) => (
-        <div className="absolute -top-4 right-2 flex items-center gap-0.5 bg-surface-overlay border border-border-highlight rounded-xl px-1 py-1 shadow-float z-20 animate-scale-in-sm">
+        <div className="absolute -top-4 right-2 flex items-center gap-0.5 bg-surface-overlay border border-border-highlight rounded-xl px-1 py-1 shadow-e2 z-20 animate-scale-in-sm">
             {["👍", "❤️", "😂"].map((emoji) => (
                 <button
                     key={`${message.id}-quick-${emoji}`}
@@ -942,7 +942,7 @@ export function ChatView({
                     const authorColor = getUsernameColor(author.username);
 
                     return (
-                        <div key={key} ref={measureRef} className="flex gap-3 group/msggroup hover:bg-hover-row/40 -mx-4 px-4 py-0.5 rounded-lg transition-colors duration-100">
+                        <div key={key} ref={measureRef} className="flex gap-3 group/msggroup hover:bg-hover-row -mx-2 px-2 py-1.5 rounded-xl transition-colors duration-100">
                             <UserAvatar
                                 avatarUrl={author.avatarUrl}
                                 username={author.username}
@@ -1033,9 +1033,9 @@ export function ChatView({
                                                 <button
                                                     key={idx}
                                                     onClick={() => handleReaction(firstMessage.id, reaction.emoji, reaction.reacted)}
-                                                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${reaction.reacted
+                                                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-micro font-medium transition-all ${reaction.reacted
                                                         ? "bg-reaction-own border border-accent-violet"
-                                                        : "bg-[#1A1D28] border border-[#2A2F3F] hover:border-accent-violet/40"
+                                                        : "bg-surface-raised border border-border-highlight hover:border-accent-violet/40"
                                                         }`}
                                                 >
                                                     <span>{reaction.emoji}</span>
@@ -1047,7 +1047,7 @@ export function ChatView({
                                                     onClick={() => setReactionPickerMessageId(
                                                         reactionPickerMessageId === firstMessage.id ? null : firstMessage.id
                                                     )}
-                                                    className="flex items-center justify-center w-6 h-6 rounded-md bg-[#1A1D28] border border-[#2A2F3F] hover:border-accent-violet/40 transition-all"
+                                                    className="flex items-center justify-center w-6 h-6 rounded-md bg-surface-raised border border-border-highlight hover:border-accent-violet/40 transition-all"
                                                 >
                                                     <Plus className="w-3 h-3 text-text-muted" />
                                                 </button>
@@ -1131,9 +1131,9 @@ export function ChatView({
                                                         <button
                                                             key={idx}
                                                             onClick={() => handleReaction(message.id, reaction.emoji, reaction.reacted)}
-                                                            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-micro transition-all ${reaction.reacted
+                                                            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-micro font-medium transition-all ${reaction.reacted
                                                                 ? "bg-reaction-own border border-accent-violet"
-                                                                : "bg-[#1A1D28] border border-[#2A2F3F] hover:border-accent-violet/40"
+                                                                : "bg-surface-raised border border-border-highlight hover:border-accent-violet/40"
                                                                 }`}
                                                         >
                                                             <span>{reaction.emoji}</span>
@@ -1205,7 +1205,7 @@ export function ChatView({
 
             {/* Message input */}
             <div className={`px-4 pb-4 ${replyTo ? "pt-0" : "pt-2"}`}>
-                <div className={`relative bg-surface-raised border border-border-highlight focus-within:border-accent-violet/35 focus-within:shadow-focus-violet transition-all ${replyTo ? "rounded-b-xl" : "rounded-xl"
+                <div className={`relative bg-surface-raised border border-border-highlight shadow-e1 focus-within:border-accent-violet/40 focus-within:shadow-focus-violet transition-all ${replyTo ? "rounded-b-2xl" : "rounded-2xl"
                     }`}>
                     {showSlashCommandMenu && (
                         <SlashCommandMenu
@@ -1326,6 +1326,18 @@ export function ChatView({
                                     </div>
                                 )}
                             </div>
+
+                            {/* Send — appears when there's something to send */}
+                            {messageInput.trim().length > 0 && (
+                                <button
+                                    onClick={handleSend}
+                                    className="ml-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-accent-violet text-white transition-all hover:bg-accent-violet/90 active:scale-95"
+                                    title="Send message"
+                                    aria-label="Send message"
+                                >
+                                    <ArrowUp className="h-4 w-4" />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

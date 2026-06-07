@@ -6,16 +6,22 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./globals.css": "./src/globals.css"
+    "./globals.css": "./src/globals.css",
+    "./styles/tokens.css": "./src/styles/tokens.css"
   },
   "scripts": {
     "lint": "tsc --noEmit",
     "build": "tsc --noEmit"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1",
+    "@radix-ui/react-dropdown-menu": "^2",
+    "@radix-ui/react-popover": "^1",
+    "@radix-ui/react-tabs": "^1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.40.0",
+    "lucide-react": "^0.500.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "tailwind-merge": "^3.6.0"

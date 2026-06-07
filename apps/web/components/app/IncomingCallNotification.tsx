@@ -80,7 +80,7 @@ export function IncomingCallNotification({ onAccept, onDecline }: IncomingCallNo
                 <UserAvatar
                     avatarUrl={callData.callerAvatar}
                     username={callData.callerName}
-                    className="w-12 h-12 ring-2 ring-accent-teal animate-pulse"
+                    className="w-12 h-12 ring-2 ring-live animate-pulse"
                 />
                 <div className="flex-1 min-w-0">
                     <div

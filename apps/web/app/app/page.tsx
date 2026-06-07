@@ -20,6 +20,8 @@ import { VoiceChannelView } from "@/components/app/VoiceChannelView";
 import { StageChannelView } from "@/components/app/StageChannelView";
 import { VoiceControlBar } from "@/components/app/VoiceControlBar";
 import { IncomingCallNotification } from "@/components/app/IncomingCallNotification";
+import { NewShell, CommandPalette } from "@/components/shell";
+import { useNewShell } from "@/lib/flags";
 import { useAppStore } from "@/stores/app-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useVoiceStore } from "@/stores/voice-store";
@@ -66,6 +68,8 @@ export default function AppPage() {
     const [friendList, setFriendList] = useState<FriendListEntry[]>([]);
     const [serverPaneWidth, setServerPaneWidth] = useState(360);
     const [dmPaneWidth, setDmPaneWidth] = useState(360);
+    const [sidebarWidth, setSidebarWidth] = useState(264);
+    const newShell = useNewShell();
     const subscribedDMRef = useRef<Set<string>>(new Set());
     const subscribedBgServersRef = useRef<Set<string>>(new Set());
 
@@ -377,6 +381,13 @@ export default function AppPage() {
         [dmPaneWidth, startHorizontalResize]
     );
 
+    const handleSidebarResizeStart = useCallback(
+        (event: ReactPointerEvent<HTMLDivElement>) => {
+            startHorizontalResize(event, sidebarWidth, setSidebarWidth);
+        },
+        [sidebarWidth, startHorizontalResize]
+    );
+
     const openDirectDM = async (friendUserId: string) => {
         const result = await createDMConversation({ participantIds: [friendUserId] });
         upsertDMConversation(result.conversation);
@@ -503,21 +514,63 @@ export default function AppPage() {
 
     if (loading) {
         return (
-            <div className="flex h-full items-center justify-center bg-background">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-glow overflow-hidden"
-                        style={{ background: "linear-gradient(135deg, #7C6AF7 0%, #5B4FBD 100%)" }}
-                    >
-                        <img src="/Corvus.png" alt="Corvus" className="h-full w-full object-cover" />
+            <div className="relative flex h-full items-center justify-center overflow-hidden bg-background">
+                <div
+                    className="pointer-events-none absolute h-72 w-72 rounded-full opacity-20 blur-3xl"
+                    style={{ background: "var(--aurora-gradient)" }}
+                />
+                <div className="relative flex flex-col items-center gap-5">
+                    <div className="relative h-14 w-14 overflow-hidden rounded-2xl shadow-aurora">
+                        <div
+                            className="absolute inset-0"
+                            style={{ background: "var(--aurora-gradient)" }}
+                        />
+                        <img
+                            src="/Corvus.png"
+                            alt="Corvus"
+                            className="relative h-full w-full object-cover mix-blend-luminosity"
+                        />
                     </div>
-                    <Loader2 className="w-5 h-5 text-accent-violet animate-spin" />
+                    <div className="flex items-center gap-2 text-[12px] font-medium text-text-muted">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+                        Loading your world…
+                    </div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background lg:flex-row">
+        <>
+            {newShell ? (
+                <NewShell
+                    onCreateServer={() => setShowCreateServer(true)}
+                    onJoinServer={() => setShowInviteJoin(true)}
+                    onCreateChannel={() => setShowCreateChannel(true)}
+                    onInvite={() => setShowInviteCreate(true)}
+                    onOpenSettings={() => setShowSettings(true)}
+                    onOpenServerSettings={() => setShowServerSettings(true)}
+                    friendList={friendList}
+                    openDirectDM={openDirectDM}
+                    upsertDMConversation={upsertDMConversation}
+                    activeDMCall={activeDMCall}
+                    closeDMCall={closeDMCall}
+                    onStartDMCall={handleStartDMCall}
+                    showVoiceView={showVoiceView}
+                    setShowVoiceView={setShowVoiceView}
+                    subscribe={subscribe}
+                    unsubscribe={unsubscribe}
+                    sendTypingStart={sendTypingStart}
+                    sendTypingStop={sendTypingStop}
+                    subscribeDM={subscribeDM}
+                    unsubscribeDM={unsubscribeDM}
+                    sendDMTypingStart={sendDMTypingStart}
+                    sendDMTypingStop={sendDMTypingStop}
+                    sidebarWidth={sidebarWidth}
+                    onSidebarResizeStart={handleSidebarResizeStart}
+                />
+            ) : (
+            <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background lg:flex-row">
             {/* Server Rail */}
             <ServerRail
                 onCreateServer={() => setShowCreateServer(true)}
@@ -676,6 +729,19 @@ export default function AppPage() {
                     />
                 )}
             </div>
+            </div>
+            )}
+
+            {/* Command palette — always available (⌘K) */}
+            <CommandPalette
+                onCreateServer={() => setShowCreateServer(true)}
+                onJoinServer={() => setShowInviteJoin(true)}
+                onCreateChannel={() => setShowCreateChannel(true)}
+                onInvite={() => setShowInviteCreate(true)}
+                onOpenSettings={() => setShowSettings(true)}
+                openDirectDM={openDirectDM}
+                friends={friendList}
+            />
 
             {/* Modals */}
             <CreateServerModal
@@ -743,6 +809,6 @@ export default function AppPage() {
             )}
 
             <ToastContainer />
-        </div>
+        </>
     );
 }

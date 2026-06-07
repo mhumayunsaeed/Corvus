@@ -1,12 +1,13 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "./styles/tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
 @layer base {
   * {
-    border-color: theme('colors.border');
+    border-color: rgb(var(--c-border));
   }
 
   body {
@@ -20,10 +21,10 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: theme('colors.border');
+    background: rgb(var(--c-border));
     border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: theme('colors.text-muted');
+    background: rgb(var(--c-text-muted));
   }
 }

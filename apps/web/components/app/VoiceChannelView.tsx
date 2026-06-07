@@ -59,8 +59,8 @@ function ParticipantTile({
 
     return (
         <div
-            className={`relative bg-surface rounded-xl overflow-hidden flex flex-col items-center justify-center aspect-video transition-all duration-200 ${isSpeaking
-                ? "ring-2 ring-accent-teal shadow-[0_0_16px_rgba(62,207,207,0.3)]"
+            className={`relative bg-surface rounded-2xl overflow-hidden flex flex-col items-center justify-center aspect-video transition-all duration-200 ${isSpeaking
+                ? "ring-2 ring-live shadow-[0_0_22px_rgba(34,224,214,0.35)]"
                 : "ring-1 ring-border"
                 }`}
         >
@@ -74,7 +74,7 @@ function ParticipantTile({
                     <UserAvatar
                         avatarUrl={avatarUrl}
                         username={username}
-                        className={`w-16 h-16 transition-all duration-200 ${isSpeaking ? "ring-[3px] ring-accent-teal" : ""}`}
+                        className={`w-16 h-16 transition-all duration-200 ${isSpeaking ? "ring-[3px] ring-live animate-speaking-pulse" : ""}`}
                     />
                 </div>
             )}
@@ -94,12 +94,12 @@ function ParticipantTile({
                         </div>
                     )}
                     {participant.isCameraEnabled && (
-                        <div className="w-5 h-5 rounded-full bg-accent-teal/80 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-full bg-live/80 flex items-center justify-center">
                             <Video className="w-3 h-3 text-white" />
                         </div>
                     )}
                     {participant.isScreenShareEnabled && (
-                        <div className="w-5 h-5 rounded-full bg-accent-teal/80 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-full bg-live/80 flex items-center justify-center">
                             <MonitorUp className="w-3 h-3 text-white" />
                         </div>
                     )}
@@ -127,7 +127,7 @@ function ScreenShareView() {
                 className="w-full h-auto max-h-[60vh] object-contain"
             />
             <div className="px-3 py-1.5 flex items-center gap-2 bg-surface-raised">
-                <MonitorUp className="w-4 h-4 text-accent-teal" />
+                <MonitorUp className="w-4 h-4 text-live" />
                 <span className="text-micro text-text-muted">
                     {track.participant.name || track.participant.identity}&apos;s screen
                 </span>
@@ -315,12 +315,20 @@ export function VoiceChannelView() {
     return (
         <div className="flex-1 flex flex-col bg-background min-w-0">
             {/* Header */}
-            <div className="h-12 border-b border-border flex items-center px-4 gap-3 flex-shrink-0">
-                <Mic className="w-5 h-5 text-accent-teal flex-shrink-0" />
+            <div className="h-12 border-b border-border flex items-center px-4 gap-2.5 flex-shrink-0">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md border border-live/25 bg-live/10">
+                    <Mic className="w-3.5 h-3.5 text-live" />
+                </span>
                 <span className="text-emphasis font-semibold text-text-primary">
                     {channelName}
                 </span>
-                <span className="text-body text-text-muted">Voice Channel</span>
+                <span className="flex items-center gap-1.5 rounded-full bg-live/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-live">
+                    <span className="relative flex h-1.5 w-1.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-live opacity-70" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-live" />
+                    </span>
+                    Live
+                </span>
             </div>
 
             <LiveKitRoom

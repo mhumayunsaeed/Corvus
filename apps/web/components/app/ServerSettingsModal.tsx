@@ -434,7 +434,7 @@ export function ServerSettingsModal({
                                 <button
                                     onClick={handleSave}
                                     disabled={saving || !hasChanges}
-                                    className="px-6 py-2.5 bg-accent-violet text-white rounded-[10px] font-medium text-body transition-all hover:bg-[#6B59E6] disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-6 py-2.5 bg-accent-violet text-white rounded-[10px] font-medium text-body transition-all hover:bg-accent-violet/90 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {saving ? "Saving..." : "Save Changes"}
                                 </button>

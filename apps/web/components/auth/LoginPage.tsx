@@ -179,12 +179,15 @@ export function LoginPage() {
                 ref={decorRef}
                 className="hidden lg:flex flex-col justify-center items-center w-[48%] relative opacity-0"
             >
-                {/* Large glowing Corvus mark */}
+                {/* Large glowing Corvus mark with Aurora brand glow */}
                 <div className="relative">
-                    <div className="absolute -inset-16 bg-gradient-to-br from-accent-violet/20 to-accent-teal/10 rounded-full blur-[100px]" />
+                    <div
+                        className="absolute -inset-16 rounded-full opacity-40 blur-[100px]"
+                        style={{ background: "var(--aurora-gradient)" }}
+                    />
                     <img src="/corvus-logo.png" alt="Corvus" className="relative w-28 h-28 rounded-full shadow-glow" />
                 </div>
-                <h2 className="mt-10 text-4xl font-bold text-text-primary tracking-tight text-center leading-tight max-w-sm">
+                <h2 className="mt-10 font-display text-4xl font-bold text-text-primary tracking-tight text-center leading-tight max-w-sm">
                     {BRAND_MOTTO}
                 </h2>
                 <p className="mt-4 text-text-muted text-center max-w-xs leading-relaxed">
@@ -333,7 +336,7 @@ export function LoginPage() {
                                     <button
                                         type="submit"
                                         disabled={isLoading}
-                                        className="w-full py-3 bg-accent-violet text-white rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(124,106,247,0.35)] hover:bg-[#6B59E6] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                                        className="w-full py-3 bg-accent-violet text-white rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(124,106,247,0.35)] hover:bg-accent-violet-bright active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:shadow-none"
                                     >
                                         {isLoading ? (
                                             <span className="flex items-center justify-center gap-2">
@@ -370,7 +373,7 @@ export function LoginPage() {
                                     <span className="text-text-muted">Don&apos;t have an account? </span>
                                     <Link
                                         href="/register"
-                                        className="text-accent-violet hover:text-[#6B59E6] font-medium transition-colors"
+                                        className="text-accent-violet hover:text-accent-violet-bright font-medium transition-colors"
                                     >
                                         Register
                                     </Link>

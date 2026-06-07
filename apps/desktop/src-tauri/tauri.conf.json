@@ -39,7 +39,11 @@
         "minHeight": 600,
         "decorations": false,
         "center": true,
-        "visible": true
+        "visible": true,
+        "windowEffects": {
+          "effects": ["mica", "acrylic"],
+          "state": "active"
+        }
       }
     ],
     "security": {

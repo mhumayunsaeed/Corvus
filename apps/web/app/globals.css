@@ -2,13 +2,29 @@
    CSS parser used by Next 16 / Turbopack. */
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
+/* Semantic design tokens (dark + light) — single source of truth for color. */
+@import "@corvus/ui/styles/tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   * {
-    border-color: theme('colors.border');
+    border-color: rgb(var(--c-border));
+  }
+
+  /* Accessibility: honor reduced-motion globally — kill transforms/animation,
+     keep content legible (redesign principle #6 / §3.6). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 
   html {

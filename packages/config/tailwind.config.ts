@@ -1,6 +1,15 @@
 import type { Config } from "tailwindcss";
 
+/**
+ * Channel-based color token.
+ * Values live as `R G B` channels in CSS variables (packages/ui/src/styles/tokens.css)
+ * so Tailwind opacity modifiers (e.g. `bg-accent-violet/40`) keep working across
+ * both themes via the `<alpha-value>` placeholder.
+ */
+const ch = (name: string) => `rgb(var(--c-${name}) / <alpha-value>)`;
+
 const config: Config = {
+  darkMode: ["selector", '[data-theme="dark"]'],
   content: [
     "../../apps/web/app/**/*.{ts,tsx}",
     "../../apps/web/components/**/*.{ts,tsx}",
@@ -9,57 +18,78 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Core backgrounds — deep, dark, layered
-        background: "#0A0B11",
-        "bg-deep": "#07080D",
-        surface: "#111219",
-        "surface-raised": "#171821",
-        "surface-overlay": "#1D1E2C",
-        "surface-glass": "rgba(17, 18, 25, 0.9)",
-        "surface-input": "#13141C",
+        // ── Surfaces ──────────────────────────────────────
+        background: ch("background"),
+        "bg-deep": ch("bg-deep"),
+        surface: ch("surface"),
+        "surface-raised": ch("surface-raised"),
+        "surface-overlay": ch("surface-overlay"),
+        "surface-glass": "rgb(var(--c-surface) / 0.9)",
+        "surface-input": ch("surface-input"),
 
-        // Accent palette — premium violet + teal
-        "accent-violet": "#7C6AF7",
-        "accent-violet-bright": "#9284FF",
-        "accent-violet-dim": "#5B4FBD",
-        "accent-teal": "#2DD4BF",
-        "accent-teal-dim": "#1E9E8E",
-        "accent-warm": "#F5A623",
+        // New semantic aliases (preferred for new work)
+        "bg-app": ch("background"),
+        "bg-sunken": ch("bg-deep"),
+        "bg-surface": ch("surface"),
+        "bg-raised": ch("surface-raised"),
+        "bg-overlay": ch("surface-overlay"),
 
-        // Text hierarchy — clear, readable
-        "text-primary": "#ECEDF5",
-        "text-secondary": "#AEB3C8",
-        "text-muted": "#656A7E",
-        "text-faint": "#3D4057",
+        // ── Accent palette ────────────────────────────────
+        "accent-violet": ch("accent-violet"),
+        "accent-violet-bright": ch("accent-violet-bright"),
+        "accent-violet-dim": ch("accent-violet-dim"),
+        "accent-teal": ch("accent-teal"),
+        "accent-teal-dim": ch("accent-teal-dim"),
+        "accent-warm": ch("accent-warm"),
 
-        // Semantic
-        success: "#22C55E",
-        "success-dim": "#16A34A",
-        danger: "#EF4444",
-        "danger-dim": "#B91C1C",
-        warning: "#F59E0B",
-        info: "#3B82F6",
+        // Brand-neutral accent aliases
+        accent: ch("accent-violet"),
+        "accent-hover": ch("accent-violet-bright"),
+        "accent-pressed": ch("accent-violet-dim"),
+        "accent-soft": "rgb(var(--c-accent-violet) / 0.14)",
+        "accent-contrast": ch("text-on-accent"),
+        live: ch("live"),
+        "live-soft": "rgb(var(--c-live) / 0.14)",
 
-        // Borders — refined, layered depth
-        border: "#1E2030",
-        "border-subtle": "#161724",
-        "border-highlight": "#272A40",
-        "border-active": "#3D3F60",
+        // ── Text hierarchy ────────────────────────────────
+        "text-primary": ch("text-primary"),
+        "text-secondary": ch("text-secondary"),
+        "text-muted": ch("text-muted"),
+        "text-faint": ch("text-faint"),
+        "text-on-accent": ch("text-on-accent"),
 
-        // Layout areas
-        "titlebar-bg": "#07080D",
-        "channel-sidebar": "#0E0F16",
-        "member-sidebar": "#0E0F16",
+        // ── Semantic states ───────────────────────────────
+        success: ch("success"),
+        "success-dim": ch("success-dim"),
+        danger: ch("danger"),
+        "danger-dim": ch("danger-dim"),
+        warning: ch("warning"),
+        info: ch("info"),
 
-        // Interactive states
-        "hover-row": "#14151F",
-        "hover-row-strong": "#1A1B28",
-        "active-row": "#1E2035",
-        "active-row-teal": "#0D2520",
-        "reaction-own": "#231A52",
+        // ── Borders ───────────────────────────────────────
+        border: ch("border"),
+        "border-subtle": ch("border-subtle"),
+        "border-highlight": ch("border-highlight"),
+        "border-active": ch("border-active"),
+
+        // ── Layout areas ──────────────────────────────────
+        "titlebar-bg": ch("titlebar-bg"),
+        "channel-sidebar": ch("channel-sidebar"),
+        "member-sidebar": ch("member-sidebar"),
+
+        // ── Interactive states ────────────────────────────
+        "hover-row": ch("hover-row"),
+        "hover-row-strong": ch("hover-row-strong"),
+        "active-row": ch("active-row"),
+        "active-row-teal": ch("active-row-teal"),
+        "reaction-own": ch("reaction-own"),
+      },
+      backgroundImage: {
+        aurora: "var(--aurora-gradient)",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "Inter", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "monospace"],
       },
       fontSize: {
@@ -68,6 +98,13 @@ const config: Config = {
         emphasis: ["15px", { lineHeight: "22px" }],
         heading: ["20px", { lineHeight: "28px", letterSpacing: "-0.01em" }],
         display: ["32px", { lineHeight: "40px", letterSpacing: "-0.02em" }],
+        // Semantic type scale (redesign)
+        caption: ["11px", { lineHeight: "15px", letterSpacing: "0.02em" }],
+        label: ["12px", { lineHeight: "16px", letterSpacing: "0.01em" }],
+        "body-sm": ["13px", { lineHeight: "20px" }],
+        title: ["20px", { lineHeight: "28px", letterSpacing: "-0.01em" }],
+        "display-md": ["30px", { lineHeight: "36px", letterSpacing: "-0.02em" }],
+        "display-lg": ["40px", { lineHeight: "44px", letterSpacing: "-0.02em" }],
       },
       borderRadius: {
         sm: "6px",
@@ -75,6 +112,7 @@ const config: Config = {
         md: "10px",
         lg: "14px",
         xl: "18px",
+        "2xl": "28px",
       },
       spacing: {
         titlebar: "32px",
@@ -86,6 +124,16 @@ const config: Config = {
         glass: "16px",
         "glass-sm": "8px",
       },
+      transitionTimingFunction: {
+        standard: "cubic-bezier(0.2, 0, 0, 1)",
+        emphasized: "cubic-bezier(0.16, 1, 0.3, 1)",
+      },
+      transitionDuration: {
+        fast: "120ms",
+        base: "180ms",
+        slow: "240ms",
+        page: "320ms",
+      },
       boxShadow: {
         // Violet glow
         glow: "0 0 0 1px rgba(124, 106, 247, 0.15), 0 0 20px rgba(124, 106, 247, 0.12), 0 0 40px rgba(124, 106, 247, 0.06)",
@@ -95,14 +143,20 @@ const config: Config = {
         "glow-teal-sm": "0 0 0 1px rgba(45, 212, 191, 0.12), 0 0 12px rgba(45, 212, 191, 0.07)",
         // Warm glow
         "glow-warm": "0 0 24px rgba(245, 166, 35, 0.15)",
-        // Elevation shadows
-        "float": "0 4px 6px -1px rgba(0,0,0,0.3), 0 2px 4px -2px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.04)",
+        // Elevation shadows (legacy names kept)
+        float: "0 4px 6px -1px rgba(0,0,0,0.3), 0 2px 4px -2px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.04)",
         "float-lg": "0 10px 25px -5px rgba(0,0,0,0.4), 0 4px 10px -5px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.04)",
         "inner-glow": "inset 0 1px 0 rgba(255, 255, 255, 0.04), inset 0 -1px 0 rgba(0,0,0,0.15)",
         // Input focus
         "focus-violet": "0 0 0 2px rgba(124, 106, 247, 0.2)",
         // Modal
-        "modal": "0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05)",
+        modal: "0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05)",
+        // Theme-aware elevation system (e1–e4)
+        e1: "var(--shadow-e1)",
+        e2: "var(--shadow-e2)",
+        e3: "var(--shadow-e3)",
+        e4: "var(--shadow-e4)",
+        aurora: "var(--aurora-glow)",
       },
       animation: {
         "speaking-pulse": "speakingPulse 0.8s ease-in-out infinite",

@@ -47,7 +47,7 @@ function SpeakerTile({ participant }: { participant: Participant }) {
         <div
             className={`relative bg-surface rounded-xl overflow-hidden flex flex-col items-center justify-center p-6 transition-all duration-200 ${
                 isSpeaking
-                    ? "ring-2 ring-accent-teal shadow-[0_0_16px_rgba(62,207,207,0.3)]"
+                    ? "ring-2 ring-live shadow-[0_0_16px_rgba(34,224,214,0.3)]"
                     : "ring-1 ring-border"
             }`}
         >
@@ -55,7 +55,7 @@ function SpeakerTile({ participant }: { participant: Participant }) {
                 avatarUrl={avatarUrl}
                 username={username}
                 className={`w-20 h-20 mb-3 transition-all duration-200 ${
-                    isSpeaking ? "ring-[3px] ring-accent-teal" : ""
+                    isSpeaking ? "ring-[3px] ring-live" : ""
                 }`}
             />
             <span
@@ -68,7 +68,7 @@ function SpeakerTile({ participant }: { participant: Participant }) {
                 {isMuted ? (
                     <MicOff className="w-3.5 h-3.5 text-danger" />
                 ) : (
-                    <Mic className={`w-3.5 h-3.5 ${isSpeaking ? "text-accent-teal" : "text-text-muted"}`} />
+                    <Mic className={`w-3.5 h-3.5 ${isSpeaking ? "text-live" : "text-text-muted"}`} />
                 )}
             </div>
         </div>
@@ -110,7 +110,7 @@ function AudienceRow({
             {isModerator && hasRaisedHand && (
                 <button
                     onClick={onGrant}
-                    className="px-2 py-1 rounded-md bg-accent-teal/20 text-accent-teal text-xs font-medium hover:bg-accent-teal/30 transition-colors"
+                    className="px-2 py-1 rounded-md bg-live/20 text-live text-xs font-medium hover:bg-live/30 transition-colors"
                 >
                     <UserCheck className="w-3.5 h-3.5 inline mr-1" />
                     Approve
@@ -224,7 +224,7 @@ function StageRoomContent({ isModerator }: StageRoomContentProps) {
             {/* Speakers Section */}
             <div className="p-6 pb-2">
                 <div className="flex items-center gap-2 mb-4">
-                    <Mic className="w-4 h-4 text-accent-teal" />
+                    <Mic className="w-4 h-4 text-live" />
                     <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider">
                         Speakers ({allSpeakers.length})
                     </h3>
@@ -359,7 +359,7 @@ export function StageChannelView({ serverRole, serverOwnerId }: StageChannelView
         <div className="flex-1 flex flex-col bg-background min-w-0">
             {/* Header */}
             <div className="h-12 border-b border-border flex items-center px-4 gap-3 flex-shrink-0">
-                <Radio className="w-5 h-5 text-accent-teal flex-shrink-0" />
+                <Radio className="w-5 h-5 text-live flex-shrink-0" />
                 <span className="text-emphasis font-semibold text-text-primary">{channelName}</span>
                 <span className="text-body text-text-muted">Stage Channel</span>
             </div>
