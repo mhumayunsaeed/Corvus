@@ -11,6 +11,14 @@ export interface NotificationPreferences {
     showDesktopWhenFocused: boolean;
     enableTaskbarBadge: boolean;
     soundVolume: number; // 0-100
+
+    // Sound selection
+    messageSound: string;
+    mentionSound: string;
+    otherSound: string;
+    incomingRingtone: string;
+    outgoingRingtone: string;
+    callVolume: number; // 0-100, ringtone loudness
 }
 
 interface NotificationState {
@@ -54,6 +62,12 @@ const defaultPreferences: NotificationPreferences = {
     showDesktopWhenFocused: false,
     enableTaskbarBadge: true,
     soundVolume: 55,
+    messageSound: "chime",
+    mentionSound: "sparkle",
+    otherSound: "soft",
+    incomingRingtone: "aurora",
+    outgoingRingtone: "smooth",
+    callVolume: 70,
 };
 
 function incrementRecordValue(
@@ -211,6 +225,15 @@ export const useNotificationStore = create<NotificationState>()(
             partialize: (state) => ({
                 preferences: state.preferences,
             }),
+            // Backfill any preference keys added after a user first persisted,
+            // so newly introduced sound options fall back to their defaults.
+            merge: (persisted, current) => {
+                const saved = (persisted as Partial<NotificationState> | undefined)?.preferences;
+                return {
+                    ...current,
+                    preferences: { ...defaultPreferences, ...(saved ?? {}) },
+                };
+            },
         }
     )
 );

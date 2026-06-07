@@ -324,7 +324,8 @@ export function useWebSocket() {
                             if (canPlaySound) {
                                 playNotificationTone(
                                     isTag ? "mention" : "message",
-                                    prefs.soundVolume
+                                    prefs.soundVolume,
+                                    isTag ? prefs.mentionSound : prefs.messageSound
                                 ).catch(() => {
                                     // Ignore autoplay / audio context errors.
                                 });
@@ -498,7 +499,7 @@ export function useWebSocket() {
                                 shouldShowForegroundNotification(prefs.showDesktopWhenFocused);
 
                             if (canPlaySound) {
-                                playNotificationTone("message", prefs.soundVolume).catch(() => {
+                                playNotificationTone("message", prefs.soundVolume, prefs.messageSound).catch(() => {
                                     // Ignore autoplay / audio context errors.
                                 });
                             }
@@ -603,7 +604,7 @@ export function useWebSocket() {
                                     shouldShowForegroundNotification(prefs.showDesktopWhenFocused);
 
                                 if (canPlaySound) {
-                                    playNotificationTone("other", prefs.soundVolume).catch(() => {
+                                    playNotificationTone("other", prefs.soundVolume, prefs.otherSound).catch(() => {
                                         // Ignore autoplay / audio context errors.
                                     });
                                 }

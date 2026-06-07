@@ -34,14 +34,10 @@ export function IncomingCallNotification({ onAccept, onDecline }: IncomingCallNo
                 setCallData(e.detail);
             }
         };
-
-        const handleCallEnded = () => {
-            setCallData(null);
-        };
+        const handleCallEnded = () => setCallData(null);
 
         window.addEventListener("corvus:incoming_call", handleIncomingCall as EventListener);
         window.addEventListener("corvus:call_ended", handleCallEnded as EventListener);
-
         return () => {
             window.removeEventListener("corvus:incoming_call", handleIncomingCall as EventListener);
             window.removeEventListener("corvus:call_ended", handleCallEnded as EventListener);
@@ -51,14 +47,9 @@ export function IncomingCallNotification({ onAccept, onDecline }: IncomingCallNo
     const handleAccept = useCallback(async () => {
         if (!callData || accepting) return;
         setAccepting(true);
-
         try {
             const result = await joinDMCall(callData.conversationId);
-            onAccept({
-                conversationId: callData.conversationId,
-                token: result.token,
-                url: result.url,
-            });
+            onAccept({ conversationId: callData.conversationId, token: result.token, url: result.url });
             setCallData(null);
         } catch (err) {
             console.error("Failed to join call:", err);
@@ -80,42 +71,60 @@ export function IncomingCallNotification({ onAccept, onDecline }: IncomingCallNo
 
     if (!callData) return null;
 
+    const nameColor = getUsernameColor(callData.callerName);
+
     return (
-        <div className="fixed top-4 right-4 z-50 w-[320px] bg-surface border border-border rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-right">
-            <div className="p-4 flex items-center gap-3">
-                <UserAvatar
-                    avatarUrl={callData.callerAvatar}
-                    username={callData.callerName}
-                    className="w-12 h-12 ring-2 ring-live animate-pulse"
-                />
-                <div className="flex-1 min-w-0">
-                    <div
-                        className="text-body font-semibold truncate"
-                        style={{ color: getUsernameColor(callData.callerName) }}
-                    >
+        <div className="fixed top-4 right-4 z-50 w-[330px] animate-in slide-in-from-right-4 fade-in duration-300">
+            <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-surface-overlay/95 backdrop-blur-xl shadow-modal">
+                {/* Accent glow header */}
+                <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-live/15 to-transparent pointer-events-none" />
+
+                <div className="relative p-5 flex flex-col items-center text-center">
+                    {/* Pulsing avatar */}
+                    <div className="relative mb-3">
+                        <span className="absolute -inset-2 rounded-full bg-live/20 animate-ping" />
+                        <span className="absolute -inset-1 rounded-full ring-2 ring-live/40" />
+                        <UserAvatar
+                            avatarUrl={callData.callerAvatar}
+                            username={callData.callerName}
+                            className="relative w-16 h-16 ring-2 ring-live shadow-glow-teal"
+                        />
+                    </div>
+
+                    <div className="text-[15px] font-semibold truncate max-w-full" style={{ color: nameColor }}>
                         {callData.callerName}
                     </div>
-                    <div className="text-micro text-text-muted">Incoming call...</div>
-                </div>
-            </div>
+                    <div className="mt-0.5 flex items-center gap-1.5 text-micro text-text-muted">
+                        <Phone className="w-3 h-3 text-live animate-pulse" />
+                        Incoming voice call…
+                    </div>
 
-            <div className="flex border-t border-border">
-                <button
-                    onClick={handleDecline}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 text-danger hover:bg-danger/10 transition-colors"
-                >
-                    <PhoneOff className="w-4 h-4" />
-                    <span className="text-body font-medium">Decline</span>
-                </button>
-                <div className="w-px bg-border" />
-                <button
-                    onClick={handleAccept}
-                    disabled={accepting}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 text-success hover:bg-success/10 transition-colors disabled:opacity-50"
-                >
-                    <Phone className="w-4 h-4" />
-                    <span className="text-body font-medium">Accept</span>
-                </button>
+                    {/* Actions */}
+                    <div className="mt-5 flex items-center justify-center gap-8">
+                        <button
+                            onClick={handleDecline}
+                            className="flex flex-col items-center gap-1.5 group"
+                            title="Decline"
+                        >
+                            <span className="w-12 h-12 rounded-full bg-danger flex items-center justify-center text-white shadow-[0_4px_14px_rgba(229,90,103,0.4)] group-hover:bg-danger/85 group-active:scale-95 transition-all">
+                                <PhoneOff className="w-5 h-5" />
+                            </span>
+                            <span className="text-[11px] font-medium text-text-muted">Decline</span>
+                        </button>
+                        <button
+                            onClick={handleAccept}
+                            disabled={accepting}
+                            className="flex flex-col items-center gap-1.5 group disabled:opacity-60"
+                            title="Accept"
+                        >
+                            <span className="relative w-12 h-12 rounded-full bg-success flex items-center justify-center text-white shadow-[0_4px_14px_rgba(52,199,123,0.4)] group-hover:brightness-110 group-active:scale-95 transition-all">
+                                <span className="absolute inset-0 rounded-full bg-success/40 animate-ping" />
+                                <Phone className="relative w-5 h-5" />
+                            </span>
+                            <span className="text-[11px] font-medium text-text-muted">Accept</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );

@@ -1,88 +1,26 @@
 import { parseAttachmentContent } from "@/lib/attachments";
+import { playNotification, type NotificationKind } from "@/lib/sounds";
 
-export type NotificationSoundKind = "message" | "mention" | "other";
+export type NotificationSoundKind = NotificationKind;
 
 const APP_TITLE = "Corvus";
 const overlayIconCache = new Map<string, Promise<any | null>>();
-let sharedAudioContext: AudioContext | null = null;
 
-function getAudioContext(): AudioContext | null {
-    if (typeof window === "undefined") return null;
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContextClass) return null;
-
-    if (!sharedAudioContext || sharedAudioContext.state === "closed") {
-        sharedAudioContext = new AudioContextClass();
-    }
-
-    if (sharedAudioContext.state === "suspended") {
-        sharedAudioContext.resume().catch(() => {
-            // Ignore blocked autoplay resume.
-        });
-    }
-
-    return sharedAudioContext;
-}
-
-function scheduleSoftTone(
-    ctx: AudioContext,
-    options: {
-        startOffset: number;
-        duration: number;
-        frequency: number;
-        harmonicFrequency?: number;
-        volume: number;
-    }
+/**
+ * Play a notification cue. `soundName` selects the voicing (see
+ * NOTIFICATION_SOUNDS in lib/sounds); omitting it uses the kind's default.
+ */
+export async function playNotificationTone(
+    kind: NotificationSoundKind,
+    volumePercent = 55,
+    soundName?: string
 ) {
-    const startAt = ctx.currentTime + options.startOffset;
-    const stopAt = startAt + options.duration;
-
-    const primary = ctx.createOscillator();
-    const harmonic = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-
-    primary.type = "sine";
-    harmonic.type = "triangle";
-    primary.frequency.setValueAtTime(options.frequency, startAt);
-    harmonic.frequency.setValueAtTime(options.harmonicFrequency ?? options.frequency * 1.5, startAt);
-
-    primary.connect(gainNode);
-    harmonic.connect(gainNode);
-    gainNode.connect(ctx.destination);
-
-    gainNode.gain.setValueAtTime(0, startAt);
-    gainNode.gain.linearRampToValueAtTime(options.volume, startAt + 0.02);
-    gainNode.gain.setValueAtTime(options.volume, Math.max(startAt + 0.02, stopAt - 0.04));
-    gainNode.gain.linearRampToValueAtTime(0, stopAt);
-
-    primary.start(startAt);
-    harmonic.start(startAt);
-    primary.stop(stopAt + 0.03);
-    harmonic.stop(stopAt + 0.03);
-}
-
-export async function playNotificationTone(kind: NotificationSoundKind, volumePercent = 55) {
-    const ctx = getAudioContext();
-    if (!ctx) return;
-
-    const masterVolume = Math.max(0, Math.min(100, volumePercent)) / 100;
-    const base = 0.04 + masterVolume * 0.18;
-
-    if (kind === "mention") {
-        scheduleSoftTone(ctx, { startOffset: 0, duration: 0.18, frequency: 740, volume: base });
-        scheduleSoftTone(ctx, { startOffset: 0.2, duration: 0.2, frequency: 932, volume: base });
-        scheduleSoftTone(ctx, { startOffset: 0.44, duration: 0.24, frequency: 1175, volume: base });
-        return;
-    }
-
-    if (kind === "other") {
-        scheduleSoftTone(ctx, { startOffset: 0, duration: 0.28, frequency: 610, volume: base * 0.95 });
-        scheduleSoftTone(ctx, { startOffset: 0.32, duration: 0.22, frequency: 525, volume: base * 0.9 });
-        return;
-    }
-
-    scheduleSoftTone(ctx, { startOffset: 0, duration: 0.15, frequency: 600, volume: base * 0.85 });
-    scheduleSoftTone(ctx, { startOffset: 0.19, duration: 0.19, frequency: 710, volume: base * 0.9 });
+    const defaults: Record<NotificationKind, string> = {
+        message: "chime",
+        mention: "sparkle",
+        other: "soft",
+    };
+    playNotification(kind, soundName ?? defaults[kind], volumePercent);
 }
 
 export function summarizeNotificationBody(content: string): string {

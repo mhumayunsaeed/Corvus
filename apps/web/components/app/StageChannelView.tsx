@@ -5,14 +5,11 @@ import {
     LiveKitRoom,
     RoomAudioRenderer,
     useParticipants,
-    useTracks,
-    VideoTrack,
     useRoomContext,
     useIsSpeaking,
 } from "@livekit/components-react";
-import { Track } from "livekit-client";
 import type { Participant } from "livekit-client";
-import { Radio, Hand, Mic, MicOff, UserCheck, UserMinus, Users, Wifi } from "lucide-react";
+import { Radio, Hand, Mic, MicOff, UserCheck, UserMinus, Users } from "lucide-react";
 import { useVoiceStore } from "@/stores/voice-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { createRoomOptions } from "@/lib/livekit-config";
@@ -21,18 +18,7 @@ import { useLivekitLatency } from "@/hooks/useLivekitLatency";
 import { fetchStageState, requestStageSpeak, grantStageSpeak, revokeStageSpeak } from "@/lib/api";
 import { UserAvatar } from "./UserAvatar";
 import { getUsernameColor } from "@/lib/color-utils";
-
-function getAvatarFromMetadata(participant: Participant): string | null {
-    if (!participant.metadata) return null;
-    try {
-        const parsed = JSON.parse(participant.metadata) as { avatarUrl?: unknown };
-        return typeof parsed.avatarUrl === "string" && parsed.avatarUrl.trim()
-            ? parsed.avatarUrl
-            : null;
-    } catch {
-        return null;
-    }
-}
+import { SpeakingAvatar, ConnectionPill, getAvatarFromMetadata } from "./call/CallUI";
 
 // ─── Speaker Tile ────────────────────────────────────────────────
 
@@ -45,19 +31,13 @@ function SpeakerTile({ participant }: { participant: Participant }) {
 
     return (
         <div
-            className={`relative bg-surface rounded-xl overflow-hidden flex flex-col items-center justify-center p-6 transition-all duration-200 ${
+            className={`relative bg-surface rounded-2xl overflow-hidden flex flex-col items-center justify-center p-6 transition-all duration-200 ${
                 isSpeaking
-                    ? "ring-2 ring-live shadow-[0_0_16px_rgba(34,224,214,0.3)]"
+                    ? "ring-2 ring-live shadow-glow-teal"
                     : "ring-1 ring-border"
             }`}
         >
-            <UserAvatar
-                avatarUrl={avatarUrl}
-                username={username}
-                className={`w-20 h-20 mb-3 transition-all duration-200 ${
-                    isSpeaking ? "ring-[3px] ring-live" : ""
-                }`}
-            />
+            <SpeakingAvatar avatarUrl={avatarUrl} username={username} px={80} speaking={isSpeaking} className="mb-3" />
             <span
                 className="text-body font-semibold truncate max-w-[120px]"
                 style={{ color: getUsernameColor(username) }}
@@ -129,23 +109,9 @@ function LatencyIndicator() {
     useEffect(() => {
         setLiveLatency(latency);
     }, [latency, setLiveLatency]);
+    useEffect(() => () => setLiveLatency(null), [setLiveLatency]);
 
-    useEffect(() => {
-        return () => {
-            setLiveLatency(null);
-        };
-    }, [setLiveLatency]);
-
-    if (latency === null) return null;
-
-    const color = latency < 80 ? "text-success" : latency < 150 ? "text-yellow-500" : "text-danger";
-
-    return (
-        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface-raised ${color}`}>
-            <Wifi className="w-3.5 h-3.5" />
-            <span className="text-micro font-medium">{latency}ms</span>
-        </div>
-    );
+    return <ConnectionPill latency={latency} />;
 }
 
 // ─── Room Content (Stage Layout) ─────────────────────────────────
@@ -178,7 +144,6 @@ function StageRoomContent({ isModerator }: StageRoomContentProps) {
     const raisedSet = useMemo(() => new Set(stageRaisedHands), [stageRaisedHands]);
 
     const speakers = participants.filter((p) => speakerSet.has(p.identity) || isModerator && p.identity === room.localParticipant?.identity && speakerSet.has(p.identity));
-    const audience = participants.filter((p) => !speakerSet.has(p.identity));
 
     // Owners/admins are always speakers
     const allSpeakers = isModerator

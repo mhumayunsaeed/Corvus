@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, LogOut, Pencil, Upload, Bell, MessageSquare, AtSign, AppWindow, Volume2, Sparkles, Monitor } from "lucide-react";
+import { X, LogOut, Pencil, Upload, Bell, MessageSquare, AtSign, AppWindow, Volume2, Sparkles, Monitor, Play, PhoneIncoming, PhoneOutgoing } from "lucide-react";
 import { useTheme, type ThemePreference } from "@corvus/ui";
 import { setFeatureFlag, useNewShell } from "@/lib/flags";
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify";
@@ -10,6 +10,12 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useNotificationStore } from "@/stores/notification-store";
 import { useVoiceStore } from "@/stores/voice-store";
 import { playNotificationTone } from "@/lib/notifications";
+import {
+    NOTIFICATION_SOUNDS,
+    INCOMING_RINGTONES,
+    OUTGOING_RINGTONES,
+    previewRingtone,
+} from "@/lib/sounds";
 import { uploadImage } from "@/lib/api";
 import { UserAvatar } from "./UserAvatar";
 
@@ -40,6 +46,55 @@ function NoiseSuppressionSection() {
                     <span className="text-xs text-text-muted">Reduces background noise using RNNoise</span>
                 </div>
             </label>
+        </div>
+    );
+}
+
+/** Labelled sound chooser: a styled select plus a preview button. */
+function SoundPicker({
+    label,
+    icon,
+    value,
+    options,
+    onChange,
+    onPreview,
+}: {
+    label: string;
+    icon: React.ReactNode;
+    value: string;
+    options: { id: string; label: string }[];
+    onChange: (id: string) => void;
+    onPreview: () => void;
+}) {
+    return (
+        <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-surface-raised text-text-muted">
+                    {icon}
+                </span>
+                <span className="text-body text-text-primary truncate">{label}</span>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="relative">
+                    <select
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        className="h-9 pl-3 pr-8 bg-surface-raised border border-border rounded-lg text-micro text-text-primary outline-none focus:border-accent-violet cursor-pointer appearance-none"
+                    >
+                        {options.map((opt) => (
+                            <option key={opt.id} value={opt.id}>{opt.label}</option>
+                        ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-text-muted text-[10px]">▾</span>
+                </div>
+                <button
+                    onClick={onPreview}
+                    className="h-9 w-9 flex items-center justify-center rounded-lg bg-surface-raised border border-border text-text-secondary hover:text-accent-violet hover:border-accent-violet/40 transition-colors"
+                    title={`Preview ${label}`}
+                >
+                    <Play className="w-3.5 h-3.5" />
+                </button>
+            </div>
         </div>
     );
 }
@@ -208,7 +263,11 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
     const audioOutputs = devices.filter(d => d.kind === "audiooutput");
 
     const playPreviewTone = (kind: "message" | "mention" | "other") => {
-        playNotificationTone(kind, notificationPrefs.soundVolume).catch(() => {
+        const name =
+            kind === "message" ? notificationPrefs.messageSound
+                : kind === "mention" ? notificationPrefs.mentionSound
+                    : notificationPrefs.otherSound;
+        playNotificationTone(kind, notificationPrefs.soundVolume, name).catch(() => {
             // Ignore playback errors from restricted autoplay contexts.
         });
     };
@@ -807,28 +866,78 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                         />
                                     </div>
 
-                                    <div className="flex flex-wrap gap-2">
-                                        <button
-                                            onClick={() => playPreviewTone("message")}
-                                            className="px-3 py-2 rounded-md bg-surface-raised border border-border text-micro text-text-primary hover:bg-hover-row transition-colors inline-flex items-center gap-1.5"
-                                        >
-                                            <MessageSquare className="w-3.5 h-3.5" />
-                                            Test Message Sound
-                                        </button>
-                                        <button
-                                            onClick={() => playPreviewTone("mention")}
-                                            className="px-3 py-2 rounded-md bg-surface-raised border border-border text-micro text-text-primary hover:bg-hover-row transition-colors inline-flex items-center gap-1.5"
-                                        >
-                                            <AtSign className="w-3.5 h-3.5" />
-                                            Test Mention Sound
-                                        </button>
-                                        <button
-                                            onClick={() => playPreviewTone("other")}
-                                            className="px-3 py-2 rounded-md bg-surface-raised border border-border text-micro text-text-primary hover:bg-hover-row transition-colors inline-flex items-center gap-1.5"
-                                        >
-                                            <Sparkles className="w-3.5 h-3.5" />
-                                            Test Other Sound
-                                        </button>
+                                    <div className="pt-1 space-y-3 border-t border-border/60">
+                                        <p className="text-micro text-text-muted pt-3">
+                                            Choose a tone for each kind of alert, then preview it.
+                                        </p>
+                                        <SoundPicker
+                                            label="Message"
+                                            icon={<MessageSquare className="w-4 h-4" />}
+                                            value={notificationPrefs.messageSound}
+                                            options={NOTIFICATION_SOUNDS.message}
+                                            onChange={(id) => setNotificationPreference("messageSound", id)}
+                                            onPreview={() => playPreviewTone("message")}
+                                        />
+                                        <SoundPicker
+                                            label="Mention"
+                                            icon={<AtSign className="w-4 h-4" />}
+                                            value={notificationPrefs.mentionSound}
+                                            options={NOTIFICATION_SOUNDS.mention}
+                                            onChange={(id) => setNotificationPreference("mentionSound", id)}
+                                            onPreview={() => playPreviewTone("mention")}
+                                        />
+                                        <SoundPicker
+                                            label="Other"
+                                            icon={<Sparkles className="w-4 h-4" />}
+                                            value={notificationPrefs.otherSound}
+                                            options={NOTIFICATION_SOUNDS.other}
+                                            onChange={(id) => setNotificationPreference("otherSound", id)}
+                                            onPreview={() => playPreviewTone("other")}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <PhoneIncoming className="w-4 h-4 text-accent-violet" />
+                                        <h3 className="text-sm font-bold text-text-primary">Call Ringtones</h3>
+                                    </div>
+                                    <p className="text-micro text-text-muted -mt-1">
+                                        Tunes played while a call is connecting or coming in.
+                                    </p>
+
+                                    <SoundPicker
+                                        label="Incoming call"
+                                        icon={<PhoneIncoming className="w-4 h-4" />}
+                                        value={notificationPrefs.incomingRingtone}
+                                        options={INCOMING_RINGTONES}
+                                        onChange={(id) => setNotificationPreference("incomingRingtone", id)}
+                                        onPreview={() => previewRingtone("incoming", notificationPrefs.incomingRingtone, notificationPrefs.callVolume)}
+                                    />
+                                    <SoundPicker
+                                        label="Outgoing call"
+                                        icon={<PhoneOutgoing className="w-4 h-4" />}
+                                        value={notificationPrefs.outgoingRingtone}
+                                        options={OUTGOING_RINGTONES}
+                                        onChange={(id) => setNotificationPreference("outgoingRingtone", id)}
+                                        onPreview={() => previewRingtone("outgoing", notificationPrefs.outgoingRingtone, notificationPrefs.callVolume)}
+                                    />
+
+                                    <div className="space-y-2 pt-1">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-body text-text-primary">Ringtone volume</label>
+                                            <span className="text-micro text-text-muted">{notificationPrefs.callVolume}%</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={100}
+                                            value={notificationPrefs.callVolume}
+                                            onChange={(e) =>
+                                                setNotificationPreference("callVolume", Number(e.target.value))
+                                            }
+                                            className="w-full accent-accent-violet"
+                                        />
                                     </div>
                                 </div>
 

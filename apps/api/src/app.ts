@@ -19,6 +19,7 @@ import stickerRoutes from "./routes/stickers.js";
 import attachmentRoutes from "./routes/attachments.js";
 import roles from "./routes/roles.js";
 import channelPermissions from "./routes/channel-permissions.js";
+import { buildOpenApiSummary, renderApiDocs } from "./docs.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const envDir = resolve(currentDir, "..");
@@ -49,9 +50,7 @@ function normalizeOrigin(value: string) {
 
 const envOrigins = [
     process.env.FRONTEND_URL ?? "",
-    ...(process.env.CORS_ORIGINS ?? "")
-        .split(",")
-        .map((value) => value.trim()),
+    ...(process.env.CORS_ORIGINS ?? "").split(",").map((value) => value.trim()),
 ]
     .filter(Boolean)
     .map(normalizeOrigin);
@@ -68,7 +67,7 @@ app.use(
         allowHeaders: ["Content-Type", "Authorization"],
         allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
         credentials: true,
-    })
+    }),
 );
 
 // Security headers
@@ -89,7 +88,7 @@ app.onError((err, c) => {
         {
             error: isProduction ? "Internal Server Error" : message || "Internal Server Error",
         },
-        500
+        500,
     );
 });
 
@@ -103,29 +102,36 @@ app.get("/healthz", (c) => {
         status: "ok",
     });
 });
+
+app.get("/docs", (c) => {
+    const baseUrl = new URL(c.req.url).origin;
+    return c.html(renderApiDocs(baseUrl));
+});
+
+app.get("/", (c) => {
+    const baseUrl = new URL(c.req.url).origin;
+    return c.html(renderApiDocs(baseUrl));
+});
+
+app.get("/openapi.json", (c) => {
+    const baseUrl = new URL(c.req.url).origin;
+    return c.json(buildOpenApiSummary(baseUrl));
+});
+
 app.route("/auth", auth);
 app.route("/", attachmentRoutes); // routes are /attachments and /uploads/*
 app.route("/servers", servers);
 app.route("/", channels); // routes are /servers/:serverId/channels and /channels/:id
-app.route("/", messages);  // routes are /channels/:channelId/messages and /messages/:id
-app.route("/", invites);   // routes are /servers/:serverId/invites and /invites/:code/join
-app.route("/", members);   // routes are /servers/:serverId/members
-app.route("/", friends);   // routes are /friends/*
-app.route("/", dms);       // routes are /dms and /dms/:id/messages
-app.route("/", voice);     // routes are /channels/:channelId/voice/* and /servers/:serverId/voice/*
-app.route("/", calls);     // routes are /dms/:conversationId/call/*
-app.route("/", stage);     // routes are /channels/:channelId/stage/*
+app.route("/", messages); // routes are /channels/:channelId/messages and /messages/:id
+app.route("/", invites); // routes are /servers/:serverId/invites and /invites/:code/join
+app.route("/", members); // routes are /servers/:serverId/members
+app.route("/", friends); // routes are /friends/*
+app.route("/", dms); // routes are /dms and /dms/:id/messages
+app.route("/", voice); // routes are /channels/:channelId/voice/* and /servers/:serverId/voice/*
+app.route("/", calls); // routes are /dms/:conversationId/call/*
+app.route("/", stage); // routes are /channels/:channelId/stage/*
 app.route("/", stickerRoutes); // routes are /stickers/*
-app.route("/", roles);              // routes are /servers/:serverId/roles and /roles/:id
+app.route("/", roles); // routes are /servers/:serverId/roles and /roles/:id
 app.route("/", channelPermissions); // routes are /channels/:channelId/permissions
-
-// Health check
-app.get("/", (c) => {
-    return c.json({
-        name: "Corvus API",
-        version: "0.1.0",
-        status: "running",
-    });
-});
 
 export default app;

@@ -226,3 +226,63 @@
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
+
+/* ── Call / voice "who is talking" speaking ring ─────────────────────── */
+
+/* Animated pulse ring rendered behind a speaking participant's avatar. */
+@keyframes speakingRingPulse {
+  0%   { transform: scale(1);    opacity: 0.85; }
+  70%  { transform: scale(1.35); opacity: 0; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+@keyframes speakingRingGlow {
+  0%, 100% { box-shadow: 0 0 0 2px rgb(var(--c-live) / 0.9), 0 0 16px 2px rgb(var(--c-live) / 0.35); }
+  50%      { box-shadow: 0 0 0 3px rgb(var(--c-live) / 1),   0 0 26px 5px rgb(var(--c-live) / 0.55); }
+}
+
+@keyframes ringSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Wrapper placed around an avatar; toggles the active state to show the ring. */
+.speaker-ring {
+  position: relative;
+  display: inline-flex;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.speaker-ring__avatar {
+  position: relative;
+  z-index: 1;
+  border-radius: 9999px;
+  transition: transform 0.18s ease;
+}
+
+/* Expanding sonar pulse — only present while speaking. */
+.speaker-ring--active::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  border: 2px solid rgb(var(--c-live));
+  animation: speakingRingPulse 1.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Solid glowing rim that breathes. */
+.speaker-ring--active .speaker-ring__avatar {
+  animation: speakingRingGlow 1.4s ease-in-out infinite;
+  transform: scale(1.03);
+}
+
+/* Reduced-motion: keep a steady rim, drop the animation. */
+@media (prefers-reduced-motion: reduce) {
+  .speaker-ring--active::before { animation: none; opacity: 0.5; }
+  .speaker-ring--active .speaker-ring__avatar {
+    animation: none;
+    box-shadow: 0 0 0 2px rgb(var(--c-live)), 0 0 14px rgb(var(--c-live) / 0.4);
+  }
+}
