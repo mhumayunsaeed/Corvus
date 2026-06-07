@@ -301,7 +301,7 @@ This means you can freely use, modify, and distribute this software, but any mod
 ---
 
 <p align="center">
-  Built with care by <a href="https://github.com/Humayun-glitch">Humayun</a> and <a href="https://github.com/Humayun-glitch/Corvus/graphs/contributors">contributors</a>.
+  Built with care by <a href="https://github.com/mhumayunsaeed">Humayun</a> and <a href="https://github.com/Humayun-glitch/Corvus/graphs/contributors">contributors</a>.
 </p>
 
 <p align="center">

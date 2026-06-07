@@ -1,7 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "prisma generate",
-  "installCommand": "pnpm install --frozen-lockfile=false",
+  "buildCommand": "pnpm vercel-build",
   "framework": null,
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
 }
