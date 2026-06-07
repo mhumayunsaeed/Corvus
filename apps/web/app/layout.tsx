@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Space_Grotesk } from "next/font/google";
 import { Titlebar, ThemeProvider, ThemeScript } from "@corvus/ui";
 import { AuthGuard } from "@/components/auth";
@@ -40,6 +41,7 @@ export default function RootLayout({
             <AuthGuard>{children}</AuthGuard>
           </main>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
