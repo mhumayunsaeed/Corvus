@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     AudioLines,
     Check,
-    ChevronDown,
-    ChevronRight,
     ChevronUp,
+    Download,
     HeadphoneOff,
     Headphones,
+    Loader2,
     Mic,
     MicOff,
     MonitorUp,
@@ -16,9 +16,9 @@ import {
     Video,
     VideoOff,
     Wifi,
-    Circle,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
+import { useDesktopUpdaterStore } from "@/stores/desktop-updater-store";
 import { useVoiceStore } from "@/stores/voice-store";
 import { UserAvatar } from "./UserAvatar";
 import { getUsernameColor } from "@/lib/color-utils";
@@ -72,6 +72,14 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
     const setLocalVideo = useVoiceStore((s) => s.setLocalVideo);
     const setLocalScreenSharing = useVoiceStore((s) => s.setLocalScreenSharing);
     const setNoiseSuppression = useVoiceStore((s) => s.setNoiseSuppression);
+    const isDesktop = useDesktopUpdaterStore((s) => s.isDesktop);
+    const updaterStatus = useDesktopUpdaterStore((s) => s.status);
+    const updateInfo = useDesktopUpdaterStore((s) => s.update);
+    const downloadedBytes = useDesktopUpdaterStore((s) => s.downloadedBytes);
+    const contentLength = useDesktopUpdaterStore((s) => s.contentLength);
+    const lastUpdateError = useDesktopUpdaterStore((s) => s.lastError);
+    const installUpdate = useDesktopUpdaterStore((s) => s.installUpdate);
+    const checkForUpdates = useDesktopUpdaterStore((s) => s.checkForUpdates);
 
     const userAvatar = user?.avatar;
     const userStatus = user?.status || "online";
@@ -82,35 +90,70 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
     const secondaryName = user?.username || "user";
     const statuses = ["online", "idle", "dnd", "invisible"] as const;
     const hasActiveVoiceSession =
-        !!currentChannelId ||
-        liveLatencyMs !== null ||
-        hasVideo ||
-        isScreenSharing;
+        !!currentChannelId || liveLatencyMs !== null || hasVideo || isScreenSharing;
+    const updateProgress = contentLength
+        ? Math.min(100, Math.round((downloadedBytes / contentLength) * 100))
+        : null;
+    const showUpdateBanner =
+        isDesktop &&
+        (updaterStatus === "available" ||
+            updaterStatus === "downloading" ||
+            updaterStatus === "installing" ||
+            (updaterStatus === "error" && !!updateInfo));
+    const isUpdating = updaterStatus === "downloading" || updaterStatus === "installing";
+    const updateTitle =
+        updaterStatus === "downloading"
+            ? "Downloading update"
+            : updaterStatus === "installing"
+              ? "Installing update"
+              : updaterStatus === "error"
+                ? "Update failed"
+                : "Update available";
+    const updateSubtitle =
+        updaterStatus === "downloading"
+            ? updateProgress !== null
+                ? `${updateProgress}%`
+                : "Preparing download"
+            : updaterStatus === "installing"
+              ? "Restarting Corvus"
+              : updaterStatus === "error"
+                ? lastUpdateError || "Try again"
+                : updateInfo?.version
+                  ? `Version ${updateInfo.version}`
+                  : "Ready to install";
 
     const audioInputs = useMemo(
         () => devices.filter((device) => device.kind === "audioinput"),
-        [devices]
+        [devices],
     );
     const audioOutputs = useMemo(
         () => devices.filter((device) => device.kind === "audiooutput"),
-        [devices]
+        [devices],
     );
 
-    const resolveDeviceLabel = (device: MediaDeviceInfo, index: number, kind: "input" | "output") => {
+    const resolveDeviceLabel = (
+        device: MediaDeviceInfo,
+        index: number,
+        kind: "input" | "output",
+    ) => {
         if (device.label && device.label.trim()) return device.label;
         return kind === "input" ? `Microphone ${index + 1}` : `Speaker ${index + 1}`;
     };
 
     const applyOutputVolume = useCallback((nextVolume: number) => {
         const ratio = Math.max(0, Math.min(100, nextVolume)) / 100;
-        const mediaElements = Array.from(document.querySelectorAll<HTMLMediaElement>("audio, video"));
+        const mediaElements = Array.from(
+            document.querySelectorAll<HTMLMediaElement>("audio, video"),
+        );
         for (const element of mediaElements) {
             element.volume = ratio;
         }
     }, []);
 
     const applyOutputDevice = useCallback(async (deviceId: string) => {
-        const mediaElements = Array.from(document.querySelectorAll<HTMLMediaElement>("audio, video"));
+        const mediaElements = Array.from(
+            document.querySelectorAll<HTMLMediaElement>("audio, video"),
+        );
         await Promise.all(
             mediaElements.map(async (element) => {
                 const sinkCapable = element as HTMLMediaElement & {
@@ -122,7 +165,7 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                 } catch {
                     // Ignore unsupported sink changes per element.
                 }
-            })
+            }),
         );
     }, []);
 
@@ -160,9 +203,11 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                 applyOutputVolume(clamped);
             }
         }
-    }, [applyOutputVolume]);
+    }, [applyOutputDevice, applyOutputVolume]);
 
-    useEffect(() => { refreshDevices(); }, [refreshDevices]);
+    useEffect(() => {
+        refreshDevices();
+    }, [refreshDevices]);
 
     useEffect(() => {
         if (!navigator?.mediaDevices?.addEventListener) return;
@@ -196,6 +241,13 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
     };
     const handleVideoToggle = () => setLocalVideo(!hasVideo);
     const handleScreenShareToggle = () => setLocalScreenSharing(!isScreenSharing);
+    const handleUpdateClick = () => {
+        const task = updaterStatus === "error" && !updateInfo ? checkForUpdates() : installUpdate();
+
+        task.catch((err) => {
+            console.error("Failed to install desktop update:", err);
+        });
+    };
 
     const CtrlBtn = ({
         active,
@@ -224,10 +276,7 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
     );
 
     return (
-        <div
-            ref={dockRef}
-            className="relative z-[70] flex-shrink-0 overflow-visible"
-        >
+        <div ref={dockRef} className="relative z-[70] flex-shrink-0 overflow-visible">
             {/* Voice session card */}
             {hasActiveVoiceSession && (
                 <div className="mx-2 mb-1 px-3 py-2 rounded-xl bg-surface border border-border-highlight inner-shine-strong">
@@ -240,7 +289,9 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                                 {currentChannelName || "Voice Connected"}
                             </div>
                             {currentServerName && (
-                                <div className="text-[11px] text-text-faint truncate">{currentServerName}</div>
+                                <div className="text-[11px] text-text-faint truncate">
+                                    {currentServerName}
+                                </div>
                             )}
                         </div>
                         {liveLatencyMs !== null && (
@@ -249,8 +300,8 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                                     liveLatencyMs < 80
                                         ? "text-success"
                                         : liveLatencyMs < 150
-                                            ? "text-warning"
-                                            : "text-danger"
+                                          ? "text-warning"
+                                          : "text-danger"
                                 }`}
                                 title="Live latency"
                             >
@@ -263,7 +314,11 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                         <CtrlBtn
                             active={noiseSuppression}
                             onClick={() => setNoiseSuppression(!noiseSuppression)}
-                            title={noiseSuppression ? "Disable Noise Suppression" : "Enable Noise Suppression"}
+                            title={
+                                noiseSuppression
+                                    ? "Disable Noise Suppression"
+                                    : "Enable Noise Suppression"
+                            }
                         >
                             <AudioLines className="w-4 h-4" />
                         </CtrlBtn>
@@ -279,7 +334,11 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                             onClick={handleVideoToggle}
                             title={hasVideo ? "Turn Off Camera" : "Turn On Camera"}
                         >
-                            {hasVideo ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
+                            {hasVideo ? (
+                                <Video className="w-4 h-4" />
+                            ) : (
+                                <VideoOff className="w-4 h-4" />
+                            )}
                         </CtrlBtn>
                         <button
                             onClick={onOpenSettings}
@@ -289,6 +348,44 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                             <Settings className="w-3.5 h-3.5" />
                         </button>
                     </div>
+                </div>
+            )}
+
+            {showUpdateBanner && (
+                <div className="mx-2 mb-1 px-3 py-2 rounded-xl bg-success/10 border border-success/25">
+                    <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-md bg-success/15 text-success flex items-center justify-center flex-shrink-0">
+                            {isUpdating ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Download className="w-4 h-4" />
+                            )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <div className="text-[12px] font-semibold text-text-primary leading-tight truncate">
+                                {updateTitle}
+                            </div>
+                            <div className="text-[11px] text-text-faint leading-tight truncate">
+                                {updateSubtitle}
+                            </div>
+                        </div>
+                        {!isUpdating && (
+                            <button
+                                onClick={handleUpdateClick}
+                                className="h-7 px-2.5 rounded-md bg-success text-white text-[12px] font-semibold hover:bg-success/90 transition-colors flex-shrink-0"
+                            >
+                                {updaterStatus === "error" ? "Retry" : "Update"}
+                            </button>
+                        )}
+                    </div>
+                    {updaterStatus === "downloading" && updateProgress !== null && (
+                        <div className="mt-2 h-1 rounded-full bg-success/15 overflow-hidden">
+                            <div
+                                className="h-full bg-success transition-all"
+                                style={{ width: `${updateProgress}%` }}
+                            />
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -356,8 +453,12 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                                                 className="w-2 h-2 rounded-full flex-shrink-0"
                                                 style={{ backgroundColor: statusColors[status] }}
                                             />
-                                            <span className="flex-1 text-left">{statusLabels[status]}</span>
-                                            {isActive && <Check className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />}
+                                            <span className="flex-1 text-left">
+                                                {statusLabels[status]}
+                                            </span>
+                                            {isActive && (
+                                                <Check className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />
+                                            )}
                                         </button>
                                     );
                                 })}
@@ -397,9 +498,19 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                             </button>
                             {showInputMenu && (
                                 <div className="absolute right-0 bottom-full mb-2 w-[260px] rounded-xl border border-border-highlight bg-surface-overlay shadow-float-lg z-50 p-3 animate-slide-up">
-                                    <div className="text-[12px] font-semibold text-text-primary mb-1.5">Input Device</div>
+                                    <div className="text-[12px] font-semibold text-text-primary mb-1.5">
+                                        Input Device
+                                    </div>
                                     <div className="space-y-0.5 max-h-[120px] overflow-y-auto">
-                                        {(audioInputs.length > 0 ? audioInputs : [{ deviceId: "default", label: "Default Microphone" } as MediaDeviceInfo]).map((device, idx) => {
+                                        {(audioInputs.length > 0
+                                            ? audioInputs
+                                            : [
+                                                  {
+                                                      deviceId: "default",
+                                                      label: "Default Microphone",
+                                                  } as MediaDeviceInfo,
+                                              ]
+                                        ).map((device, idx) => {
                                             const id = device.deviceId || "default";
                                             const selected = id === inputDeviceId;
                                             const label = resolveDeviceLabel(device, idx, "input");
@@ -409,35 +520,53 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                                                     onClick={() => {
                                                         setInputDeviceId(id);
                                                         if (typeof window !== "undefined") {
-                                                            window.localStorage.setItem("corvus-input-device-id", id);
+                                                            window.localStorage.setItem(
+                                                                "corvus-input-device-id",
+                                                                id,
+                                                            );
                                                         }
                                                     }}
                                                     className={`w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg text-[12px] transition-colors ${
-                                                        selected ? "bg-active-row text-text-primary" : "text-text-secondary hover:bg-hover-row hover:text-text-primary"
+                                                        selected
+                                                            ? "bg-active-row text-text-primary"
+                                                            : "text-text-secondary hover:bg-hover-row hover:text-text-primary"
                                                     }`}
                                                 >
                                                     <span className="flex-1 truncate">{label}</span>
-                                                    {selected && <Check className="w-3.5 h-3.5 text-accent-violet flex-shrink-0" />}
+                                                    {selected && (
+                                                        <Check className="w-3.5 h-3.5 text-accent-violet flex-shrink-0" />
+                                                    )}
                                                 </button>
                                             );
                                         })}
                                     </div>
                                     <div className="h-px bg-border my-2.5" />
-                                    <div className="text-[12px] font-semibold text-text-primary mb-2">Input Level</div>
+                                    <div className="text-[12px] font-semibold text-text-primary mb-2">
+                                        Input Level
+                                    </div>
                                     <input
-                                        type="range" min={0} max={100} value={inputVolume}
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        value={inputVolume}
                                         onChange={(e) => {
                                             const value = Number(e.target.value);
                                             setInputVolume(value);
                                             if (typeof window !== "undefined") {
-                                                window.localStorage.setItem("corvus-input-volume", String(value));
+                                                window.localStorage.setItem(
+                                                    "corvus-input-volume",
+                                                    String(value),
+                                                );
                                             }
                                         }}
                                         className="w-full cursor-pointer"
                                     />
                                     <div className="h-px bg-border my-2.5" />
                                     <button
-                                        onClick={() => { setShowInputMenu(false); onOpenSettings(); }}
+                                        onClick={() => {
+                                            setShowInputMenu(false);
+                                            onOpenSettings();
+                                        }}
                                         className="w-full flex items-center justify-between px-1 py-1 text-[12px] text-text-muted hover:text-text-secondary transition-colors rounded"
                                     >
                                         <span>Voice Settings</span>
@@ -457,7 +586,11 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                             }`}
                             title={isDeafened ? "Undeafen" : "Deafen"}
                         >
-                            {isDeafened ? <HeadphoneOff className="w-4 h-4" /> : <Headphones className="w-4 h-4" />}
+                            {isDeafened ? (
+                                <HeadphoneOff className="w-4 h-4" />
+                            ) : (
+                                <Headphones className="w-4 h-4" />
+                            )}
                         </button>
 
                         {/* Output options */}
@@ -477,9 +610,19 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                             </button>
                             {showOutputMenu && (
                                 <div className="absolute right-0 bottom-full mb-2 w-[260px] rounded-xl border border-border-highlight bg-surface-overlay shadow-float-lg z-50 p-3 animate-slide-up">
-                                    <div className="text-[12px] font-semibold text-text-primary mb-1.5">Output Device</div>
+                                    <div className="text-[12px] font-semibold text-text-primary mb-1.5">
+                                        Output Device
+                                    </div>
                                     <div className="space-y-0.5 max-h-[120px] overflow-y-auto">
-                                        {(audioOutputs.length > 0 ? audioOutputs : [{ deviceId: "default", label: "Default Output" } as MediaDeviceInfo]).map((device, idx) => {
+                                        {(audioOutputs.length > 0
+                                            ? audioOutputs
+                                            : [
+                                                  {
+                                                      deviceId: "default",
+                                                      label: "Default Output",
+                                                  } as MediaDeviceInfo,
+                                              ]
+                                        ).map((device, idx) => {
                                             const id = device.deviceId || "default";
                                             const selected = id === outputDeviceId;
                                             const label = resolveDeviceLabel(device, idx, "output");
@@ -489,29 +632,44 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                                                     onClick={() => {
                                                         setOutputDeviceId(id);
                                                         if (typeof window !== "undefined") {
-                                                            window.localStorage.setItem("corvus-output-device-id", id);
+                                                            window.localStorage.setItem(
+                                                                "corvus-output-device-id",
+                                                                id,
+                                                            );
                                                         }
                                                         applyOutputDevice(id);
                                                     }}
                                                     className={`w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg text-[12px] transition-colors ${
-                                                        selected ? "bg-active-row text-text-primary" : "text-text-secondary hover:bg-hover-row hover:text-text-primary"
+                                                        selected
+                                                            ? "bg-active-row text-text-primary"
+                                                            : "text-text-secondary hover:bg-hover-row hover:text-text-primary"
                                                     }`}
                                                 >
                                                     <span className="flex-1 truncate">{label}</span>
-                                                    {selected && <Check className="w-3.5 h-3.5 text-accent-violet flex-shrink-0" />}
+                                                    {selected && (
+                                                        <Check className="w-3.5 h-3.5 text-accent-violet flex-shrink-0" />
+                                                    )}
                                                 </button>
                                             );
                                         })}
                                     </div>
                                     <div className="h-px bg-border my-2.5" />
-                                    <div className="text-[12px] font-semibold text-text-primary mb-2">Output Volume</div>
+                                    <div className="text-[12px] font-semibold text-text-primary mb-2">
+                                        Output Volume
+                                    </div>
                                     <input
-                                        type="range" min={0} max={100} value={outputVolume}
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        value={outputVolume}
                                         onChange={(e) => {
                                             const value = Number(e.target.value);
                                             setOutputVolume(value);
                                             if (typeof window !== "undefined") {
-                                                window.localStorage.setItem("corvus-output-volume", String(value));
+                                                window.localStorage.setItem(
+                                                    "corvus-output-volume",
+                                                    String(value),
+                                                );
                                             }
                                             applyOutputVolume(value);
                                         }}
@@ -519,7 +677,10 @@ export function UserDock({ onOpenSettings }: UserDockProps) {
                                     />
                                     <div className="h-px bg-border my-2.5" />
                                     <button
-                                        onClick={() => { setShowOutputMenu(false); onOpenSettings(); }}
+                                        onClick={() => {
+                                            setShowOutputMenu(false);
+                                            onOpenSettings();
+                                        }}
                                         className="w-full flex items-center justify-between px-1 py-1 text-[12px] text-text-muted hover:text-text-secondary transition-colors rounded"
                                     >
                                         <span>Voice Settings</span>

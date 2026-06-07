@@ -4,3 +4,4 @@ export { useUIStore } from "./ui-store";
 export { useChatStore } from "./chat-store";
 export { useDMStore } from "./dm-store";
 export { useNotificationStore } from "./notification-store";
+export { useDesktopUpdaterStore } from "./desktop-updater-store";

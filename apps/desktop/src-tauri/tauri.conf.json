@@ -1,11 +1,12 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
   "productName": "Corvus",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "identifier": "com.corvus.app",
   "bundle": {
     "active": true,
     "targets": "nsis",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/icon.ico",
       "icons/icon.png",
@@ -50,7 +51,7 @@
       "endpoints": [
         "https://corvus-web.onrender.com/api/updater"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYyQzQ5Qzk1NkVFMzgyQUUKUldTdWd1TnVsWnpFOHZVWVUxamd4YmNWM1I5dUtLcEtxR2ZHTHFSRzNaMmppczUrbWNWWTFocGEK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI5NDhBRkFEODZFQkU5NApSV1NVdm03WStvcVVBcFQ0WEhKRXcwSlpvMFBTNytCcUQ2N2FhbWVTeHFqWHNxQ1lIczBoa0Qvbwo="
     }
   }
 }

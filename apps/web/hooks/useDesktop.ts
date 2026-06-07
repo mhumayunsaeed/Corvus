@@ -6,6 +6,11 @@ import {
     setRuntimeFocused,
     setRuntimeWindowVisible,
 } from "@/lib/runtime-state";
+import {
+    checkForDesktopUpdate,
+    isExpectedDesktopUpdaterError,
+    useDesktopUpdaterStore,
+} from "@/stores/desktop-updater-store";
 
 const UPDATER_LAST_CHECK_KEY = "corvus.updater.lastCheckAt";
 const UPDATER_FAILURE_COUNT_KEY = "corvus.updater.failureCount";
@@ -39,9 +44,7 @@ function getInitialUpdateDelayMs() {
     const failureCount = readNumberFromStorage(UPDATER_FAILURE_COUNT_KEY);
     if (!lastCheckAt) return UPDATER_INITIAL_DELAY_MS;
 
-    const interval = failureCount > 0
-        ? getRetryDelayMs(failureCount)
-        : UPDATER_REGULAR_INTERVAL_MS;
+    const interval = failureCount > 0 ? getRetryDelayMs(failureCount) : UPDATER_REGULAR_INTERVAL_MS;
     const elapsed = Date.now() - lastCheckAt;
 
     if (elapsed >= interval) {
@@ -57,10 +60,7 @@ export function useDesktop() {
             return;
         }
 
-        const isExpectedUpdaterError = (err: unknown) => {
-            const text = err instanceof Error ? err.message : String(err);
-            return text.includes("Could not fetch a valid release JSON from the remote");
-        };
+        useDesktopUpdaterStore.getState().setDesktop(true);
 
         const setupDesktop = async () => {
             const removeListeners: Array<() => void> = [];
@@ -68,7 +68,8 @@ export function useDesktop() {
             try {
                 try {
                     // 1. Native Notifications Permission
-                    const { isPermissionGranted, requestPermission } = await import("@tauri-apps/plugin-notification");
+                    const { isPermissionGranted, requestPermission } =
+                        await import("@tauri-apps/plugin-notification");
                     let permissionGranted = await isPermissionGranted();
                     if (!permissionGranted) {
                         const permission = await requestPermission();
@@ -97,7 +98,7 @@ export function useDesktop() {
                         "corvus:window_visibility",
                         ({ payload }) => {
                             setRuntimeWindowVisible(Boolean(payload));
-                        }
+                        },
                     );
 
                     removeListeners.push(unlistenFocus);
@@ -108,10 +109,6 @@ export function useDesktop() {
 
                 try {
                     // 3. Scheduled updater with backoff
-                    const { check } = await import("@tauri-apps/plugin-updater");
-                    const { ask, message } = await import("@tauri-apps/plugin-dialog");
-                    const { relaunch } = await import("@tauri-apps/plugin-process");
-
                     let disposed = false;
                     let running = false;
                     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -121,9 +118,12 @@ export function useDesktop() {
                         if (timer) {
                             clearTimeout(timer);
                         }
-                        timer = setTimeout(() => {
-                            void runUpdateCheck();
-                        }, Math.max(5_000, delayMs));
+                        timer = setTimeout(
+                            () => {
+                                void runUpdateCheck();
+                            },
+                            Math.max(5_000, delayMs),
+                        );
                     };
 
                     const runUpdateCheck = async () => {
@@ -136,32 +136,13 @@ export function useDesktop() {
 
                         running = true;
                         try {
-                            const update = await check();
+                            await checkForDesktopUpdate({ silent: true });
                             writeNumberToStorage(UPDATER_LAST_CHECK_KEY, Date.now());
                             writeNumberToStorage(UPDATER_FAILURE_COUNT_KEY, 0);
-
-                            if (update) {
-                                const yes = await ask(
-                                    `Update to ${update.version} is available!\n\nRelease notes: ${update.body}`,
-                                    {
-                                        title: "Update Available",
-                                        kind: "info",
-                                    }
-                                );
-                                if (yes) {
-                                    await update.downloadAndInstall();
-                                    await message(
-                                        "Update installed! Corvus will now restart.",
-                                        { title: "Complete", kind: "info" }
-                                    );
-                                    await relaunch();
-                                }
-                            }
                         } catch (err) {
-                            const failures =
-                                readNumberFromStorage(UPDATER_FAILURE_COUNT_KEY) + 1;
+                            const failures = readNumberFromStorage(UPDATER_FAILURE_COUNT_KEY) + 1;
                             writeNumberToStorage(UPDATER_LAST_CHECK_KEY, Date.now());
-                            if (isExpectedUpdaterError(err)) {
+                            if (isExpectedDesktopUpdaterError(err)) {
                                 writeNumberToStorage(UPDATER_FAILURE_COUNT_KEY, 0);
                             } else {
                                 writeNumberToStorage(UPDATER_FAILURE_COUNT_KEY, failures);
@@ -169,13 +150,11 @@ export function useDesktop() {
                             }
                         } finally {
                             running = false;
-                            const failures = readNumberFromStorage(
-                                UPDATER_FAILURE_COUNT_KEY
-                            );
+                            const failures = readNumberFromStorage(UPDATER_FAILURE_COUNT_KEY);
                             schedule(
                                 failures > 0
                                     ? getRetryDelayMs(failures)
-                                    : UPDATER_REGULAR_INTERVAL_MS
+                                    : UPDATER_REGULAR_INTERVAL_MS,
                             );
                         }
                     };
