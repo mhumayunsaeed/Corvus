@@ -17,17 +17,19 @@ interface RateLimitEntry {
 
 const rateLimitStore = new Map<string, RateLimitEntry>();
 
-// Clean up expired entries every 5 minutes
-const cleanupInterval = setInterval(() => {
-    const now = Date.now();
-    for (const [key, entry] of rateLimitStore) {
-        entry.timestamps = entry.timestamps.filter((t) => now - t < 15 * 60 * 1000);
-        if (entry.timestamps.length === 0) rateLimitStore.delete(key);
-    }
-}, 5 * 60 * 1000);
+// Clean up expired entries every 5 minutes (only in non-serverless environments)
+if (!process.env.VERCEL) {
+    const cleanupInterval = setInterval(() => {
+        const now = Date.now();
+        for (const [key, entry] of rateLimitStore) {
+            entry.timestamps = entry.timestamps.filter((t) => now - t < 15 * 60 * 1000);
+            if (entry.timestamps.length === 0) rateLimitStore.delete(key);
+        }
+    }, 5 * 60 * 1000);
 
-if (typeof cleanupInterval.unref === "function") {
-    cleanupInterval.unref();
+    if (typeof cleanupInterval.unref === "function") {
+        cleanupInterval.unref();
+    }
 }
 
 function checkRateLimit(key: string, maxAttempts: number, windowMs: number = 15 * 60 * 1000): boolean {
