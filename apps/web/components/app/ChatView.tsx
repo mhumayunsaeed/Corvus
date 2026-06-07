@@ -152,7 +152,10 @@ export function ChatView({
     const typingUsers = channelTypingUsers ?? EMPTY_TYPING_USERS;
     const setMessages = useChatStore((s) => s.setMessages);
     const prependMessages = useChatStore((s) => s.prependMessages);
+    const addMessage = useChatStore((s) => s.addMessage);
+    const removeMessage = useChatStore((s) => s.deleteMessage);
     const userId = useAuthStore((s) => s.user?.id);
+    const currentUser = useAuthStore((s) => s.user);
     const runtimeThrottled = useRuntimeThrottled();
     const slashQuery = useMemo(() => extractSlashQuery(messageInput), [messageInput]);
     const filteredSlashCommands = useMemo(
@@ -382,18 +385,59 @@ export function ChatView({
         }
         onTypingStop(channelId);
 
-        try {
-            await sendMessage(channelId, {
+        const reply = replyTo;
+        setReplyTo(null);
+
+        // Optimistic render — show the message instantly instead of waiting on
+        // the (possibly cold) server round-trip. The real message replaces this
+        // temp one on success; the realtime echo dedupes by id.
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        if (currentUser) {
+            addMessage(channelId, {
+                id: tempId,
+                channelId,
                 content,
-                replyToId: replyTo?.id,
+                type: "default",
+                editedAt: null,
+                createdAt: new Date().toISOString(),
+                author: {
+                    id: currentUser.id,
+                    displayName: currentUser.displayName,
+                    username: currentUser.username,
+                    avatarUrl: currentUser.avatar,
+                    status: currentUser.status,
+                },
+                replyTo: reply
+                    ? {
+                          id: reply.id,
+                          content: reply.content,
+                          author: {
+                              id: reply.author.id,
+                              displayName: reply.author.displayName,
+                              username: reply.author.username,
+                          },
+                      }
+                    : null,
+                reactions: [],
+                embeds: [],
             });
-            setReplyTo(null);
+        }
+
+        try {
+            const { message } = await sendMessage(channelId, {
+                content,
+                replyToId: reply?.id,
+            });
+            removeMessage(channelId, tempId);
+            addMessage(channelId, message);
         } catch (err) {
             console.error("Failed to send message:", err);
+            removeMessage(channelId, tempId);
             if (err instanceof Error) {
                 alert(err.message);
             }
             setMessageInput(content); // Restore input on error
+            setReplyTo(reply);
         }
     };
 

@@ -223,7 +223,9 @@ export async function exchangeSupabaseSession(
     const token = await getSupabaseAccessToken();
     if (!token) return null;
 
-    const response = await fetch(`${ensureApiUrl()}/auth/session/exchange`, {
+    const apiUrl = ensureApiUrl();
+    const url = `${apiUrl}/auth/session/exchange`;
+    const requestInit: RequestInit = {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -233,7 +235,37 @@ export async function exchangeSupabaseSession(
             preferredDisplayName: profile?.displayName?.trim() || undefined,
             preferredUsername: profile?.username?.trim().toLowerCase() || undefined,
         }),
-    });
+    };
+
+    // Retry transient network failures (serverless cold starts surface as a
+    // generic "Failed to fetch" / timeout on first contact).
+    const maxAttempts = 3;
+    let response: Response | null = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        try {
+            response = await fetch(url, { ...requestInit, signal: controller.signal });
+            clearTimeout(timeoutId);
+            break;
+        } catch (err) {
+            clearTimeout(timeoutId);
+            if (attempt < maxAttempts) {
+                await new Promise((r) => setTimeout(r, 800 * attempt));
+                continue;
+            }
+            // Final failure — give an actionable message instead of "Failed to fetch".
+            throw new Error(
+                `Couldn't reach the Corvus server at ${apiUrl}. ` +
+                "Check your connection — if you're on the desktop app, it may have " +
+                "been built with the wrong API address."
+            );
+        }
+    }
+
+    if (!response) {
+        throw new Error("Unable to finish sign-in. Please try again.");
+    }
 
     const data = await response.json().catch(() => null);
     if (!response.ok) {

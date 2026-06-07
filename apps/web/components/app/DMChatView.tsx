@@ -143,6 +143,7 @@ export function DMChatView({
     activeCall,
 }: DMChatViewProps) {
     const currentUserId = useAuthStore((s) => s.user?.id);
+    const currentUser = useAuthStore((s) => s.user);
     const [loading, setLoading] = useState(true);
     const [loadingOlder, setLoadingOlder] = useState(false);
     const [messageInput, setMessageInput] = useState("");
@@ -480,22 +481,55 @@ export function DMChatView({
         setMessageInput("");
         stopTyping();
 
+        const reply = replyTo;
+        setReplyTo(null);
+
+        // Optimistic render — show instantly; the real message replaces this temp
+        // one on success, and the realtime echo dedupes by id.
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        if (currentUser) {
+            addStoreMessage(conversation.id, {
+                id: tempId,
+                conversationId: conversation.id,
+                content,
+                reactions: [],
+                createdAt: new Date().toISOString(),
+                editedAt: null,
+                author: {
+                    id: currentUser.id,
+                    displayName: currentUser.displayName,
+                    username: currentUser.username,
+                    avatarUrl: currentUser.avatar,
+                    status: currentUser.status,
+                },
+                replyTo: reply
+                    ? {
+                          id: reply.id,
+                          content: reply.content,
+                          author: reply.author,
+                      }
+                    : null,
+            });
+            setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 20);
+        }
+
         try {
-            const result = await sendDMMessage(conversation.id, content, replyTo?.id);
+            const result = await sendDMMessage(conversation.id, content, reply?.id);
+            deleteStoreMessage(conversation.id, tempId);
             addStoreMessage(conversation.id, result.message);
             syncConversationFromMessage(result.message);
-            setReplyTo(null);
-            setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 20);
         } catch (err) {
             console.error("Failed to send DM message:", err);
+            deleteStoreMessage(conversation.id, tempId);
             if (err instanceof Error) {
                 alert(err.message);
             }
             setMessageInput(content);
+            setReplyTo(reply);
         } finally {
             setSending(false);
         }
-    }, [messageInput, sending, conversation.id, replyTo?.id, addStoreMessage, syncConversationFromMessage, stopTyping]);
+    }, [messageInput, sending, conversation.id, replyTo, currentUser, addStoreMessage, deleteStoreMessage, syncConversationFromMessage, stopTyping]);
 
     const applySlashSelection = useCallback(
         (index: number) => {
