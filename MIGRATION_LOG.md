@@ -18,14 +18,14 @@ Newest entries at the top of each phase.
 ## Phase 1.5 — Critical security fixes (in progress)
 
 ### Tauri signing private key removed from version control
-- **Files:** `apps/desktop/~/.tauri/veyra.key`, `apps/desktop/~/.tauri/veyra.key.pub`
+- **Files:** `apps/desktop/~/.tauri/corvus.key`, `apps/desktop/~/.tauri/corvus.key.pub`
 - **What:** Removed from git tracking and deleted from the working tree. Added `*.key` and the
   stray `apps/desktop/~/` path to `.gitignore`.
 - **⚠️ ACTION REQUIRED BY OWNER (cannot be done from here):**
   1. **Rotate the key.** The old key is in git history and must be considered compromised.
      Generate a new one: `pnpm tauri signer generate -w ~/.tauri/corvus.key`.
   2. **Purge from history** with `git filter-repo` (or BFG) and force-push:
-     `git filter-repo --path apps/desktop/~/.tauri/veyra.key --path apps/desktop/~/.tauri/veyra.key.pub --invert-paths`
+     `git filter-repo --path apps/desktop/~/.tauri/corvus.key --path apps/desktop/~/.tauri/corvus.key.pub --invert-paths`
   3. Store the new private key + password only as CI secrets
      (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) and update the
      `pubkey` in `apps/desktop/src-tauri/tauri.conf.json`.
@@ -192,7 +192,7 @@ so presence and voice/stage/call state were re-architected.
 - **Deleted** `render.yaml`.
 - **Added** `apps/web/vercel.json` (Next.js).
 - **Added** `.github/workflows/ci.yml` (typecheck api + web; lint non-blocking until
-  Phase 5). Fixed `release.yml`: `@veyra/web` → `@corvus/web`; swapped
+  Phase 5). Fixed `release.yml` to use `@corvus/web`; swapped
   `NEXT_PUBLIC_WS_URL` for the Supabase build env vars.
 - **Added** `supabase/realtime-policies.sql` — optional RLS to upgrade Broadcast
   topics from public to private (gated by `REALTIME_PRIVATE_CHANNELS=true`).
@@ -313,17 +313,17 @@ so presence and voice/stage/call state were re-architected.
   returns a clear 404 if the installer isn't uploaded). The GitHub-release proxy was
   removed.
 - **Installer stored in Supabase:** uploaded the existing build
-  `Veyra_0.0.1_x64-setup.exe` → `releases/Corvus-Setup.exe`. Verified public download
+  `Corvus_0.0.1_x64-setup.exe` → `releases/Corvus-Setup.exe`. Verified public download
   works (`200`, `application/x-msdownload`, `Content-Disposition: attachment`).
 - Lowered the `releases` bucket cap to **50 MB** (the 500 MB value exceeded Supabase's
   default global upload limit and rejected bucket creation).
-- `release.yml`: fixed the release name `Veyra` → `Corvus`, and added a step that
+- `release.yml`: fixed the release name to `Corvus`, and added a step that
   uploads the freshly-built NSIS installer to the `releases` bucket on every release
   (needs `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` repo secrets).
 
 ### ⚠️ Follow-ups
 - `tauri.conf.json` updater endpoint still points at the dead Render URL
-  (`https://veyra-web.onrender.com/api/updater`) — repoint it at your Vercel web
+  (`https://corvus-web.onrender.com/api/updater`) — repoint it at your Vercel web
   domain (`https://<your-app>.vercel.app/api/updater`) for desktop auto-updates.
 - `apps/api/.env` currently has `DIRECT_URL` but `DATABASE_URL` may need re-checking
   (Prisma's datasource uses `DATABASE_URL`).

@@ -48,7 +48,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://veyra-web.onrender.com/api/updater"
+        "https://corvus-web.onrender.com/api/updater"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYyQzQ5Qzk1NkVFMzgyQUUKUldTdWd1TnVsWnpFOHZVWVUxamd4YmNWM1I5dUtLcEtxR2ZHTHFSRzNaMmppczUrbWNWWTFocGEK"
     }

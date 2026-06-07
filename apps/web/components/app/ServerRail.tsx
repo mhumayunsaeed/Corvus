@@ -80,7 +80,11 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
                     {activeServerId === null && (
                         <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
                     )}
-                    <span className="text-white font-bold text-[15px] tracking-tight relative z-10">V</span>
+                    <img
+                        src="/Corvus.png"
+                        alt="Corvus"
+                        className="relative z-10 h-full w-full object-cover"
+                    />
                 </button>
                 {/* Active indicator pill */}
                 {activeServerId === null && (

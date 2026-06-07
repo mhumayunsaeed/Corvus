@@ -1,4 +1,4 @@
-class VeyraNoiseGateProcessor extends AudioWorkletProcessor {
+class CorvusNoiseGateProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
         this.noiseFloor = 0.0006;
@@ -57,4 +57,4 @@ class VeyraNoiseGateProcessor extends AudioWorkletProcessor {
     }
 }
 
-registerProcessor("veyra-noise-gate-processor", VeyraNoiseGateProcessor);
+registerProcessor("corvus-noise-gate-processor", CorvusNoiseGateProcessor);

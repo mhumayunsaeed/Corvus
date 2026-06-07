@@ -14,7 +14,7 @@ import type { Rnnoise, DenoiseState } from "@shiguredo/rnnoise-wasm";
 let rnnoiseInstance: Rnnoise | null = null;
 
 const WORKLET_MODULE_PATH = "/worklets/noise-gate-processor.js";
-const WORKLET_PROCESSOR_NAME = "veyra-noise-gate-processor";
+const WORKLET_PROCESSOR_NAME = "corvus-noise-gate-processor";
 
 async function getRnnoise(): Promise<Rnnoise> {
     if (!rnnoiseInstance) {

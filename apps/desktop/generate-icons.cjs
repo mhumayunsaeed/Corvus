@@ -1,36 +1,19 @@
 const sharp = require("sharp");
-const { writeFileSync } = require("fs");
+const { readFileSync, writeFileSync } = require("fs");
 const { join } = require("path");
 
 const iconsDir = join(__dirname, "..", "desktop", "src-tauri", "icons");
 
 async function generateIcons() {
-    const size = 256;
-
-    const svg = `
-    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:#7C6AF7"/>
-          <stop offset="100%" style="stop-color:#3ECFCF"/>
-        </linearGradient>
-      </defs>
-      <rect width="${size}" height="${size}" rx="48" fill="url(#bg)"/>
-      <text x="50%" y="55%" text-anchor="middle" dominant-baseline="central"
-            font-family="Arial, sans-serif" font-weight="bold" font-size="160"
-            fill="white">V</text>
-    </svg>
-  `;
-
-    const svgBuffer = Buffer.from(svg);
+    const masterIcon = readFileSync(join(__dirname, "..", "..", "Corvus.png"));
 
     // Generate PNG at 256x256
-    const png256 = await sharp(svgBuffer).resize(256, 256).png().toBuffer();
+    const png256 = await sharp(masterIcon).resize(256, 256).png().toBuffer();
     writeFileSync(join(iconsDir, "icon.png"), png256);
     console.log("icon.png (256x256)");
 
     // Generate tray icon (32x32)
-    const png32 = await sharp(svgBuffer).resize(32, 32).png().toBuffer();
+    const png32 = await sharp(masterIcon).resize(32, 32).png().toBuffer();
     writeFileSync(join(iconsDir, "tray.png"), png32);
     console.log("tray.png (32x32)");
 
@@ -38,7 +21,7 @@ async function generateIcons() {
     const sizes = [16, 32, 48, 256];
     const images = [];
     for (const s of sizes) {
-        const img = await sharp(svgBuffer).resize(s, s).png().toBuffer();
+        const img = await sharp(masterIcon).resize(s, s).png().toBuffer();
         images.push({ size: s, data: img });
     }
 

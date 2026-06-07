@@ -505,10 +505,10 @@ export default function AppPage() {
         return (
             <div className="flex h-full items-center justify-center bg-background">
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-glow"
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-glow overflow-hidden"
                         style={{ background: "linear-gradient(135deg, #7C6AF7 0%, #5B4FBD 100%)" }}
                     >
-                        <span className="text-white font-bold text-xl">V</span>
+                        <img src="/Corvus.png" alt="Corvus" className="h-full w-full object-cover" />
                     </div>
                     <Loader2 className="w-5 h-5 text-accent-violet animate-spin" />
                 </div>
@@ -623,10 +623,10 @@ export default function AppPage() {
                             {servers.length === 0 ? (
                                 <>
                                     <div className="relative mx-auto mb-6 w-20 h-20">
-                                        <div className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-glow"
+                                        <div className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-glow overflow-hidden"
                                             style={{ background: "linear-gradient(135deg, #7C6AF7 0%, #5B4FBD 100%)" }}
                                         >
-                                            <span className="text-white font-bold text-3xl">V</span>
+                                            <img src="/Corvus.png" alt="Corvus" className="h-full w-full object-cover" />
                                         </div>
                                         <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
                                     </div>

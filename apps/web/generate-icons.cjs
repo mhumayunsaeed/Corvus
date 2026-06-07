@@ -1,27 +1,14 @@
 const sharp = require("sharp");
-const { writeFileSync } = require("fs");
+const { readFileSync, writeFileSync } = require("fs");
 const { join } = require("path");
 
 const iconsDir = join(__dirname, "..", "desktop", "src-tauri", "icons");
 
 async function generateIcons() {
-    // Use a proper vector path for "V" instead of text (text renders poorly)
-    // The V is drawn as a geometric shape for crisp rendering at all sizes
-    const makeSvg = (size) => `
-    <svg width="${size}" height="${size}" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:#7C6AF7"/>
-          <stop offset="100%" style="stop-color:#3ECFCF"/>
-        </linearGradient>
-      </defs>
-      <rect width="256" height="256" rx="48" fill="url(#bg)"/>
-      <path d="M78 68 L128 196 L178 68 L156 68 L128 152 L100 68 Z" fill="white"/>
-    </svg>
-  `;
+    const masterIcon = readFileSync(join(__dirname, "..", "..", "Corvus.png"));
 
     // Generate PNG at multiple sizes with high quality — force RGBA (no palette)
-    const png256 = await sharp(Buffer.from(makeSvg(256)), { density: 300 })
+    const png256 = await sharp(masterIcon, { density: 300 })
         .resize(256, 256)
         .ensureAlpha()
         .png({ quality: 100, palette: false })
@@ -30,7 +17,7 @@ async function generateIcons() {
     console.log("icon.png (256x256)");
 
     // 32x32 with lanczos3 for better quality downscale
-    const png32 = await sharp(Buffer.from(makeSvg(256)), { density: 300 })
+    const png32 = await sharp(masterIcon, { density: 300 })
         .resize(32, 32, { kernel: sharp.kernel.lanczos3 })
         .ensureAlpha()
         .png({ quality: 100, palette: false })
@@ -42,7 +29,7 @@ async function generateIcons() {
     const sizes = [16, 24, 32, 48, 64, 128, 256];
     const images = [];
     for (const s of sizes) {
-        const img = await sharp(Buffer.from(makeSvg(256)), { density: 300 })
+        const img = await sharp(masterIcon, { density: 300 })
             .resize(s, s, { kernel: sharp.kernel.lanczos3 })
             .ensureAlpha()
             .png({ quality: 100, palette: false })
