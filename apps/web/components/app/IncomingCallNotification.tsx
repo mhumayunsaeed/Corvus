@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Phone, PhoneOff } from "lucide-react";
-import { joinDMCall } from "@/lib/api";
+import { joinDMCall, declineDMCall } from "@/lib/api";
 import { useRingtone } from "@/hooks/useRingtone";
 import { useAuthStore } from "@/stores/auth-store";
 import { UserAvatar } from "./UserAvatar";
@@ -68,9 +68,15 @@ export function IncomingCallNotification({ onAccept, onDecline }: IncomingCallNo
     }, [callData, accepting, onAccept]);
 
     const handleDecline = useCallback(() => {
+        const conversationId = callData?.conversationId;
         setCallData(null);
+        if (conversationId) {
+            declineDMCall(conversationId).catch((err) => {
+                console.error("Failed to decline call:", err);
+            });
+        }
         onDecline();
-    }, [onDecline]);
+    }, [callData?.conversationId, onDecline]);
 
     if (!callData) return null;
 

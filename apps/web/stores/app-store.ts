@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type { ServerData, ChannelData, DMConversationData } from "@/lib/api";
 
 interface AppState {
@@ -11,6 +12,9 @@ interface AppState {
     servers: ServerData[];
     channels: ChannelData[];
     dmConversations: DMConversationData[];
+    // Per-space channel cache — lets re-opening a space render instantly while
+    // fresh data loads in the background.
+    channelsByServer: Record<string, ChannelData[]>;
 
     // Actions
     setActiveServer: (serverId: string | null) => void;
@@ -28,18 +32,24 @@ interface AppState {
     removeChannel: (channelId: string) => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>()(
+    persist(
+        (set) => ({
     activeServerId: null,
     activeChannelId: null,
     activeDMConversationId: null,
     servers: [],
     channels: [],
     dmConversations: [],
+    channelsByServer: {},
 
     setActiveServer: (serverId) =>
         set((state) => ({
             activeServerId: serverId,
             activeChannelId: null,
+            // Render cached channels for the space immediately; the loader
+            // refreshes them via setChannels right after.
+            channels: serverId ? state.channelsByServer[serverId] || [] : [],
             activeDMConversationId:
                 serverId === null ? state.activeDMConversationId : null,
         })),
@@ -51,7 +61,16 @@ export const useAppStore = create<AppState>((set) => ({
 
     setServers: (servers) => set({ servers }),
 
-    setChannels: (channels) => set({ channels }),
+    setChannels: (channels) =>
+        set((state) => {
+            const serverId = channels[0]?.serverId;
+            return {
+                channels,
+                channelsByServer: serverId
+                    ? { ...state.channelsByServer, [serverId]: channels }
+                    : state.channelsByServer,
+            };
+        }),
 
     setDMConversations: (conversations) =>
         set({ dmConversations: conversations }),
@@ -131,11 +150,46 @@ export const useAppStore = create<AppState>((set) => ({
         })),
 
     addChannel: (channel) =>
-        set((state) => ({ channels: [...state.channels, channel] })),
+        set((state) => {
+            const channels = [...state.channels, channel];
+            return {
+                channels,
+                channelsByServer: {
+                    ...state.channelsByServer,
+                    [channel.serverId]: channels,
+                },
+            };
+        }),
 
     removeChannel: (channelId) =>
-        set((state) => ({
-            channels: state.channels.filter((c) => c.id !== channelId),
-            activeChannelId: state.activeChannelId === channelId ? null : state.activeChannelId,
-        })),
-}));
+        set((state) => {
+            const channels = state.channels.filter((c) => c.id !== channelId);
+            const serverId = channels[0]?.serverId;
+            return {
+                channels,
+                channelsByServer: serverId
+                    ? { ...state.channelsByServer, [serverId]: channels }
+                    : state.channelsByServer,
+                activeChannelId:
+                    state.activeChannelId === channelId ? null : state.activeChannelId,
+            };
+        }),
+        }),
+        {
+            name: "corvus-app-cache",
+            storage: createJSONStorage(() => {
+                if (typeof window !== "undefined") return localStorage;
+                return {
+                    getItem: () => null,
+                    setItem: () => {},
+                    removeItem: () => {},
+                };
+            }),
+            partialize: (state) => ({
+                servers: state.servers,
+                channelsByServer: state.channelsByServer,
+                dmConversations: state.dmConversations,
+            }),
+        }
+    )
+);

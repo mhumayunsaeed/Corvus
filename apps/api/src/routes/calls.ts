@@ -203,6 +203,43 @@ calls.post("/dms/:conversationId/call/leave", async (c) => {
     return c.json({ message: endedForEveryone ? "Call ended." : "Left call." });
 });
 
+// Decline an incoming call — notify the caller (and other participants) that
+// this user rejected the call, without joining the room.
+calls.post("/dms/:conversationId/call/decline", async (c) => {
+    const userId = c.get("userId");
+    const conversationId = c.req.param("conversationId");
+
+    if (!(await assertConversationParticipant(conversationId, userId))) {
+        return c.json({ error: "You are not a participant in this conversation." }, 403);
+    }
+
+    const [participants, user] = await Promise.all([
+        prisma.dMParticipant.findMany({
+            where: { conversationId },
+            select: { userId: true },
+        }),
+        prisma.user.findUnique({
+            where: { id: userId },
+            select: { displayName: true, username: true },
+        }),
+    ]);
+
+    const targetUserIds = participants
+        .map((p) => p.userId)
+        .filter((id) => id !== userId);
+
+    broadcastToUsers(targetUserIds, {
+        type: "call_declined",
+        data: {
+            conversationId,
+            declinedBy: userId,
+            declinedByName: user?.displayName || user?.username || "Someone",
+        },
+    });
+
+    return c.json({ message: "Call declined." });
+});
+
 // Backward-compatible alias
 calls.post("/dms/:conversationId/call/end", async (c) => {
     const userId = c.get("userId");

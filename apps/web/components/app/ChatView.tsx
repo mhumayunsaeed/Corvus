@@ -6,8 +6,6 @@ import {
     Plus,
     Image as ImageIcon,
     Search,
-    Users,
-    Bookmark,
     Hash,
     X,
     Pencil,
@@ -18,7 +16,11 @@ import {
     Download,
     FileText,
     ArrowUp,
+    Pin,
 } from "lucide-react";
+import { notifyError, notifySuccess } from "@/lib/notify";
+import { ChannelSearchPanel } from "./ChannelSearchPanel";
+import { PinnedMessagesPanel } from "./PinnedMessagesPanel";
 import { LinkEmbed } from "./LinkEmbed";
 import { EmojiPicker } from "./EmojiPicker";
 import { GifPicker } from "./GifPicker";
@@ -42,6 +44,7 @@ import {
     fetchStickerById,
     fetchLinkPreview,
     uploadAttachment,
+    pinChannelMessage,
     type MessageData,
     type MessageEmbedData,
     type StickerData,
@@ -120,6 +123,8 @@ export function ChatView({
     onTypingStop,
 }: ChatViewProps) {
     const [messageInput, setMessageInput] = useState("");
+    const [showSearch, setShowSearch] = useState(false);
+    const [showPins, setShowPins] = useState(false);
     const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editContent, setEditContent] = useState("");
@@ -154,6 +159,9 @@ export function ChatView({
     const prependMessages = useChatStore((s) => s.prependMessages);
     const addMessage = useChatStore((s) => s.addMessage);
     const removeMessage = useChatStore((s) => s.deleteMessage);
+    const updateStoreMessage = useChatStore((s) => s.updateMessage);
+    const storeAddReaction = useChatStore((s) => s.addReaction);
+    const storeRemoveReaction = useChatStore((s) => s.removeReaction);
     const userId = useAuthStore((s) => s.user?.id);
     const currentUser = useAuthStore((s) => s.user);
     const runtimeThrottled = useRuntimeThrottled();
@@ -434,7 +442,7 @@ export function ChatView({
             console.error("Failed to send message:", err);
             removeMessage(channelId, tempId);
             if (err instanceof Error) {
-                alert(err.message);
+                notifyError(err.message);
             }
             setMessageInput(content); // Restore input on error
             setReplyTo(reply);
@@ -472,7 +480,7 @@ export function ChatView({
 
             const validationError = validateAttachmentFile(file);
             if (validationError) {
-                alert(validationError);
+                notifyError(validationError);
                 return;
             }
 
@@ -486,7 +494,7 @@ export function ChatView({
                 setReplyTo(null);
             } catch (err) {
                 console.error("Failed to upload attachment:", err);
-                alert(err instanceof Error ? err.message : "Failed to upload attachment.");
+                notifyError(err instanceof Error ? err.message : "Failed to upload attachment.");
             } finally {
                 setUploadingAttachment(false);
             }
@@ -604,24 +612,54 @@ export function ChatView({
         const content = editContent.trim();
         if (!content) return;
 
+        const previous = channelMessages?.find((m) => m.id === messageId);
+        setEditingMessageId(null);
+        setEditContent("");
+        // Optimistic — reflect the edit instantly.
+        updateStoreMessage(channelId, messageId, {
+            content,
+            editedAt: new Date().toISOString(),
+        });
+
         try {
             await editMessage(messageId, content);
-            setEditingMessageId(null);
-            setEditContent("");
         } catch (err) {
             console.error("Failed to edit message:", err);
+            if (previous) {
+                updateStoreMessage(channelId, messageId, {
+                    content: previous.content,
+                    editedAt: previous.editedAt,
+                });
+            }
+            notifyError("Couldn't edit message.");
         }
     };
 
     const handleDelete = async (messageId: string) => {
+        const previous = channelMessages?.find((m) => m.id === messageId);
+        // Optimistic — remove instantly.
+        removeMessage(channelId, messageId);
+
         try {
             await deleteMessageApi(messageId);
         } catch (err) {
             console.error("Failed to delete message:", err);
+            if (previous) addMessage(channelId, previous);
+            notifyError("Couldn't delete message.");
         }
     };
 
     const handleReaction = async (messageId: string, emoji: string, alreadyReacted: boolean) => {
+        if (!userId) return;
+
+        // Optimistic — toggle instantly; the actor's own realtime echo is
+        // skipped (see useWebSocket) so counts don't double.
+        if (alreadyReacted) {
+            storeRemoveReaction(channelId, messageId, emoji, userId, userId);
+        } else {
+            storeAddReaction(channelId, messageId, emoji, userId, userId);
+        }
+
         try {
             if (alreadyReacted) {
                 await removeReaction(messageId, emoji);
@@ -630,6 +668,13 @@ export function ChatView({
             }
         } catch (err) {
             console.error("Failed to toggle reaction:", err);
+            // Revert.
+            if (alreadyReacted) {
+                storeAddReaction(channelId, messageId, emoji, userId, userId);
+            } else {
+                storeRemoveReaction(channelId, messageId, emoji, userId, userId);
+            }
+            notifyError("Couldn't update reaction.");
         }
     };
 
@@ -879,6 +924,19 @@ export function ChatView({
             >
                 <Reply className="w-[14px] h-[14px]" />
             </button>
+            <button
+                onClick={() => {
+                    pinChannelMessage(channelId, message.id)
+                        .then(() => notifySuccess("Message pinned."))
+                        .catch((err) =>
+                            notifyError(err instanceof Error ? err.message : "Couldn't pin message.")
+                        );
+                }}
+                className="w-7 h-7 rounded-md hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                title="Pin"
+            >
+                <Pin className="w-[14px] h-[14px]" />
+            </button>
             {message.author.id === userId && (
                 <button
                     onClick={() => {
@@ -903,7 +961,20 @@ export function ChatView({
     );
 
     return (
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col bg-channel-sidebar">
+        <div className="relative flex-1 min-w-0 min-h-0 flex flex-col bg-channel-sidebar">
+            {showSearch && (
+                <ChannelSearchPanel
+                    channelId={channelId}
+                    channelName={channelName}
+                    onClose={() => setShowSearch(false)}
+                />
+            )}
+            {showPins && (
+                <PinnedMessagesPanel
+                    channelId={channelId}
+                    onClose={() => setShowPins(false)}
+                />
+            )}
             {/* Top bar */}
             <div className="h-[52px] border-b border-border-subtle flex items-center px-4 gap-2.5 flex-shrink-0 bg-channel-sidebar">
                 <div className="flex items-center justify-center w-6 h-6 rounded-md bg-accent-violet/10 flex-shrink-0">
@@ -921,14 +992,22 @@ export function ChatView({
                     </>
                 )}
                 <div className="ml-auto flex items-center gap-0.5">
-                    {[Search, Users, Bookmark].map((Icon, i) => (
-                        <button
-                            key={i}
-                            className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-faint hover:text-text-secondary transition-colors"
-                        >
-                            <Icon className="w-[16px] h-[16px]" />
-                        </button>
-                    ))}
+                    <button
+                        onClick={() => { setShowPins((v) => !v); setShowSearch(false); }}
+                        title="Pinned messages"
+                        aria-label="Pinned messages"
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${showPins ? "bg-accent-soft text-accent" : "hover:bg-hover-row text-text-faint hover:text-text-secondary"}`}
+                    >
+                        <Pin className="w-[16px] h-[16px]" />
+                    </button>
+                    <button
+                        onClick={() => { setShowSearch((v) => !v); setShowPins(false); }}
+                        title="Search this channel"
+                        aria-label="Search this channel"
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${showSearch ? "bg-accent-soft text-accent" : "hover:bg-hover-row text-text-faint hover:text-text-secondary"}`}
+                    >
+                        <Search className="w-[16px] h-[16px]" />
+                    </button>
                 </div>
             </div>
 

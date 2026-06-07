@@ -219,7 +219,12 @@ export function NewShell(props: NewShellProps) {
             {!focusMode &&
                 activeServerId !== null &&
                 activeChannel !== null &&
-                !props.showVoiceView && <ContextPanel serverId={activeServerId} />}
+                !props.showVoiceView && (
+                    <ContextPanel
+                        serverId={activeServerId}
+                        onMessageMember={props.openDirectDM}
+                    />
+                )}
         </div>
     );
 }

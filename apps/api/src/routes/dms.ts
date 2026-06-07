@@ -901,4 +901,37 @@ dms.post("/dms/:conversationId/read", async (c) => {
     return c.json({ success: true });
 });
 
+// ─── GET /dms/:conversationId/messages/search?q= ─────────────────
+dms.get("/dms/:conversationId/messages/search", async (c) => {
+    const userId = c.get("userId");
+    const conversationId = c.req.param("conversationId");
+
+    if (!(await verifyConversationMembership(conversationId, userId))) {
+        return c.json({ error: "Conversation not found." }, 404);
+    }
+
+    const query = (c.req.query("q") || "").trim();
+    if (query.length < 2) {
+        return c.json({ results: [] });
+    }
+
+    const results = await db.dMMessage.findMany({
+        where: { conversationId, content: { contains: query, mode: "insensitive" } },
+        take: 50,
+        orderBy: { createdAt: "desc" },
+        include: { author: { select: userSelect } },
+    });
+
+    return c.json({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        results: results.map((m: any) => ({
+            id: m.id,
+            conversationId: m.conversationId,
+            content: m.content,
+            createdAt: m.createdAt,
+            author: m.author,
+        })),
+    });
+});
+
 export default dms;

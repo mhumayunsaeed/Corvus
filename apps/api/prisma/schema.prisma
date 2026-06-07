@@ -45,6 +45,7 @@ model User {
   dmMessages             DMMessage[]
   stickers               Sticker[]
   pinnedDMMessages       PinnedDMMessage[]
+  pinnedChannelMessages  PinnedMessage[]
   channelReads           ChannelRead[]
 
   @@map("users")
@@ -98,6 +99,7 @@ model Channel {
   messages             Message[]
   reads                ChannelRead[]
   permissionOverrides  ChannelPermissionOverride[]
+  pinnedMessages       PinnedMessage[]
 
   @@index([serverId])
   @@map("channels")
@@ -133,6 +135,7 @@ model Message {
   replies   Message[]  @relation("MessageReplies")
   reactions Reaction[]
   embeds    MessageEmbed[]
+  pinnedEntries PinnedMessage[]
 
   @@index([channelId, createdAt])
   @@map("messages")
@@ -313,6 +316,22 @@ model PinnedDMMessage {
   @@unique([conversationId, messageId])
   @@index([conversationId])
   @@map("pinned_dm_messages")
+}
+
+model PinnedMessage {
+  id         String   @id @default(cuid())
+  channelId  String   @map("channel_id")
+  messageId  String   @map("message_id")
+  pinnedById String   @map("pinned_by_id")
+  pinnedAt   DateTime @default(now()) @map("pinned_at")
+
+  channel  Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  message  Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  pinnedBy User    @relation(fields: [pinnedById], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, messageId])
+  @@index([channelId])
+  @@map("pinned_messages")
 }
 
 // ─── Roles & Permissions ─────────────────────────────────────────

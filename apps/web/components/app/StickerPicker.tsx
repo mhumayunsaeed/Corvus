@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Plus, Trash2, X, Loader2 } from "lucide-react";
 import { fetchStickers, createSticker, deleteSticker, type StickerData } from "@/lib/api";
+import { notifyError } from "@/lib/notify";
 
 interface StickerPickerProps {
     onSelect: (sticker: StickerData) => void;
@@ -56,7 +57,7 @@ export function StickerPicker({ onSelect, onClose }: StickerPickerProps) {
         if (!file) return;
         if (!file.type.startsWith("image/")) return;
         if (file.size > 2 * 1024 * 1024) {
-            alert("Image must be under 2MB");
+            notifyError("Image must be under 2MB.");
             return;
         }
 

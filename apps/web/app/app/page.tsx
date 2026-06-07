@@ -64,7 +64,11 @@ export default function AppPage() {
     const [showSettings, setShowSettings] = useState(false);
     const [showServerSettings, setShowServerSettings] = useState(false);
     const [activeDMCall, setActiveDMCall] = useState<ActiveDMCall | null>(null);
-    const [loading, setLoading] = useState(true);
+    // Skip the blocking loader when we already have cached spaces (persisted
+    // from a previous session) — render instantly and refresh in the background.
+    const [loading, setLoading] = useState(
+        () => useAppStore.getState().servers.length === 0
+    );
     const [friendList, setFriendList] = useState<FriendListEntry[]>([]);
     const [serverPaneWidth, setServerPaneWidth] = useState(360);
     const [dmPaneWidth, setDmPaneWidth] = useState(360);
@@ -475,9 +479,22 @@ export default function AppPage() {
             );
         };
 
+        const handleCallDeclined = (event: Event) => {
+            const custom = event as CustomEvent<{ conversationId?: string }>;
+            const declinedConversationId = custom.detail?.conversationId;
+            // The other party rejected — tear down the caller's pending call.
+            setActiveDMCall((prev) =>
+                !declinedConversationId || prev?.conversationId === declinedConversationId
+                    ? null
+                    : prev
+            );
+        };
+
         window.addEventListener("corvus:call_ended", handleCallEnded);
+        window.addEventListener("corvus:call_declined", handleCallDeclined);
         return () => {
             window.removeEventListener("corvus:call_ended", handleCallEnded);
+            window.removeEventListener("corvus:call_declined", handleCallDeclined);
         };
     }, []);
 

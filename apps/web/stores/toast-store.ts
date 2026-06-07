@@ -1,9 +1,12 @@
 import { create } from "zustand";
 
+export type ToastVariant = "notification" | "error" | "success" | "info";
+
 export interface Toast {
     id: string;
     title: string;
     body: string;
+    variant?: ToastVariant;
     avatarUrl?: string | null;
     channelId?: string;
     conversationId?: string;

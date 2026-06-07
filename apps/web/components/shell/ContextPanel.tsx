@@ -9,10 +9,12 @@ import {
     ChevronLeft,
     AtSign,
     CalendarDays,
+    MessageSquare,
 } from "lucide-react";
 import { fetchMembers, type MemberData } from "@/lib/api";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { getUsernameColor } from "@/lib/color-utils";
+import { useAuthStore } from "@/stores/auth-store";
 
 const STORAGE_KEY = "corvus-context-open";
 
@@ -27,13 +29,15 @@ const STATUS_COLOR: Record<string, string> = {
 
 interface ContextPanelProps {
     serverId: string;
+    onMessageMember?: (userId: string) => void;
 }
 
-export function ContextPanel({ serverId }: ContextPanelProps) {
+export function ContextPanel({ serverId, onMessageMember }: ContextPanelProps) {
     const [open, setOpen] = useState(true);
     const [members, setMembers] = useState<MemberData[]>([]);
     const [loading, setLoading] = useState(false);
     const [selected, setSelected] = useState<MemberData | null>(null);
+    const currentUserId = useAuthStore((s) => s.user?.id);
 
     // Restore persisted open state.
     useEffect(() => {
@@ -255,6 +259,16 @@ export function ContextPanel({ serverId }: ContextPanelProps) {
                             year: "numeric",
                         })}
                     </div>
+
+                    {onMessageMember && member.user.id !== currentUserId && (
+                        <button
+                            onClick={() => onMessageMember(member.user.id)}
+                            className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2 text-[13px] font-semibold text-white transition-all hover:bg-accent-hover active:scale-[0.98]"
+                        >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            Message
+                        </button>
+                    )}
                 </div>
             </div>
         );

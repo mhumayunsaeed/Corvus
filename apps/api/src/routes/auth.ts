@@ -75,6 +75,12 @@ const sessionExchangeSchema = z.object({
 
 const profileUpdateSchema = z.object({
     displayName: z.string().min(1).max(50).optional(),
+    username: z
+        .string()
+        .min(3, "Username must be at least 3 characters.")
+        .max(30, "Username must be 30 characters or fewer.")
+        .regex(usernameRegex, "Username can only contain letters, numbers, and underscores.")
+        .optional(),
     bio: z.string().max(500).nullable().optional(),
     avatarUrl: z.string().url().nullable().optional(),
     status: z.enum(["online", "idle", "dnd", "invisible", "offline"]).optional(),
@@ -405,6 +411,18 @@ auth.patch("/profile", async (c) => {
         if (result.data.status !== undefined) updateData.status = result.data.status;
         if (result.data.onboardingCompleted !== undefined)
             updateData.onboardingCompleted = result.data.onboardingCompleted;
+
+        if (result.data.username !== undefined) {
+            const nextUsername = result.data.username.toLowerCase();
+            const taken = await prisma.user.findFirst({
+                where: { username: nextUsername, NOT: { id: payload.userId } },
+                select: { id: true },
+            });
+            if (taken) {
+                return c.json({ error: "That username is already taken." }, 409);
+            }
+            updateData.username = nextUsername;
+        }
 
         const user = await userRepository.update(payload.userId, updateData);
 

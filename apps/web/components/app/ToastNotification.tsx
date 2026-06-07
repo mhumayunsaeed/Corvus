@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { X } from "lucide-react";
-import { useToastStore } from "@/stores/toast-store";
+import { X, AlertTriangle, CheckCircle2, Info } from "lucide-react";
+import { useToastStore, type Toast } from "@/stores/toast-store";
 import { useAppStore } from "@/stores/app-store";
 import { useNotificationStore } from "@/stores/notification-store";
 import { UserAvatar } from "./UserAvatar";
@@ -21,7 +21,13 @@ export function ToastContainer() {
     );
 }
 
-function ToastCard({ toast }: { toast: { id: string; title: string; body: string; avatarUrl?: string | null; channelId?: string; conversationId?: string; serverId?: string } }) {
+const VARIANT_META = {
+    error: { Icon: AlertTriangle, tone: "text-danger", bg: "bg-danger/12 border-danger/25" },
+    success: { Icon: CheckCircle2, tone: "text-success", bg: "bg-success/12 border-success/25" },
+    info: { Icon: Info, tone: "text-accent", bg: "bg-accent-soft border-accent/25" },
+} as const;
+
+function ToastCard({ toast }: { toast: Toast }) {
     const removeToast = useToastStore((s) => s.removeToast);
     const setActiveServer = useAppStore((s) => s.setActiveServer);
     const setActiveChannel = useAppStore((s) => s.setActiveChannel);
@@ -47,7 +53,11 @@ function ToastCard({ toast }: { toast: { id: string; title: string; body: string
         return () => ctx?.revert();
     }, []);
 
+    const isMessageVariant =
+        !toast.variant || toast.variant === "notification";
+
     const handleClick = () => {
+        if (!isMessageVariant) return; // status toasts are not navigable
         if (toast.channelId && toast.serverId) {
             setActiveServer(toast.serverId);
             setTimeout(() => {
@@ -77,22 +87,33 @@ function ToastCard({ toast }: { toast: { id: string; title: string; body: string
         }
     };
 
+    const statusMeta =
+        !isMessageVariant && toast.variant
+            ? VARIANT_META[toast.variant as keyof typeof VARIANT_META]
+            : null;
+
     return (
         <div
             ref={cardRef}
             onClick={handleClick}
-            className="w-[360px] bg-surface-overlay border border-border-highlight rounded-xl shadow-float p-3 flex items-start gap-3 cursor-pointer hover:bg-hover-row transition-colors pointer-events-auto opacity-0"
+            className={`w-[360px] bg-surface-overlay border border-border-highlight rounded-xl shadow-e2 p-3 flex items-start gap-3 transition-colors pointer-events-auto opacity-0 ${isMessageVariant ? "cursor-pointer hover:bg-hover-row" : ""}`}
         >
-            <UserAvatar
-                avatarUrl={toast.avatarUrl}
-                username={toast.title}
-                className="w-9 h-9 flex-shrink-0"
-            />
+            {statusMeta ? (
+                <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border ${statusMeta.bg}`}>
+                    <statusMeta.Icon className={`h-[18px] w-[18px] ${statusMeta.tone}`} />
+                </div>
+            ) : (
+                <UserAvatar
+                    avatarUrl={toast.avatarUrl}
+                    username={toast.title}
+                    className="w-9 h-9 flex-shrink-0"
+                />
+            )}
             <div className="flex-1 min-w-0">
                 <div className="text-micro font-semibold text-text-primary truncate">
                     {toast.title}
                 </div>
-                <div className="text-micro text-text-muted truncate">
+                <div className={`text-micro text-text-muted ${isMessageVariant ? "truncate" : "line-clamp-3"}`}>
                     {toast.body}
                 </div>
             </div>

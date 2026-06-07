@@ -16,6 +16,7 @@ import {
     type LucideIcon,
 } from "lucide-react";
 import { uploadImage } from "@/lib/api";
+import { notifySuccess } from "@/lib/notify";
 import { validateAttachmentFile } from "@/lib/attachments";
 import { ensureApiUrl } from "@/lib/endpoints";
 import { useAppStore } from "@/stores/app-store";
@@ -218,6 +219,7 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
             if (server.channels) {
                 setChannels(server.channels);
             }
+            notifySuccess(`${server.name} is ready.`, "Space created");
 
             resetState();
             onClose();

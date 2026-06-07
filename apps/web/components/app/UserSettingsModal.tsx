@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { X, LogOut, Pencil, Upload, Bell, MessageSquare, AtSign, AppWindow, Volume2, Sparkles, Monitor } from "lucide-react";
 import { useTheme, type ThemePreference } from "@corvus/ui";
 import { setFeatureFlag, useNewShell } from "@/lib/flags";
+import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify";
+import { updateEmail } from "@/lib/auth";
 import { useAuthStore } from "@/stores/auth-store";
 import { useNotificationStore } from "@/stores/notification-store";
 import { useVoiceStore } from "@/stores/voice-store";
@@ -43,7 +45,7 @@ function NoiseSuppressionSection() {
 }
 
 export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
-    const { user, logout, updateUser } = useAuthStore();
+    const { user, logout, updateUser, changeUsername } = useAuthStore();
     const [activeTab, setActiveTab] = useState<Tab>("My Account");
     const { theme, resolvedTheme, setTheme } = useTheme();
     const newShell = useNewShell();
@@ -64,6 +66,38 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
     const setNotificationPreference = useNotificationStore((s) => s.setPreference);
 
     const [isHoveringAvatar, setIsHoveringAvatar] = useState(false);
+    const [usernameDraft, setUsernameDraft] = useState<string | null>(null);
+    const [savingUsername, setSavingUsername] = useState(false);
+    const [emailDraft, setEmailDraft] = useState<string | null>(null);
+    const [savingEmail, setSavingEmail] = useState(false);
+
+    const handleSaveUsername = async () => {
+        if (usernameDraft === null) return;
+        setSavingUsername(true);
+        try {
+            await changeUsername(usernameDraft);
+            notifySuccess("Username updated.");
+            setUsernameDraft(null);
+        } catch (err) {
+            notifyError(err instanceof Error ? err.message : "Couldn't update username.");
+        } finally {
+            setSavingUsername(false);
+        }
+    };
+
+    const handleSaveEmail = async () => {
+        if (emailDraft === null) return;
+        setSavingEmail(true);
+        try {
+            await updateEmail(emailDraft);
+            notifyInfo("Check your new inbox to confirm the email change.");
+            setEmailDraft(null);
+        } catch (err) {
+            notifyError(err instanceof Error ? err.message : "Couldn't update email.");
+        } finally {
+            setSavingEmail(false);
+        }
+    };
     const avatarInputRef = useRef<HTMLInputElement>(null);
 
     // Initial load
@@ -104,11 +138,11 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
 
         // Validate file type and size
         if (!file.type.startsWith("image/")) {
-            alert("Please select an image file.");
+            notifyError("Please select an image file.");
             return;
         }
         if (file.size > 5 * 1024 * 1024) {
-            alert("Image must be under 5MB.");
+            notifyError("Image must be under 5MB.");
             return;
         }
 
@@ -145,7 +179,7 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                             const url = await uploadImage(blob, "avatar");
                             updateUser({ avatar: url });
                         } catch (err) {
-                            alert(err instanceof Error ? err.message : "Failed to upload avatar.");
+                            notifyError(err instanceof Error ? err.message : "Failed to upload avatar.");
                         }
                     },
                     "image/webp",
@@ -337,23 +371,77 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                                 Edit
                                             </button>
                                         </div>
-                                        <div className="flex justify-between items-center">
-                                            <div>
+                                        <div className="flex justify-between items-center gap-3">
+                                            <div className="min-w-0 flex-1">
                                                 <p className="text-micro font-bold text-text-muted uppercase tracking-wider mb-1">Username</p>
-                                                <p className="text-body text-text-primary">@{user?.username}</p>
+                                                {usernameDraft === null ? (
+                                                    <p className="text-body text-text-primary">@{user?.username}</p>
+                                                ) : (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-text-muted">@</span>
+                                                        <input
+                                                            autoFocus
+                                                            value={usernameDraft}
+                                                            onChange={(e) => setUsernameDraft(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === "Enter") handleSaveUsername();
+                                                                if (e.key === "Escape") setUsernameDraft(null);
+                                                            }}
+                                                            className="flex-1 px-2.5 py-1.5 bg-surface border border-border rounded-md text-text-primary text-sm outline-none focus:border-accent-violet"
+                                                            placeholder="new_username"
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
-                                            <button onClick={() => alert("Username change is disabled natively at this time.")} className="px-4 py-1.5 bg-surface border border-border hover:bg-hover-row text-text-primary text-sm font-medium rounded-md transition-colors">
-                                                Edit
-                                            </button>
+                                            {usernameDraft === null ? (
+                                                <button onClick={() => setUsernameDraft(user?.username || "")} className="px-4 py-1.5 bg-surface border border-border hover:bg-hover-row text-text-primary text-sm font-medium rounded-md transition-colors flex-shrink-0">
+                                                    Edit
+                                                </button>
+                                            ) : (
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    <button onClick={handleSaveUsername} disabled={savingUsername} className="px-4 py-1.5 bg-accent-violet text-white text-sm font-medium rounded-md hover:bg-accent-violet/90 transition-colors disabled:opacity-50">
+                                                        {savingUsername ? "Saving…" : "Save"}
+                                                    </button>
+                                                    <button onClick={() => setUsernameDraft(null)} className="px-3 py-1.5 text-text-muted hover:text-text-primary text-sm rounded-md transition-colors">
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="flex justify-between items-center">
-                                            <div>
+                                        <div className="flex justify-between items-center gap-3">
+                                            <div className="min-w-0 flex-1">
                                                 <p className="text-micro font-bold text-text-muted uppercase tracking-wider mb-1">Email</p>
-                                                <p className="text-body text-text-primary">{user?.email}</p>
+                                                {emailDraft === null ? (
+                                                    <p className="text-body text-text-primary truncate">{user?.email}</p>
+                                                ) : (
+                                                    <input
+                                                        autoFocus
+                                                        type="email"
+                                                        value={emailDraft}
+                                                        onChange={(e) => setEmailDraft(e.target.value)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === "Enter") handleSaveEmail();
+                                                            if (e.key === "Escape") setEmailDraft(null);
+                                                        }}
+                                                        className="w-full px-2.5 py-1.5 bg-surface border border-border rounded-md text-text-primary text-sm outline-none focus:border-accent-violet"
+                                                        placeholder="you@example.com"
+                                                    />
+                                                )}
                                             </div>
-                                            <button onClick={() => alert("Email change via settings is a premium feature.")} className="px-4 py-1.5 bg-surface border border-border hover:bg-hover-row text-text-primary text-sm font-medium rounded-md transition-colors">
-                                                Edit
-                                            </button>
+                                            {emailDraft === null ? (
+                                                <button onClick={() => setEmailDraft(user?.email || "")} className="px-4 py-1.5 bg-surface border border-border hover:bg-hover-row text-text-primary text-sm font-medium rounded-md transition-colors flex-shrink-0">
+                                                    Edit
+                                                </button>
+                                            ) : (
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    <button onClick={handleSaveEmail} disabled={savingEmail} className="px-4 py-1.5 bg-accent-violet text-white text-sm font-medium rounded-md hover:bg-accent-violet/90 transition-colors disabled:opacity-50">
+                                                        {savingEmail ? "Saving…" : "Save"}
+                                                    </button>
+                                                    <button onClick={() => setEmailDraft(null)} className="px-3 py-1.5 text-text-muted hover:text-text-primary text-sm rounded-md transition-colors">
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

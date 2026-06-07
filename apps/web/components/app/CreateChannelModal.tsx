@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Modal } from "@corvus/ui";
 import { X, Loader2, Hash, Volume2, Megaphone, Radio } from "lucide-react";
 import { createChannel } from "@/lib/api";
+import { notifySuccess } from "@/lib/notify";
 import { useAppStore } from "@/stores/app-store";
 
 interface CreateChannelModalProps {
@@ -55,6 +56,7 @@ export function CreateChannelModal({ open, onClose, serverId, existingCategories
             });
 
             addChannel(result.channel);
+            notifySuccess(`#${result.channel.name} created.`);
 
             // Reset and close
             setName("");

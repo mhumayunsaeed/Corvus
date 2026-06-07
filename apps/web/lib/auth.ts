@@ -152,6 +152,18 @@ export async function updatePassword(newPassword: string): Promise<void> {
     if (error) throw new Error(error.message);
 }
 
+/**
+ * Change the account email. Supabase sends a confirmation link to the new
+ * address; the change only takes effect once that link is clicked.
+ */
+export async function updateEmail(newEmail: string): Promise<void> {
+    const { error } = await getSupabaseClient().auth.updateUser(
+        { email: normalizeEmail(newEmail) },
+        { emailRedirectTo: getAuthCallbackUrl() }
+    );
+    if (error) throw new Error(error.message);
+}
+
 export async function resendVerificationEmail(email: string): Promise<void> {
     const { error } = await getSupabaseClient().auth.resend({
         type: "signup",

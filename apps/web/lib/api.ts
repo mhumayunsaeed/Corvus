@@ -389,6 +389,53 @@ export function sendMessage(channelId: string, data: { content: string; replyToI
     });
 }
 
+export interface ChannelSearchResult {
+    id: string;
+    channelId: string;
+    content: string;
+    createdAt: string;
+    author: MessageAuthor;
+}
+
+export function searchChannelMessages(channelId: string, query: string) {
+    return api<{ results: ChannelSearchResult[] }>(
+        `/channels/${channelId}/messages/search?q=${encodeURIComponent(query)}`
+    );
+}
+
+export interface ChannelPinnedMessage {
+    id: string;
+    pinnedAt: string;
+    pinnedBy: MessageAuthor;
+    message: {
+        id: string;
+        channelId: string;
+        content: string;
+        type: string;
+        createdAt: string;
+        editedAt: string | null;
+        author: MessageAuthor;
+    };
+}
+
+export function fetchChannelPins(channelId: string) {
+    return api<{ pins: ChannelPinnedMessage[] }>(`/channels/${channelId}/pins`);
+}
+
+export function pinChannelMessage(channelId: string, messageId: string) {
+    return api<{ message: string }>(
+        `/channels/${channelId}/messages/${messageId}/pin`,
+        { method: "POST" }
+    );
+}
+
+export function unpinChannelMessage(channelId: string, messageId: string) {
+    return api<{ message: string }>(
+        `/channels/${channelId}/messages/${messageId}/pin`,
+        { method: "DELETE" }
+    );
+}
+
 export function editMessage(id: string, content: string) {
     return api<{ message: MessageData }>(`/messages/${id}`, {
         method: "PATCH",
@@ -573,6 +620,20 @@ export function sendDMMessage(conversationId: string, content: string, replyToId
         method: "POST",
         body: JSON.stringify({ content, replyToId }),
     });
+}
+
+export interface DMSearchResult {
+    id: string;
+    conversationId: string;
+    content: string;
+    createdAt: string;
+    author: DMParticipantData;
+}
+
+export function searchDMMessages(conversationId: string, query: string) {
+    return api<{ results: DMSearchResult[] }>(
+        `/dms/${conversationId}/messages/search?q=${encodeURIComponent(query)}`
+    );
 }
 
 export function fetchDMPins(conversationId: string) {
@@ -792,6 +853,12 @@ export function leaveDMCall(conversationId: string) {
 
 export function endDMCall(conversationId: string) {
     return leaveDMCall(conversationId);
+}
+
+export function declineDMCall(conversationId: string) {
+    return api<{ message: string }>(`/dms/${conversationId}/call/decline`, {
+        method: "POST",
+    });
 }
 
 // ─── Stickers API ───────────────────────────────────────────────────────────────

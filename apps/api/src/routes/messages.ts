@@ -180,6 +180,172 @@ messages.get("/channels/:channelId/messages", async (c) => {
     });
 });
 
+// ─── GET /channels/:channelId/messages/search?q= — Search messages ──
+messages.get("/channels/:channelId/messages/search", async (c) => {
+    const userId = c.get("userId");
+    const channelId = c.req.param("channelId");
+
+    const access = await verifyChannelAccess(channelId, userId);
+    if (!access) {
+        return c.json({ error: "Channel not found or you are not a member." }, 404);
+    }
+
+    const query = (c.req.query("q") || "").trim();
+    if (query.length < 2) {
+        return c.json({ results: [] });
+    }
+
+    const results = await prisma.message.findMany({
+        where: {
+            channelId,
+            content: { contains: query, mode: "insensitive" },
+        },
+        take: 50,
+        orderBy: { createdAt: "desc" },
+        include: {
+            author: {
+                select: {
+                    id: true,
+                    displayName: true,
+                    username: true,
+                    avatarUrl: true,
+                    status: true,
+                },
+            },
+        },
+    });
+
+    return c.json({
+        results: results.map((m) => ({
+            id: m.id,
+            channelId: m.channelId,
+            content: m.content,
+            createdAt: m.createdAt,
+            author: m.author,
+        })),
+    });
+});
+
+// ─── Channel pinned messages ────────────────────────────────────
+// Feature-detected: the `pinned_messages` table ships in a later migration.
+// Until `prisma db push` (or migrate) is run + the client regenerated, these
+// degrade gracefully instead of erroring.
+const pinUserSelect = {
+    id: true,
+    displayName: true,
+    username: true,
+    avatarUrl: true,
+    status: true,
+} as const;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getPinModel(): any | null {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (prisma as any).pinnedMessage ?? null;
+}
+
+messages.get("/channels/:channelId/pins", async (c) => {
+    const userId = c.get("userId");
+    const channelId = c.req.param("channelId");
+
+    const access = await verifyChannelAccess(channelId, userId);
+    if (!access) {
+        return c.json({ error: "Channel not found or you are not a member." }, 404);
+    }
+
+    const pinModel = getPinModel();
+    if (!pinModel) return c.json({ pins: [] });
+
+    const pinned = await pinModel.findMany({
+        where: { channelId },
+        include: {
+            message: { include: { author: { select: pinUserSelect } } },
+            pinnedBy: { select: pinUserSelect },
+        },
+        orderBy: { pinnedAt: "desc" },
+    });
+
+    return c.json({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pins: pinned.map((p: any) => ({
+            id: p.id,
+            pinnedAt: p.pinnedAt,
+            pinnedBy: p.pinnedBy,
+            message: {
+                id: p.message.id,
+                channelId: p.message.channelId,
+                content: p.message.content,
+                type: p.message.type,
+                createdAt: p.message.createdAt,
+                editedAt: p.message.editedAt,
+                author: p.message.author,
+            },
+        })),
+    });
+});
+
+messages.post("/channels/:channelId/messages/:messageId/pin", async (c) => {
+    const userId = c.get("userId");
+    const channelId = c.req.param("channelId");
+    const messageId = c.req.param("messageId");
+
+    const access = await verifyChannelAccess(channelId, userId);
+    if (!access) {
+        return c.json({ error: "Channel not found or you are not a member." }, 404);
+    }
+
+    const pinModel = getPinModel();
+    if (!pinModel) {
+        return c.json(
+            { error: "Pinned messages aren't enabled yet — run the latest database migration." },
+            503
+        );
+    }
+
+    const message = await prisma.message.findUnique({ where: { id: messageId } });
+    if (!message || message.channelId !== channelId) {
+        return c.json({ error: "Message not found." }, 404);
+    }
+
+    try {
+        await pinModel.create({ data: { channelId, messageId, pinnedById: userId } });
+    } catch {
+        return c.json({ error: "Message is already pinned." }, 409);
+    }
+
+    broadcastToChannel(channelId, {
+        type: "channel_message_pin",
+        data: { channelId, messageId, pinnedById: userId },
+    });
+
+    return c.json({ message: "Message pinned." }, 201);
+});
+
+messages.delete("/channels/:channelId/messages/:messageId/pin", async (c) => {
+    const userId = c.get("userId");
+    const channelId = c.req.param("channelId");
+    const messageId = c.req.param("messageId");
+
+    const access = await verifyChannelAccess(channelId, userId);
+    if (!access) {
+        return c.json({ error: "Channel not found or you are not a member." }, 404);
+    }
+
+    const pinModel = getPinModel();
+    if (!pinModel) {
+        return c.json({ error: "Pinned messages aren't enabled yet." }, 503);
+    }
+
+    await pinModel.deleteMany({ where: { channelId, messageId } });
+
+    broadcastToChannel(channelId, {
+        type: "channel_message_unpin",
+        data: { channelId, messageId },
+    });
+
+    return c.json({ message: "Message unpinned." });
+});
+
 // ─── POST /channels/:channelId/messages — Create message ────────
 
 messages.post("/channels/:channelId/messages", async (c) => {

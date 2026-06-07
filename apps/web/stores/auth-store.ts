@@ -42,6 +42,7 @@ interface AuthState {
     restoreSession: () => Promise<boolean>;
     logout: () => void;
     updateUser: (data: Partial<User>) => void;
+    changeUsername: (username: string) => Promise<void>;
     completeOnboarding: () => Promise<void>;
     setStatus: (status: User["status"]) => void;
     applyPresence: (userId: string, status: User["status"]) => void;
@@ -341,6 +342,28 @@ export const useAuthStore = create<AuthState>()(
                         }
                     }
                 }
+            },
+
+            changeUsername: async (username) => {
+                const token = get().token;
+                const current = get().user;
+                if (!token || !current) {
+                    throw new Error("You must be signed in to change your username.");
+                }
+                const normalized = username.trim().toLowerCase();
+                if (!/^[a-zA-Z0-9_]{3,30}$/.test(normalized)) {
+                    throw new Error(
+                        "Usernames must be 3–30 characters and use only letters, numbers, or underscores."
+                    );
+                }
+                if (normalized === current.username) return;
+
+                const data = await api<{ user: User }>("/auth/profile", {
+                    method: "PATCH",
+                    body: JSON.stringify({ username: normalized }),
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                set({ user: data.user });
             },
 
             completeOnboarding: async () => {

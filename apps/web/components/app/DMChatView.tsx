@@ -15,6 +15,7 @@ import {
     removeDMReaction,
     unpinDMMessage,
     uploadAttachment,
+    sendFriendRequest,
     type DMConversationData,
     type DMMessageData,
     type MessageEmbedData,
@@ -48,6 +49,8 @@ import {
 } from "@/lib/slash-commands";
 import { UserAvatar } from "./UserAvatar";
 import { getUsernameColor } from "@/lib/color-utils";
+import { notifyError, notifySuccess } from "@/lib/notify";
+import { DMSearchPanel } from "./DMSearchPanel";
 
 interface DMChatViewProps {
     conversation: DMConversationData;
@@ -158,6 +161,8 @@ export function DMChatView({
     const [showStickerPicker, setShowStickerPicker] = useState(false);
     const [showMembersPane, setShowMembersPane] = useState(true);
     const [showPinsPanel, setShowPinsPanel] = useState(false);
+    const [showSearch, setShowSearch] = useState(false);
+    const [addingFriend, setAddingFriend] = useState(false);
     const [uploadingAttachment, setUploadingAttachment] = useState(false);
     const [stickerCache, setStickerCache] = useState<Record<string, StickerData | null>>({});
     const [previewCache, setPreviewCache] = useState<Record<string, MessageEmbedData | null>>({});
@@ -179,6 +184,8 @@ export function DMChatView({
     const addStoreMessage = useDMStore((s) => s.addMessage);
     const updateStoreMessage = useDMStore((s) => s.updateMessage);
     const deleteStoreMessage = useDMStore((s) => s.deleteMessage);
+    const addStoreReaction = useDMStore((s) => s.addReaction);
+    const removeStoreReaction = useDMStore((s) => s.removeReaction);
     const dmTypingUsers = useDMStore((s) => s.typingUsers[conversation.id]);
     const typingUsers = dmTypingUsers ?? EMPTY_DM_TYPING_USERS;
     const conversationPinnedMessages = useDMStore((s) => s.pinnedMessages[conversation.id]);
@@ -522,7 +529,7 @@ export function DMChatView({
             console.error("Failed to send DM message:", err);
             deleteStoreMessage(conversation.id, tempId);
             if (err instanceof Error) {
-                alert(err.message);
+                notifyError(err.message);
             }
             setMessageInput(content);
             setReplyTo(reply);
@@ -635,6 +642,16 @@ export function DMChatView({
 
         const targetMessage = messages.find((msg) => msg.id === messageId);
         const targetConversationId = targetMessage?.conversationId || conversation.id;
+        const previousContent = targetMessage?.content;
+        const previousEditedAt = targetMessage?.editedAt ?? null;
+
+        setEditingMessageId(null);
+        setEditContent("");
+        // Optimistic.
+        updateStoreMessage(targetConversationId, messageId, {
+            content,
+            editedAt: new Date().toISOString(),
+        });
 
         try {
             const result = await editDMMessage(targetConversationId, messageId, content);
@@ -651,19 +668,19 @@ export function DMChatView({
                     },
                 });
             }
-            setEditingMessageId(null);
-            setEditContent("");
         } catch (err) {
             console.error("Failed to edit DM message:", err);
             if (err instanceof Error && /message not found/i.test(err.message)) {
                 deleteStoreMessage(targetConversationId, messageId);
-                setEditingMessageId(null);
-                setEditContent("");
                 return;
             }
-            if (err instanceof Error) {
-                alert(err.message);
+            if (previousContent !== undefined) {
+                updateStoreMessage(targetConversationId, messageId, {
+                    content: previousContent,
+                    editedAt: previousEditedAt,
+                });
             }
+            notifyError(err instanceof Error ? err.message : "Couldn't edit message.");
         }
     };
 
@@ -671,29 +688,34 @@ export function DMChatView({
         const targetMessage = messages.find((msg) => msg.id === messageId);
         const targetConversationId = targetMessage?.conversationId || conversation.id;
 
+        // Optimistic.
+        deleteStoreMessage(targetConversationId, messageId);
+        if (conversation.lastMessage?.id === messageId) {
+            onConversationUpdated({ ...conversation, lastMessage: null });
+        }
+
         try {
             await deleteDMMessage(targetConversationId, messageId);
-            deleteStoreMessage(targetConversationId, messageId);
-            if (conversation.lastMessage?.id === messageId) {
-                onConversationUpdated({
-                    ...conversation,
-                    lastMessage: null,
-                });
-            }
         } catch (err) {
             console.error("Failed to delete DM message:", err);
             if (err instanceof Error && /message not found/i.test(err.message)) {
-                // If it was already removed remotely, keep local state in sync.
-                deleteStoreMessage(targetConversationId, messageId);
-                return;
+                return; // already gone remotely
             }
-            if (err instanceof Error) {
-                alert(err.message);
-            }
+            if (targetMessage) addStoreMessage(targetConversationId, targetMessage);
+            notifyError(err instanceof Error ? err.message : "Couldn't delete message.");
         }
     };
 
     const handleReaction = async (messageId: string, emoji: string, alreadyReacted: boolean) => {
+        if (!currentUserId) return;
+
+        // Optimistic toggle; the actor's own realtime echo is skipped.
+        if (alreadyReacted) {
+            removeStoreReaction(conversation.id, messageId, emoji, currentUserId, currentUserId);
+        } else {
+            addStoreReaction(conversation.id, messageId, emoji, currentUserId, currentUserId);
+        }
+
         try {
             if (alreadyReacted) {
                 await removeDMReaction(conversation.id, messageId, emoji);
@@ -702,6 +724,12 @@ export function DMChatView({
             }
         } catch (err) {
             console.error("Failed to toggle DM reaction:", err);
+            if (alreadyReacted) {
+                addStoreReaction(conversation.id, messageId, emoji, currentUserId, currentUserId);
+            } else {
+                removeStoreReaction(conversation.id, messageId, emoji, currentUserId, currentUserId);
+            }
+            notifyError("Couldn't update reaction.");
         }
     };
 
@@ -949,7 +977,7 @@ export function DMChatView({
 
             const validationError = validateAttachmentFile(file);
             if (validationError) {
-                alert(validationError);
+                notifyError(validationError);
                 return;
             }
 
@@ -967,7 +995,7 @@ export function DMChatView({
                 setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 20);
             } catch (err) {
                 console.error("Failed to upload attachment:", err);
-                alert(err instanceof Error ? err.message : "Failed to upload attachment.");
+                notifyError(err instanceof Error ? err.message : "Failed to upload attachment.");
             } finally {
                 setUploadingAttachment(false);
             }
@@ -998,6 +1026,23 @@ export function DMChatView({
         }
     };
 
+    const handleAddFriend = async () => {
+        if (!peer || addingFriend) return;
+        setAddingFriend(true);
+        try {
+            const result = await sendFriendRequest(peer.username);
+            notifySuccess(
+                result.status === "accepted"
+                    ? `You and ${peer.displayName} are now friends.`
+                    : `Friend request sent to ${peer.displayName}.`
+            );
+        } catch (err) {
+            notifyError(err instanceof Error ? err.message : "Couldn't send friend request.");
+        } finally {
+            setAddingFriend(false);
+        }
+    };
+
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const nextValue = e.target.value;
         setMessageInput(nextValue);
@@ -1023,7 +1068,14 @@ export function DMChatView({
     };
 
     return (
-        <div className="flex-1 min-w-0 min-h-0 bg-channel-sidebar flex">
+        <div className="relative flex-1 min-w-0 min-h-0 bg-channel-sidebar flex">
+            {showSearch && (
+                <DMSearchPanel
+                    conversationId={conversation.id}
+                    title={title}
+                    onClose={() => setShowSearch(false)}
+                />
+            )}
             <div className="flex-1 min-w-0 flex flex-col border-r border-border-subtle">
                 <div className="h-[52px] border-b border-border-subtle flex items-center px-4 gap-3 flex-shrink-0">
                     <div className="w-8 h-8 rounded-xl overflow-hidden bg-surface-raised flex items-center justify-center text-text-secondary flex-shrink-0">
@@ -1080,18 +1132,25 @@ export function DMChatView({
                         </button>
                         <button
                             type="button"
-                            title="Search"
-                            className="w-8 h-8 rounded-lg text-text-faint hover:text-text-secondary hover:bg-hover-row transition-colors flex items-center justify-center"
+                            title="Search this conversation"
+                            aria-label="Search this conversation"
+                            onClick={() => { setShowSearch((v) => !v); setShowPinsPanel(false); }}
+                            className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${showSearch ? "bg-accent-soft text-accent" : "text-text-faint hover:text-text-secondary hover:bg-hover-row"}`}
                         >
                             <Search className="w-4 h-4" />
                         </button>
-                        <button
-                            type="button"
-                            title="Add Friend"
-                            className="w-8 h-8 rounded-lg text-text-muted hover:text-text-primary hover:bg-hover-row transition-colors flex items-center justify-center"
-                        >
-                            <UserPlus className="w-4 h-4" />
-                        </button>
+                        {peer && conversation.type !== "group" && (
+                            <button
+                                type="button"
+                                title="Add friend"
+                                aria-label="Add friend"
+                                onClick={handleAddFriend}
+                                disabled={addingFriend}
+                                className="w-8 h-8 rounded-lg text-text-muted hover:text-text-primary hover:bg-hover-row transition-colors flex items-center justify-center disabled:opacity-50"
+                            >
+                                <UserPlus className="w-4 h-4" />
+                            </button>
+                        )}
                         <button
                             type="button"
                             title={showMembersPane ? "Hide members" : "Show members"}

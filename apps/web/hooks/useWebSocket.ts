@@ -372,23 +372,29 @@ export function useWebSocket() {
                             break;
 
                         case "reaction_add":
-                            h.addReaction(
-                                msg.data.channelId,
-                                msg.data.messageId,
-                                msg.data.emoji,
-                                msg.data.userId,
-                                currentUserId
-                            );
+                            // The actor applies their own reaction optimistically;
+                            // skip the self-echo so the count doesn't double.
+                            if (msg.data.userId !== currentUserId) {
+                                h.addReaction(
+                                    msg.data.channelId,
+                                    msg.data.messageId,
+                                    msg.data.emoji,
+                                    msg.data.userId,
+                                    currentUserId
+                                );
+                            }
                             break;
 
                         case "reaction_remove":
-                            h.removeReaction(
-                                msg.data.channelId,
-                                msg.data.messageId,
-                                msg.data.emoji,
-                                msg.data.userId,
-                                currentUserId
-                            );
+                            if (msg.data.userId !== currentUserId) {
+                                h.removeReaction(
+                                    msg.data.channelId,
+                                    msg.data.messageId,
+                                    msg.data.emoji,
+                                    msg.data.userId,
+                                    currentUserId
+                                );
+                            }
                             break;
 
                         case "typing":
@@ -419,23 +425,27 @@ export function useWebSocket() {
                             break;
 
                         case "dm_reaction_add":
-                            h.addDMReaction(
-                                msg.data.conversationId,
-                                msg.data.messageId,
-                                msg.data.emoji,
-                                msg.data.userId,
-                                currentUserId
-                            );
+                            if (msg.data.userId !== currentUserId) {
+                                h.addDMReaction(
+                                    msg.data.conversationId,
+                                    msg.data.messageId,
+                                    msg.data.emoji,
+                                    msg.data.userId,
+                                    currentUserId
+                                );
+                            }
                             break;
 
                         case "dm_reaction_remove":
-                            h.removeDMReaction(
-                                msg.data.conversationId,
-                                msg.data.messageId,
-                                msg.data.emoji,
-                                msg.data.userId,
-                                currentUserId
-                            );
+                            if (msg.data.userId !== currentUserId) {
+                                h.removeDMReaction(
+                                    msg.data.conversationId,
+                                    msg.data.messageId,
+                                    msg.data.emoji,
+                                    msg.data.userId,
+                                    currentUserId
+                                );
+                            }
                             break;
 
                         case "dm_typing":
@@ -621,6 +631,21 @@ export function useWebSocket() {
                                 new CustomEvent("corvus:call_ended", { detail: msg.data })
                             );
                             break;
+
+                        case "call_declined": {
+                            const declinedByName =
+                                (msg.data as { declinedByName?: string }).declinedByName ||
+                                "They";
+                            useToastStore.getState().addToast({
+                                variant: "info",
+                                title: "Call declined",
+                                body: `${declinedByName} declined the call.`,
+                            });
+                            window.dispatchEvent(
+                                new CustomEvent("corvus:call_declined", { detail: msg.data })
+                            );
+                            break;
+                        }
                     }
                 } catch {
                     // Ignore malformed messages
