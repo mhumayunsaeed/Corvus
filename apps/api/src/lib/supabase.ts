@@ -54,7 +54,7 @@ function readMetaString(meta: Record<string, unknown>, key: string): string | nu
  */
 export async function verifySupabaseToken(token: string): Promise<VerifiedSupabaseUser> {
     const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase.auth.getUser(token);
+    const { data, error } = await (supabase.auth as any).getUser(token);
 
     if (error || !data.user) {
         throw new Error(error?.message || "Invalid Supabase session.");
