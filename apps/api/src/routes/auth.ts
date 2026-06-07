@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { verify } from "@node-rs/argon2";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "../generated/prisma/index.js";
 import { prisma } from "../lib/prisma.js";
 import { userRepository } from "../repositories/userRepository.js";
 import { signToken, verifyToken } from "../lib/jwt.js";

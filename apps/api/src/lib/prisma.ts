@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../generated/prisma/index.js";
 
 // Prisma's datasource is `env("DATABASE_URL")`. For convenience — especially in
 // local dev where only the direct connection is configured — fall back to

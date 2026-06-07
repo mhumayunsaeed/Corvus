@@ -8,6 +8,9 @@ target/
 .env*.local
 .env
 
+# Generated Prisma Client (regenerated on each platform during build)
+apps/api/src/generated/
+
 # OS files
 .DS_Store
 Thumbs.db
