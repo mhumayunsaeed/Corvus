@@ -57,6 +57,21 @@ export interface NewShellProps {
     onSidebarResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void;
 }
 
+function dmCallNotesTitle(conversation: DMConversationData | null) {
+    if (!conversation) return "Direct Call";
+    if (conversation.type === "group") {
+        if (conversation.name?.trim()) return conversation.name;
+        return conversation.participants
+            .map((participant) => participant.displayName)
+            .slice(0, 4)
+            .join(", ") || "Group Call";
+    }
+    return conversation.participants
+        .map((participant) => participant.displayName)
+        .slice(0, 2)
+        .join(" and ") || "Direct Call";
+}
+
 export function NewShell(props: NewShellProps) {
     const [homeTab, setHomeTab] = useState<"home" | "friends">("home");
     const [focusMode, setFocusMode] = useState(false);
@@ -129,6 +144,11 @@ export function NewShell(props: NewShellProps) {
                         url={props.activeDMCall.url}
                         initialVideo={props.activeDMCall.initialVideo}
                         participants={activeCallConversation?.participants || []}
+                        notesContext={{
+                            contextId: `dm:${props.activeDMCall.conversationId}`,
+                            title: dmCallNotesTitle(activeCallConversation ?? null),
+                            subtitle: activeCallConversation?.type === "group" ? "Group DM call" : "Direct call",
+                        }}
                     />
                 )}
 
@@ -147,16 +167,13 @@ export function NewShell(props: NewShellProps) {
                     ) : (
                         <div className="flex min-h-0 flex-1 flex-col">
                             {/* Home / Friends switch */}
-                            <div className="flex h-[52px] flex-shrink-0 items-center gap-1 border-b border-border-subtle px-4">
+                            <div className="flex flex-shrink-0 items-center gap-0.5 border-b border-border px-3 py-2">
                                 {(["home", "friends"] as const).map((tab) => (
                                     <button
                                         key={tab}
+                                        data-active={homeTab === tab}
                                         onClick={() => setHomeTab(tab)}
-                                        className={`rounded-lg px-3 py-1.5 text-[13px] font-medium capitalize transition-colors ${
-                                            homeTab === tab
-                                                ? "bg-active-row text-text-primary"
-                                                : "text-text-muted hover:bg-hover-row hover:text-text-secondary"
-                                        }`}
+                                        className="flex h-7 items-center rounded-[4px] px-3 text-[13px] font-[450] capitalize text-text-secondary transition-colors hover:bg-hover-row hover:text-text-primary data-[active=true]:bg-surface-overlay data-[active=true]:font-medium data-[active=true]:text-text-primary"
                                     >
                                         {tab}
                                     </button>

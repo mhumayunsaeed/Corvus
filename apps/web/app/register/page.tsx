@@ -1,7 +1,11 @@
 "use client";
 
-import { RegisterPage } from "@/components/auth";
+import { AuthShell, SignupForm } from "@/components/auth";
 
 export default function Register() {
-    return <RegisterPage />;
+  return (
+    <AuthShell tagline="Create your account.">
+      <SignupForm />
+    </AuthShell>
+  );
 }

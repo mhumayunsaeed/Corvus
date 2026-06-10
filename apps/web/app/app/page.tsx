@@ -42,6 +42,7 @@ import {
     markChannelReadApi,
     markDMReadApi,
     startDMCall,
+    type DMConversationData,
     type FriendListEntry,
 } from "@/lib/api";
 import { Hash, Loader2 } from "lucide-react";
@@ -54,6 +55,21 @@ interface ActiveDMCall {
 }
 
 const MIN_LEFT_PANE_WIDTH = 280;
+
+function dmCallNotesTitle(conversation: DMConversationData | null) {
+    if (!conversation) return "Direct Call";
+    if (conversation.type === "group") {
+        if (conversation.name?.trim()) return conversation.name;
+        return conversation.participants
+            .map((participant) => participant.displayName)
+            .slice(0, 4)
+            .join(", ") || "Group Call";
+    }
+    return conversation.participants
+        .map((participant) => participant.displayName)
+        .slice(0, 2)
+        .join(" and ") || "Direct Call";
+}
 
 export default function AppPage() {
     const [showCreateServer, setShowCreateServer] = useState(false);
@@ -629,6 +645,11 @@ export default function AppPage() {
                         url={activeDMCall.url}
                         initialVideo={activeDMCall.initialVideo}
                         participants={activeCallConversation?.participants || []}
+                        notesContext={{
+                            contextId: `dm:${activeDMCall.conversationId}`,
+                            title: dmCallNotesTitle(activeCallConversation || null),
+                            subtitle: activeCallConversation?.type === "group" ? "Group DM call" : "Direct call",
+                        }}
                     />
                 )}
 
@@ -694,7 +715,7 @@ export default function AppPage() {
                                 <>
                                     <div className="relative mx-auto mb-6 w-20 h-20">
                                         <div className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-glow overflow-hidden"
-                                            style={{ background: "linear-gradient(135deg, #7C6AF7 0%, #5B4FBD 100%)" }}
+                                            style={{ background: "linear-gradient(135deg, #E8A33D 0%, #C9862B 100%)" }}
                                         >
                                             <img src="/Corvus.png" alt="Corvus" className="h-full w-full object-cover" />
                                         </div>
@@ -710,7 +731,7 @@ export default function AppPage() {
                                         <button
                                             onClick={() => setShowCreateServer(true)}
                                             className="px-5 h-9 rounded-xl text-[13px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.98]"
-                                            style={{ background: "linear-gradient(135deg, #7C6AF7, #5B4FBD)" }}
+                                            style={{ background: "linear-gradient(135deg, #E8A33D, #C9862B)" }}
                                         >
                                             Create a Server
                                         </button>

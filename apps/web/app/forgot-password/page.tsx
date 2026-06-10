@@ -83,7 +83,7 @@ export default function ForgotPasswordPage() {
                                 </p>
                                 <Link
                                     href="/login"
-                                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-accent-violet text-white rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(124,106,247,0.35)] hover:bg-[#6B59E6]"
+                                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-accent-violet text-on-accent rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(232,163,61,0.35)] hover:bg-[#C9862B]"
                                 >
                                     Back to Login
                                 </Link>
@@ -114,7 +114,7 @@ export default function ForgotPasswordPage() {
                                         <div
                                             className={`relative rounded-[10px] transition-shadow duration-200 ${
                                                 isFocused
-                                                    ? "shadow-[0_0_0_2px_#7C6AF7,0_0_20px_rgba(124,106,247,0.15)]"
+                                                    ? "shadow-[0_0_0_2px_#E8A33D,0_0_20px_rgba(232,163,61,0.15)]"
                                                     : ""
                                             }`}
                                         >
@@ -144,7 +144,7 @@ export default function ForgotPasswordPage() {
                                     <button
                                         type="submit"
                                         disabled={loading}
-                                        className="w-full py-3 bg-accent-violet text-white rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(124,106,247,0.35)] hover:bg-[#6B59E6] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                                        className="w-full py-3 bg-accent-violet text-on-accent rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(232,163,61,0.35)] hover:bg-[#C9862B] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
                                         {loading ? (
                                             <span className="flex items-center justify-center gap-2">

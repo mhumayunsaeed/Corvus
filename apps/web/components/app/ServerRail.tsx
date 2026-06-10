@@ -72,7 +72,7 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
                     }`}
                     style={
                         activeServerId === null
-                            ? { background: "linear-gradient(135deg, #7C6AF7 0%, #5B4FBD 100%)" }
+                            ? { background: "linear-gradient(135deg, #E8A33D 0%, #C9862B 100%)" }
                             : { background: "linear-gradient(135deg, #4F46E5 0%, #4338CA 100%)" }
                     }
                 >
@@ -146,9 +146,9 @@ export function ServerRail({ onCreateServer, onJoinServer }: ServerRailProps) {
                                         className={`w-full h-full flex items-center justify-center font-semibold text-[13px] tracking-tight transition-all duration-300 ${
                                             isActive
                                                 ? "text-white"
-                                                : "bg-surface-raised text-text-secondary hover:text-white group-hover:bg-accent-violet/85"
+                                                : "bg-surface-raised text-text-secondary hover:text-on-accent group-hover:bg-accent-violet/85"
                                         }`}
-                                        style={isActive ? { background: "linear-gradient(135deg, #7C6AF7 0%, #5B4FBD 100%)" } : {}}
+                                        style={isActive ? { background: "linear-gradient(135deg, #E8A33D 0%, #C9862B 100%)" } : {}}
                                     >
                                         <div className={`absolute inset-0 bg-gradient-to-b from-white/8 to-transparent pointer-events-none ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity`} />
                                         <span className="relative z-10">{getServerInitials(server.name)}</span>

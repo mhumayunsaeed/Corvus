@@ -19,6 +19,7 @@ import { fetchStageState, requestStageSpeak, grantStageSpeak, revokeStageSpeak }
 import { UserAvatar } from "./UserAvatar";
 import { getUsernameColor } from "@/lib/color-utils";
 import { SpeakingAvatar, ConnectionPill, getAvatarFromMetadata } from "./call/CallUI";
+import { MeetingNotesButton, MeetingNotesPanel } from "./MeetingNotesPanel";
 
 // ─── Speaker Tile ────────────────────────────────────────────────
 
@@ -257,7 +258,7 @@ function StageRoomContent({ isModerator }: StageRoomContentProps) {
                         className={`w-full py-3 rounded-lg font-medium text-body transition-all flex items-center justify-center gap-2 ${
                             hasRaisedHand
                                 ? "bg-yellow-500/20 text-yellow-500 cursor-default"
-                                : "bg-accent-violet hover:bg-accent-violet/80 text-white"
+                                : "bg-accent-violet hover:bg-accent-violet/80 text-on-accent"
                         }`}
                     >
                         <Hand className="w-4 h-4" />
@@ -283,13 +284,23 @@ export function StageChannelView({ serverRole, serverOwnerId }: StageChannelView
     const livekitUrl = useVoiceStore((s) => s.livekitUrl);
     const channelName = useVoiceStore((s) => s.currentChannelName);
     const channelId = useVoiceStore((s) => s.currentChannelId);
+    const serverName = useVoiceStore((s) => s.currentServerName);
     const setStageSpeakers = useVoiceStore((s) => s.setStageSpeakers);
     const setStageRaisedHands = useVoiceStore((s) => s.setStageRaisedHands);
     const userId = useAuthStore((s) => s.user?.id);
+    const [showMeetingNotes, setShowMeetingNotes] = useState(false);
 
     const isModerator = serverRole === "owner" || serverRole === "admin" || userId === serverOwnerId;
 
     const roomOptions = useMemo(() => createRoomOptions(), []);
+    const notesContext = useMemo(
+        () => ({
+            contextId: `stage:${channelId || "pending"}`,
+            title: channelName ? `#${channelName}` : "Stage Channel",
+            subtitle: serverName || "Stage channel",
+        }),
+        [channelId, channelName, serverName]
+    );
 
     // Fetch stage state on mount
     useEffect(() => {
@@ -327,23 +338,38 @@ export function StageChannelView({ serverRole, serverOwnerId }: StageChannelView
                 <Radio className="w-5 h-5 text-live flex-shrink-0" />
                 <span className="text-emphasis font-semibold text-text-primary">{channelName}</span>
                 <span className="text-body text-text-muted">Stage Channel</span>
+                <div className="ml-auto">
+                    <MeetingNotesButton
+                        context={notesContext}
+                        open={showMeetingNotes}
+                        onClick={() => setShowMeetingNotes((open) => !open)}
+                    />
+                </div>
             </div>
 
-            <LiveKitRoom
-                token={livekitToken}
-                serverUrl={livekitUrl}
-                connect={true}
-                audio={isModerator}
-                video={false}
-                options={roomOptions}
-                className="flex-1 flex flex-col"
-            >
-                {/* Latency in top-right */}
-                <div className="absolute top-14 right-4 z-10">
-                    <LatencyIndicator />
-                </div>
-                <StageRoomContent isModerator={isModerator} />
-            </LiveKitRoom>
+            <div className="relative flex min-h-0 flex-1">
+                <LiveKitRoom
+                    token={livekitToken}
+                    serverUrl={livekitUrl}
+                    connect={true}
+                    audio={isModerator}
+                    video={false}
+                    options={roomOptions}
+                    className="flex-1 flex flex-col relative"
+                >
+                    <div className={`absolute top-3 z-10 ${showMeetingNotes ? "right-3" : "right-4"}`}>
+                        <LatencyIndicator />
+                    </div>
+                    <StageRoomContent isModerator={isModerator} />
+                </LiveKitRoom>
+                {showMeetingNotes && (
+                    <MeetingNotesPanel
+                        context={notesContext}
+                        onClose={() => setShowMeetingNotes(false)}
+                        className="absolute inset-y-0 right-0 z-30 max-w-full md:static md:max-w-none"
+                    />
+                )}
+            </div>
         </div>
     );
 }

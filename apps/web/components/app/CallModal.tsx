@@ -39,6 +39,11 @@ import {
     ScreenShareStage,
     getAvatarFromMetadata,
 } from "./call/CallUI";
+import {
+    MeetingNotesButton,
+    MeetingNotesPanel,
+    type MeetingNotesContext,
+} from "./MeetingNotesPanel";
 
 interface CallModalProps {
     onClose: () => void;
@@ -47,6 +52,7 @@ interface CallModalProps {
     callerName?: string;
     initialVideo?: boolean;
     participants?: DMParticipantData[];
+    notesContext: MeetingNotesContext;
     className?: string;
 }
 
@@ -386,6 +392,7 @@ export function CallModal({
     url,
     initialVideo = false,
     participants = [],
+    notesContext,
     className = "",
 }: CallModalProps) {
     const roomOptions = useMemo(() => createRoomOptions(), []);
@@ -393,6 +400,7 @@ export function CallModal({
     const DEFAULT_HEIGHT = 280;
     const MAX_HEIGHT_RATIO = 0.62;
     const [panelHeight, setPanelHeight] = useState(DEFAULT_HEIGHT);
+    const [showMeetingNotes, setShowMeetingNotes] = useState(false);
     const dragStartRef = useRef<{ y: number; height: number } | null>(null);
 
     const clampHeight = useCallback((height: number) => {
@@ -426,7 +434,7 @@ export function CallModal({
 
     return (
         <div
-            className={`flex flex-col bg-background border-b border-border ${className}`}
+            className={`relative flex flex-col bg-background border-b border-border ${className}`}
             style={{ height: `${panelHeight}px` }}
         >
             {/* Header */}
@@ -437,26 +445,42 @@ export function CallModal({
                     </span>
                     <span className="text-[13px] font-semibold text-text-primary">Call</span>
                 </div>
-                <button
-                    onClick={onClose}
-                    className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
-                    title="Close call panel"
-                >
-                    <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                    <MeetingNotesButton
+                        context={notesContext}
+                        open={showMeetingNotes}
+                        onClick={() => setShowMeetingNotes((open) => !open)}
+                    />
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 rounded-lg hover:bg-hover-row flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                        title="Close call panel"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
             </div>
 
-            <LiveKitRoom
-                token={token}
-                serverUrl={url}
-                connect={true}
-                audio={true}
-                video={initialVideo}
-                options={roomOptions}
-                className="flex-1 flex flex-col min-h-0"
-            >
-                <CallContent onClose={onClose} initialVideo={initialVideo} participants={participants} />
-            </LiveKitRoom>
+            <div className="flex min-h-0 flex-1">
+                <LiveKitRoom
+                    token={token}
+                    serverUrl={url}
+                    connect={true}
+                    audio={true}
+                    video={initialVideo}
+                    options={roomOptions}
+                    className="flex-1 flex flex-col min-h-0"
+                >
+                    <CallContent onClose={onClose} initialVideo={initialVideo} participants={participants} />
+                </LiveKitRoom>
+                {showMeetingNotes && (
+                    <MeetingNotesPanel
+                        context={notesContext}
+                        onClose={() => setShowMeetingNotes(false)}
+                        className="absolute bottom-0 right-0 top-0 z-30 max-w-full md:static md:max-w-none"
+                    />
+                )}
+            </div>
 
             <div
                 onPointerDown={handleDragStart}

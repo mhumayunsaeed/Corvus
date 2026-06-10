@@ -1454,7 +1454,7 @@ export function ChatView({
                             {messageInput.trim().length > 0 && (
                                 <button
                                     onClick={handleSend}
-                                    className="ml-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-accent-violet text-white transition-all hover:bg-accent-violet/90 active:scale-95"
+                                    className="ml-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-accent-violet text-on-accent transition-all hover:bg-accent-violet/90 active:scale-95"
                                     title="Send message"
                                     aria-label="Send message"
                                 >

@@ -22,11 +22,14 @@
   --c-surface-overlay: 29 30 44; /* #1D1E2C popovers, menus */
   --c-surface-input: 19 20 28; /* #13141C field bg */
 
-  /* ── Brand accent (interactive electric iris) ─────────── */
-  --c-accent-violet: 124 106 247; /* #7C6AF7 */
-  --c-accent-violet-bright: 146 132 255; /* #9284FF */
-  --c-accent-violet-dim: 91 79 189; /* #5B4FBD */
-  --c-accent-teal: 45 212 191; /* #2DD4BF */
+  /* ── Brand accent — Amber/ochre (the "terminal newspaper" mark) ──
+     Token keeps the historical `accent-violet` name so the 200+ existing
+     class usages flip hue centrally; new code should prefer the neutral
+     `accent` alias (see tailwind.config.ts). */
+  --c-accent-violet: 232 163 61; /* #E8A33D amber */
+  --c-accent-violet-bright: 242 181 87; /* #F2B557 */
+  --c-accent-violet-dim: 201 134 43; /* #C9862B */
+  --c-accent-teal: 45 212 191; /* #2DD4BF — secondary */
   --c-accent-teal-dim: 30 158 142; /* #1E9E8E */
   --c-accent-warm: 245 166 35; /* #F5A623 */
 
@@ -35,7 +38,7 @@
   --c-text-secondary: 174 179 200; /* #AEB3C8 */
   --c-text-muted: 101 106 126; /* #656A7E */
   --c-text-faint: 61 64 87; /* #3D4057 */
-  --c-text-on-accent: 255 255 255;
+  --c-text-on-accent: 26 18 6; /* #1A1206 — dark ink for legible text on amber */
 
   /* ── Semantic states ──────────────────────────────────── */
   --c-success: 34 197 94; /* #22C55E */
@@ -45,6 +48,11 @@
   --c-warning: 245 158 11; /* #F59E0B */
   --c-info: 59 130 246; /* #3B82F6 */
   --c-live: 34 224 214; /* #22E0D6 — "live"/voice signal cyan */
+
+  /* ── Presence / status (brief-defined, calm not neon) ─── */
+  --c-status-online: 61 220 132; /* #3DDC84 */
+  --c-status-idle: 245 166 35; /* #F5A623 */
+  --c-status-dnd: 224 82 82; /* #E05252 */
 
   /* ── Borders ──────────────────────────────────────────── */
   --c-border: 30 32 48; /* #1E2030 */
@@ -65,8 +73,8 @@
   --c-reaction-own: 35 26 82; /* #231A52 */
 
   /* ── Brand devices (full strings, not channels) ───────── */
-  --aurora-gradient: linear-gradient(120deg, #7b5cff 0%, #c44be8 50%, #22e0d6 100%);
-  --aurora-glow: 0 0 24px rgba(124, 106, 247, 0.25);
+  --aurora-gradient: linear-gradient(120deg, #e8a33d 0%, #f2b557 50%, #2dd4bf 100%);
+  --aurora-glow: 0 0 24px rgba(232, 163, 61, 0.25);
 
   /* ── Elevation (e0–e4) ────────────────────────────────── */
   --shadow-e1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.03);
@@ -86,10 +94,10 @@
   --c-surface-overlay: 255 255 255; /* #FFFFFF popovers (rely on shadow) */
   --c-surface-input: 255 255 255; /* #FFFFFF field bg */
 
-  /* ── Brand accent (darkened for AA on light) ──────────── */
-  --c-accent-violet: 93 75 224; /* #5D4BE0 */
-  --c-accent-violet-bright: 124 106 247; /* #7C6AF7 */
-  --c-accent-violet-dim: 75 60 196; /* #4B3CC4 */
+  /* ── Brand accent — Amber (darkened for AA on light) ──── */
+  --c-accent-violet: 180 116 18; /* #B47412 */
+  --c-accent-violet-bright: 209 138 32; /* #D18A20 */
+  --c-accent-violet-dim: 148 95 12; /* #945F0C */
   --c-accent-teal: 15 184 174; /* #0FB8AE */
   --c-accent-teal-dim: 14 148 136; /* #0E9488 */
   --c-accent-warm: 217 119 6; /* #D97706 */
@@ -99,7 +107,7 @@
   --c-text-secondary: 74 79 99; /* #4A4F63 */
   --c-text-muted: 107 113 134; /* #6B7186 */
   --c-text-faint: 160 165 184; /* #A0A5B8 */
-  --c-text-on-accent: 255 255 255;
+  --c-text-on-accent: 26 18 6; /* #1A1206 — dark ink on amber */
 
   /* ── Semantic states ──────────────────────────────────── */
   --c-success: 22 163 74; /* #16A34A */
@@ -109,6 +117,11 @@
   --c-warning: 217 119 6; /* #D97706 */
   --c-info: 37 99 235; /* #2563EB */
   --c-live: 15 184 174; /* #0FB8AE */
+
+  /* ── Presence / status ────────────────────────────────── */
+  --c-status-online: 34 163 92; /* #22A35C */
+  --c-status-idle: 217 119 6; /* #D97706 */
+  --c-status-dnd: 200 50 50; /* #C83232 */
 
   /* ── Borders ──────────────────────────────────────────── */
   --c-border: 226 229 236; /* #E2E5EC */
@@ -129,8 +142,8 @@
   --c-reaction-own: 230 226 251; /* #E6E2FB */
 
   /* ── Brand devices ────────────────────────────────────── */
-  --aurora-gradient: linear-gradient(120deg, #6b4cf0 0%, #b13fd6 50%, #11b8ae 100%);
-  --aurora-glow: 0 0 24px rgba(93, 75, 224, 0.2);
+  --aurora-gradient: linear-gradient(120deg, #b47412 0%, #d18a20 50%, #0fb8ae 100%);
+  --aurora-glow: 0 0 24px rgba(180, 116, 18, 0.2);
 
   /* ── Elevation (softer, neutral shadows on light) ─────── */
   --shadow-e1: 0 1px 2px rgba(16, 18, 38, 0.06), 0 0 0 1px rgba(16, 18, 38, 0.04);

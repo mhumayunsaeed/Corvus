@@ -288,7 +288,7 @@ export function ChannelList({
                                                 >
                                                     {/* Active left bar */}
                                                     {isActive && !isVoice && (
-                                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-full bg-accent-violet shadow-[0_0_6px_rgba(124,106,247,0.5)]" />
+                                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-full bg-accent-violet shadow-[0_0_6px_rgba(232,163,61,0.5)]" />
                                                     )}
 
                                                     <Icon

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
     LiveKitRoom,
     RoomAudioRenderer,
@@ -20,6 +20,7 @@ import { useNoiseSuppression } from "@/hooks/useNoiseSuppression";
 import { useLivekitLatency } from "@/hooks/useLivekitLatency";
 import { getUsernameColor } from "@/lib/color-utils";
 import { SpeakingAvatar, ConnectionPill, ScreenShareStage, getAvatarFromMetadata } from "./call/CallUI";
+import { MeetingNotesButton, MeetingNotesPanel } from "./MeetingNotesPanel";
 
 function getGridClass(count: number): string {
     if (count <= 1) return "grid-cols-1 max-w-[460px] mx-auto";
@@ -240,8 +241,19 @@ export function VoiceChannelView() {
     const livekitToken = useVoiceStore((s) => s.livekitToken);
     const livekitUrl = useVoiceStore((s) => s.livekitUrl);
     const channelName = useVoiceStore((s) => s.currentChannelName);
+    const channelId = useVoiceStore((s) => s.currentChannelId);
+    const serverName = useVoiceStore((s) => s.currentServerName);
+    const [showMeetingNotes, setShowMeetingNotes] = useState(false);
 
     const roomOptions = useMemo(() => createRoomOptions(), []);
+    const notesContext = useMemo(
+        () => ({
+            contextId: `voice:${channelId || "pending"}`,
+            title: channelName ? `#${channelName}` : "Voice Channel",
+            subtitle: serverName || "Voice channel",
+        }),
+        [channelId, channelName, serverName]
+    );
 
     if (!livekitToken || !livekitUrl) {
         return (
@@ -276,22 +288,38 @@ export function VoiceChannelView() {
                     </span>
                     Live
                 </span>
+                <div className="ml-auto">
+                    <MeetingNotesButton
+                        context={notesContext}
+                        open={showMeetingNotes}
+                        onClick={() => setShowMeetingNotes((open) => !open)}
+                    />
+                </div>
             </div>
 
-            <LiveKitRoom
-                token={livekitToken}
-                serverUrl={livekitUrl}
-                connect={true}
-                audio={true}
-                video={false}
-                options={roomOptions}
-                className="flex-1 flex flex-col relative"
-            >
-                <div className="absolute top-3 right-4 z-10">
-                    <LatencyIndicator />
-                </div>
-                <RoomContent />
-            </LiveKitRoom>
+            <div className="relative flex min-h-0 flex-1">
+                <LiveKitRoom
+                    token={livekitToken}
+                    serverUrl={livekitUrl}
+                    connect={true}
+                    audio={true}
+                    video={false}
+                    options={roomOptions}
+                    className="flex-1 flex flex-col relative"
+                >
+                    <div className={`absolute top-3 z-10 ${showMeetingNotes ? "right-3" : "right-4"}`}>
+                        <LatencyIndicator />
+                    </div>
+                    <RoomContent />
+                </LiveKitRoom>
+                {showMeetingNotes && (
+                    <MeetingNotesPanel
+                        context={notesContext}
+                        onClose={() => setShowMeetingNotes(false)}
+                        className="absolute inset-y-0 right-0 z-30 max-w-full md:static md:max-w-none"
+                    />
+                )}
+            </div>
         </div>
     );
 }

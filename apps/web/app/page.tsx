@@ -3,19 +3,20 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Navbar,
+  Nav,
   Hero,
-  FeaturePills,
-  UIShowcase,
-  FeatureCallouts,
-  Pricing,
+  StatsBar,
+  AudienceSection,
+  Features,
+  DeveloperSection,
+  FinalCTA,
   Footer,
 } from "@/components/landing";
 
 export default function LandingPage() {
   const router = useRouter();
 
-  // Redirect to login if running inside Tauri desktop shell
+  // Redirect to login if running inside the Tauri desktop shell.
   useEffect(() => {
     if (
       typeof window !== "undefined" &&
@@ -25,20 +26,22 @@ export default function LandingPage() {
       router.replace("/login");
     }
   }, [router]);
+
   return (
-    <>
-      <Navbar />
-      <div
-        id="landing-scroll"
-        className="h-full overflow-y-auto overflow-x-hidden scroll-smooth"
-      >
+    <div
+      id="landing-scroll"
+      className="h-full overflow-y-auto overflow-x-hidden bg-background"
+    >
+      <Nav />
+      <main>
         <Hero />
-        <FeaturePills />
-        <UIShowcase />
-        <FeatureCallouts />
-        <Pricing />
-        <Footer />
-      </div>
-    </>
+        <StatsBar />
+        <AudienceSection />
+        <Features />
+        <DeveloperSection />
+        <FinalCTA />
+      </main>
+      <Footer />
+    </div>
   );
 }

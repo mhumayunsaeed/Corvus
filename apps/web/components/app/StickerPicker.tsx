@@ -224,7 +224,7 @@ export function StickerPicker({ onSelect, onClose }: StickerPickerProps) {
                     <button
                         onClick={handleCreate}
                         disabled={!stickerPreview || !stickerName.trim() || creating}
-                        className="w-full py-2 bg-accent-violet text-white rounded-lg font-medium text-body hover:bg-accent-violet/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                        className="w-full py-2 bg-accent-violet text-on-accent rounded-lg font-medium text-body hover:bg-accent-violet/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                     >
                         {creating ? (
                             <Loader2 className="w-4 h-4 animate-spin" />

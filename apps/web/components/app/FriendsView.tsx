@@ -263,7 +263,7 @@ export function FriendsView({ onMessageFriend }: FriendsViewProps) {
                                             onClick={() => handleMessageFriend(entry.user.id)}
                                             disabled={dmLoadingId === entry.user.id || !onMessageFriend}
                                             className="px-3 h-7 rounded-lg text-[12px] font-medium text-white disabled:opacity-50 transition-all hover:brightness-110"
-                                            style={{ background: "linear-gradient(135deg, #7C6AF7, #5B4FBD)" }}
+                                            style={{ background: "linear-gradient(135deg, #E8A33D, #C9862B)" }}
                                         >
                                             {dmLoadingId === entry.user.id ? "..." : "Message"}
                                         </button>
@@ -387,7 +387,7 @@ export function FriendsView({ onMessageFriend }: FriendsViewProps) {
                             <button
                                 type="submit"
                                 disabled={searching}
-                                className="px-4 h-10 rounded-xl bg-accent-violet text-white text-body hover:bg-accent-violet/90 disabled:opacity-60"
+                                className="px-4 h-10 rounded-xl bg-accent-violet text-on-accent text-body hover:bg-accent-violet/90 disabled:opacity-60"
                             >
                                 {searching ? "..." : "Search"}
                             </button>
@@ -415,7 +415,7 @@ export function FriendsView({ onMessageFriend }: FriendsViewProps) {
                                     <button
                                         onClick={() => runAction(`send-${entry.id}`, () => sendFriendRequest(entry.username), "Friend request sent.")}
                                         disabled={actionId === `send-${entry.id}`}
-                                        className="px-3 h-8 rounded-md bg-accent-violet text-micro text-white hover:bg-accent-violet/90 disabled:opacity-60"
+                                        className="px-3 h-8 rounded-md bg-accent-violet text-micro text-on-accent hover:bg-accent-violet/90 disabled:opacity-60"
                                     >
                                         Send Request
                                     </button>

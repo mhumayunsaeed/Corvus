@@ -65,7 +65,7 @@ function AuthCallbackContent() {
                                 <p className="text-body text-text-muted mb-6">{error}</p>
                                 <Link
                                     href="/login"
-                                    className="inline-flex items-center gap-2 px-6 py-3 bg-accent-violet text-white rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(124,106,247,0.35)] hover:bg-[#6B59E6]"
+                                    className="inline-flex items-center gap-2 px-6 py-3 bg-accent-violet text-on-accent rounded-[10px] font-medium text-body transition-all duration-200 hover:shadow-[0_0_30px_rgba(232,163,61,0.35)] hover:bg-[#C9862B]"
                                 >
                                     Try Again
                                 </Link>

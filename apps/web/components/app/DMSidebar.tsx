@@ -116,7 +116,7 @@ export function DMSidebar({
                         }`}
                     >
                         {activeConversationId === null && (
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-full bg-accent-violet shadow-[0_0_6px_rgba(124,106,247,0.5)]" />
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-full bg-accent-violet shadow-[0_0_6px_rgba(232,163,61,0.5)]" />
                         )}
                         <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
                             activeConversationId === null ? "bg-accent-violet/20 text-accent-violet" : "bg-surface-raised text-text-faint"
@@ -202,7 +202,7 @@ export function DMSidebar({
                                 }`}
                             >
                                 {isActive && (
-                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-7 rounded-r-full bg-accent-violet shadow-[0_0_6px_rgba(124,106,247,0.4)]" />
+                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-7 rounded-r-full bg-accent-violet shadow-[0_0_6px_rgba(232,163,61,0.4)]" />
                                 )}
                                 <div className="flex items-center gap-2.5">
                                     {/* Avatar */}
@@ -243,7 +243,7 @@ export function DMSidebar({
 
                                     {/* Unread badge */}
                                     {unreadCount > 0 && (
-                                        <span className="ml-auto h-[18px] min-w-[18px] px-1 rounded-full bg-accent-violet text-white text-[10px] font-bold leading-[18px] text-center flex-shrink-0">
+                                        <span className="ml-auto h-[18px] min-w-[18px] px-1 rounded-full bg-accent-violet text-on-accent text-[10px] font-bold leading-[18px] text-center flex-shrink-0">
                                             {unreadCount > 99 ? "99+" : unreadCount}
                                         </span>
                                     )}
@@ -331,7 +331,7 @@ export function DMSidebar({
                                 onClick={handleCreateGroup}
                                 disabled={creating || selectableFriends.length < 2}
                                 className="px-4 h-9 rounded-xl text-[13px] font-semibold text-white disabled:opacity-50 transition-all hover:brightness-110"
-                                style={{ background: "linear-gradient(135deg, #7C6AF7, #5B4FBD)" }}
+                                style={{ background: "linear-gradient(135deg, #E8A33D, #C9862B)" }}
                             >
                                 {creating ? "Creating..." : "Create Group"}
                             </button>

@@ -117,7 +117,7 @@ export function InviteModal({ open, onClose, mode, serverId, serverName }: Invit
                             <button
                                 onClick={handleCreateInvite}
                                 disabled={loading}
-                                className="w-full px-4 py-3 bg-accent-violet text-white rounded-[10px] font-medium text-body hover:bg-accent-violet/90 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                                className="w-full px-4 py-3 bg-accent-violet text-on-accent rounded-[10px] font-medium text-body hover:bg-accent-violet/90 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                             >
                                 {loading ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -137,7 +137,7 @@ export function InviteModal({ open, onClose, mode, serverId, serverName }: Invit
                                         className={`px-4 py-2.5 rounded-[10px] font-medium text-body transition-all flex items-center gap-1.5 ${
                                             copied
                                                 ? "bg-success text-white"
-                                                : "bg-accent-violet text-white hover:bg-accent-violet/90"
+                                                : "bg-accent-violet text-on-accent hover:bg-accent-violet/90"
                                         }`}
                                     >
                                         {copied ? (
@@ -193,7 +193,7 @@ export function InviteModal({ open, onClose, mode, serverId, serverName }: Invit
                             <button
                                 type="submit"
                                 disabled={!inviteCode.trim() || loading}
-                                className="px-6 py-2 bg-accent-violet text-white rounded-[10px] font-medium text-body hover:bg-accent-violet/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                className="px-6 py-2 bg-accent-violet text-on-accent rounded-[10px] font-medium text-body hover:bg-accent-violet/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
                             >
                                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                                 Join Server

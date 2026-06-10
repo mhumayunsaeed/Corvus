@@ -414,7 +414,7 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                             <div className="absolute bottom-0 right-0 w-5 h-5 bg-success rounded-full border-4 border-surface" />
                                         </div>
                                         <div className="mt-12">
-                                            <button onClick={() => setActiveTab("Profiles")} className="px-4 py-1.5 bg-accent-violet text-white text-sm font-medium rounded-md hover:bg-accent-violet/90 transition-colors">
+                                            <button onClick={() => setActiveTab("Profiles")} className="px-4 py-1.5 bg-accent-violet text-on-accent text-sm font-medium rounded-md hover:bg-accent-violet/90 transition-colors">
                                                 Edit User Profile
                                             </button>
                                         </div>
@@ -458,7 +458,7 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                                 </button>
                                             ) : (
                                                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                    <button onClick={handleSaveUsername} disabled={savingUsername} className="px-4 py-1.5 bg-accent-violet text-white text-sm font-medium rounded-md hover:bg-accent-violet/90 transition-colors disabled:opacity-50">
+                                                    <button onClick={handleSaveUsername} disabled={savingUsername} className="px-4 py-1.5 bg-accent-violet text-on-accent text-sm font-medium rounded-md hover:bg-accent-violet/90 transition-colors disabled:opacity-50">
                                                         {savingUsername ? "Saving…" : "Save"}
                                                     </button>
                                                     <button onClick={() => setUsernameDraft(null)} className="px-3 py-1.5 text-text-muted hover:text-text-primary text-sm rounded-md transition-colors">
@@ -493,7 +493,7 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                                 </button>
                                             ) : (
                                                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                    <button onClick={handleSaveEmail} disabled={savingEmail} className="px-4 py-1.5 bg-accent-violet text-white text-sm font-medium rounded-md hover:bg-accent-violet/90 transition-colors disabled:opacity-50">
+                                                    <button onClick={handleSaveEmail} disabled={savingEmail} className="px-4 py-1.5 bg-accent-violet text-on-accent text-sm font-medium rounded-md hover:bg-accent-violet/90 transition-colors disabled:opacity-50">
                                                         {savingEmail ? "Saving…" : "Save"}
                                                     </button>
                                                     <button onClick={() => setEmailDraft(null)} className="px-3 py-1.5 text-text-muted hover:text-text-primary text-sm rounded-md transition-colors">
@@ -537,7 +537,7 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
                                                 </div>
                                             </div>
                                             <div className="flex flex-col gap-2">
-                                                <button onClick={handleChangeAvatar} className="px-4 py-2 bg-accent-violet text-white text-sm font-medium rounded-md hover:bg-accent-violet/90 transition-colors">
+                                                <button onClick={handleChangeAvatar} className="px-4 py-2 bg-accent-violet text-on-accent text-sm font-medium rounded-md hover:bg-accent-violet/90 transition-colors">
                                                     Upload Image
                                                 </button>
                                                 <button onClick={handleRemoveAvatar} className="px-4 py-2 font-medium text-sm text-text-muted hover:text-danger transition-colors">

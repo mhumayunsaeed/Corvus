@@ -1,7 +1,11 @@
 "use client";
 
-import { LoginPage } from "@/components/auth";
+import { AuthShell, LoginForm } from "@/components/auth";
 
 export default function Login() {
-    return <LoginPage />;
+  return (
+    <AuthShell tagline="Sign in to continue.">
+      <LoginForm />
+    </AuthShell>
+  );
 }

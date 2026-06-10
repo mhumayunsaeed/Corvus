@@ -9,6 +9,41 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   Design-system token aliases — maps the "Terminal Newspaper" brief's named
+   slots onto Corvus's channel tokens (packages/ui/.../tokens.css). Prefer the
+   Tailwind classes (shown →) in components; these raw vars exist for the rare
+   case that needs inline CSS. Accent is amber #E8A33D.
+   ----------------------------------------------------------------------------
+   --bg-base       → bg-background          --text-primary   → text-text-primary
+   --bg-raised     → bg-surface-raised      --text-secondary → text-text-secondary
+   --bg-overlay    → bg-surface-overlay     --text-tertiary  → text-text-muted
+   --bg-subtle     → bg-hover-row           --text-disabled  → text-text-faint
+   --accent        → accent / bg-accent     --border         → border-border
+   --accent-subtle → accent-soft            --border-strong  → border-border-active
+   --status-online → status-online          --divider        → border-border-subtle
+   ========================================================================== */
+:root {
+  --bg-base: rgb(var(--c-background));
+  --bg-raised: rgb(var(--c-surface-raised));
+  --bg-overlay: rgb(var(--c-surface-overlay));
+  --bg-subtle: rgb(var(--c-hover-row));
+  --text-primary: rgb(var(--c-text-primary));
+  --text-secondary: rgb(var(--c-text-secondary));
+  --text-tertiary: rgb(var(--c-text-muted));
+  --text-disabled: rgb(var(--c-text-faint));
+  --accent: rgb(var(--c-accent-violet));
+  --accent-subtle: rgb(var(--c-accent-violet) / 0.12);
+  --accent-muted: rgb(var(--c-accent-violet) / 0.5);
+  --on-accent: rgb(var(--c-text-on-accent));
+  --status-online: rgb(var(--c-status-online));
+  --status-idle: rgb(var(--c-status-idle));
+  --status-dnd: rgb(var(--c-status-dnd));
+  --border: rgb(var(--c-border));
+  --border-strong: rgb(var(--c-border-active));
+  --divider: rgb(var(--c-border-subtle));
+}
+
 @layer base {
   * {
     border-color: rgb(var(--c-border));
@@ -67,13 +102,13 @@
 
   /* Selection highlight */
   ::selection {
-    background: rgba(124, 106, 247, 0.35);
+    background: rgba(232, 163, 61, 0.30);
     color: #EDEEF3;
   }
 
   /* Focus ring for accessibility */
   :focus-visible {
-    outline: 2px solid rgba(124, 106, 247, 0.5);
+    outline: 2px solid rgba(232, 163, 61, 0.6);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -96,13 +131,13 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: #7C6AF7;
+    background: #E8A33D;
     margin-top: -5px;
-    box-shadow: 0 0 0 2px rgba(124, 106, 247, 0.2);
+    box-shadow: 0 0 0 2px rgba(232, 163, 61, 0.2);
     transition: box-shadow 0.15s, transform 0.15s;
   }
   input[type="range"]::-webkit-slider-thumb:hover {
-    box-shadow: 0 0 0 4px rgba(124, 106, 247, 0.25);
+    box-shadow: 0 0 0 4px rgba(232, 163, 61, 0.25);
     transform: scale(1.1);
   }
   input[type="range"]::-moz-range-track {
@@ -114,7 +149,7 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: #7C6AF7;
+    background: #E8A33D;
     border: none;
   }
 }
@@ -149,7 +184,7 @@
     inset: 0;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, rgba(124, 106, 247, 0.3), rgba(54, 209, 183, 0.15), transparent 60%);
+    background: linear-gradient(135deg, rgba(232, 163, 61, 0.3), rgba(54, 209, 183, 0.15), transparent 60%);
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
@@ -159,14 +194,14 @@
 
   /* Gradient text */
   .text-gradient-violet {
-    background: linear-gradient(135deg, #7C6AF7, #A78BFA);
+    background: linear-gradient(135deg, #E8A33D, #F2B557);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .text-gradient-brand {
-    background: linear-gradient(135deg, #8B7BFF 0%, #36D1B7 100%);
+    background: linear-gradient(135deg, #E8A33D 0%, #36D1B7 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -180,7 +215,7 @@
     content: '';
     position: absolute;
     inset: -20%;
-    background: radial-gradient(ellipse at center, rgba(124, 106, 247, 0.12) 0%, transparent 70%);
+    background: radial-gradient(ellipse at center, rgba(232, 163, 61, 0.12) 0%, transparent 70%);
     pointer-events: none;
     z-index: -1;
   }
@@ -189,6 +224,47 @@
   .status-pulse-online {
     animation: statusPulse 3s ease-in-out infinite;
   }
+}
+
+/* ── Landing hero — single ambient glow (the page's only "effect") ────── */
+.hero-glow {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  width: 800px;
+  height: 800px;
+  max-width: 100vw;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle at center,
+    rgb(var(--c-accent-violet) / 0.1) 0%,
+    rgb(var(--c-accent-violet) / 0.05) 32%,
+    transparent 62%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Pulsing dots — button loading state & typing indicator. Width stays locked. */
+@keyframes loadingDot {
+  0%, 100% { opacity: 0.3; transform: translateY(0); }
+  50%      { opacity: 1;   transform: translateY(-1px); }
+}
+.loading-dot {
+  animation: loadingDot 0.9s ease-in-out infinite;
+}
+
+/* Staggered mount reveal — opacity + small rise, ease-out, 400ms.
+   prefers-reduced-motion handled globally (top of file) so content
+   still lands at its final state. */
+@keyframes landingReveal {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.landing-reveal {
+  opacity: 0;
+  animation: landingReveal 0.4s ease-out forwards;
 }
 
 /* Marquee animation for feature pills */

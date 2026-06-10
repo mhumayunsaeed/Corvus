@@ -1,155 +1,68 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
-import { Monitor, Apple, Globe, Download } from "lucide-react";
-import { AppMockup } from "./app-mockup";
-import { BRAND_DESCRIPTION, BRAND_MOTTO, BRAND_TAGLINE } from "@/lib/brand";
-
-type OSType = "windows" | "mac" | "linux" | "unknown";
-
-const osConfig: Record<OSType, { icon: React.ElementType; label: string }> = {
-  windows: { icon: Monitor, label: "Download for Windows" },
-  mac: { icon: Apple, label: "Download for macOS" },
-  linux: { icon: Download, label: "Download for Linux" },
-  unknown: { icon: Download, label: "Download Corvus" },
-};
-
-function detectOS(): OSType {
-  const ua = navigator.userAgent;
-  if (ua.includes("Win")) return "windows";
-  if (ua.includes("Mac")) return "mac";
-  if (ua.includes("Linux")) return "linux";
-  return "unknown";
-}
+import Link from "next/link";
 
 export function Hero() {
-  const sectionRef = useRef<HTMLElement>(null);
-  const headlineRef = useRef<HTMLHeadingElement>(null);
-  const subRef = useRef<HTMLParagraphElement>(null);
-  const ctasRef = useRef<HTMLDivElement>(null);
-  const mockupRef = useRef<HTMLDivElement>(null);
-
-  // Detect OS on client only to avoid hydration mismatch
-  const [os, setOS] = useState<OSType>("unknown");
-  useEffect(() => {
-    setOS(detectOS());
-  }, []);
-
-  const handleDownloadClick = () => {
-    const anchor = document.createElement("a");
-    anchor.href = `/api/download?os=${os}`;
-    anchor.setAttribute("download", "");
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-  };
-
-  // GSAP animations — imported dynamically to avoid SSR issues
-  useEffect(() => {
-    let ctx: { revert: () => void } | undefined;
-
-    async function animate() {
-      const gsapModule = await import("gsap");
-      const gsap = gsapModule.default;
-
-      ctx = gsap.context(() => {
-        const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
-
-        tl.fromTo(
-          headlineRef.current,
-          { opacity: 0, y: 30 },
-          { opacity: 1, y: 0, duration: 0.7 }
-        )
-          .fromTo(
-            subRef.current,
-            { opacity: 0, y: 20 },
-            { opacity: 1, y: 0, duration: 0.6 },
-            "-=0.4"
-          )
-          .fromTo(
-            ctasRef.current,
-            { opacity: 0, y: 20 },
-            { opacity: 1, y: 0, duration: 0.5 },
-            "-=0.3"
-          )
-          .fromTo(
-            mockupRef.current,
-            { opacity: 0, y: 50, scale: 0.97 },
-            { opacity: 1, y: 0, scale: 1, duration: 0.8 },
-            "-=0.3"
-          );
-      }, sectionRef);
-    }
-
-    animate();
-    return () => ctx?.revert();
-  }, []);
-
-  const OSIcon = osConfig[os].icon;
-  const osLabel = osConfig[os].label;
-
   return (
-    <section
-      ref={sectionRef}
-      id="download"
-      className="relative min-h-screen flex flex-col items-center justify-center pt-24 pb-16 px-6 overflow-hidden"
-    >
-      {/* Atmospheric gradient mesh */}
-      <div className="absolute inset-0 pointer-events-none" aria-hidden>
-        <div className="absolute top-1/4 left-1/3 w-[500px] h-[500px] bg-accent-violet/8 rounded-full blur-[160px]" />
-        <div className="absolute bottom-1/3 right-1/4 w-[400px] h-[400px] bg-accent-teal/6 rounded-full blur-[140px]" />
-      </div>
+    <section className="relative overflow-hidden px-6">
+      {/* The page's single ambient effect. */}
+      <div className="hero-glow" aria-hidden />
 
-      {/* Headline */}
-      <h1
-        ref={headlineRef}
-        className="relative z-10 text-5xl sm:text-6xl lg:text-[72px] font-bold text-text-primary text-center leading-[1.1] tracking-tight max-w-4xl opacity-0"
-      >
-        {BRAND_MOTTO}
-      </h1>
-
-      {/* Subheadline */}
-      <p
-        ref={subRef}
-        className="relative z-10 mt-6 text-lg sm:text-xl text-text-muted text-center max-w-2xl leading-relaxed opacity-0"
-      >
-        {BRAND_TAGLINE} {BRAND_DESCRIPTION}
-      </p>
-
-      {/* CTAs */}
-      <div
-        ref={ctasRef}
-        className="relative z-10 mt-10 flex flex-col sm:flex-row items-center gap-4 opacity-0"
-      >
-        <button
-          type="button"
-          onClick={handleDownloadClick}
-          className="flex items-center gap-2.5 px-7 py-3.5 bg-accent-violet text-white font-medium rounded-md shadow-glow hover:shadow-[0_0_40px_rgba(124,106,247,0.35)] hover:bg-accent-violet/90 transition-all duration-150 active:scale-[0.97]"
+      <div className="mx-auto flex max-w-[720px] flex-col items-center pb-28 pt-28 text-center sm:pb-32 sm:pt-36">
+        {/* Eyebrow */}
+        <div
+          className="landing-reveal inline-flex items-center gap-2 rounded-[14px] border border-border bg-surface px-3 py-1.5"
+          style={{ animationDelay: "0ms" }}
         >
-          <OSIcon className="w-5 h-5" />
-          {osLabel}
-        </button>
-        <a
-          href="/app"
-          className="flex items-center gap-2.5 px-7 py-3.5 border border-border text-text-primary font-medium rounded-md hover:bg-surface-raised/60 transition-all duration-150 active:scale-[0.97]"
-        >
-          <Globe className="w-5 h-5 text-text-muted" />
-          Open in Browser
-        </a>
-      </div>
-
-      {/* App Mockup */}
-      <div
-        ref={mockupRef}
-        className="relative z-10 mt-16 w-full max-w-[1100px] opacity-0"
-      >
-        {/* Violet glow behind mockup */}
-        <div className="absolute -inset-8 bg-accent-violet/10 rounded-[32px] blur-[80px] pointer-events-none" />
-        <div className="relative rounded-xl border border-border overflow-hidden shadow-2xl shadow-accent-violet/5">
-          <AppMockup />
+          <span className="text-accent-teal text-[11px] leading-none">●</span>
+          <span className="text-[12px] tracking-[0.08em] text-text-secondary">
+            Real-time · End-to-end encrypted
+          </span>
         </div>
+
+        {/* Headline */}
+        <h1
+          className="landing-reveal mt-7 text-[clamp(40px,8vw,76px)] font-semibold leading-[1.05] tracking-[-0.035em] text-text-primary"
+          style={{ animationDelay: "80ms" }}
+        >
+          Built for builders.
+          <br className="hidden sm:block" /> Light enough for everyone.
+        </h1>
+
+        {/* Subheadline */}
+        <p
+          className="landing-reveal mt-6 max-w-[480px] text-[17px] leading-[1.6] text-text-secondary"
+          style={{ animationDelay: "160ms" }}
+        >
+          Real-time messaging, voice, video, and kanban — all in one 10 MB
+          desktop app. Self-host in minutes. No subscriptions.
+        </p>
+
+        {/* CTAs */}
+        <div
+          className="landing-reveal mt-9 flex flex-col items-center gap-3 sm:flex-row"
+          style={{ animationDelay: "240ms" }}
+        >
+          <Link
+            href="/register"
+            className="rounded-lg bg-accent-violet px-5 py-2.5 text-[14px] font-medium text-on-accent transition-colors hover:bg-accent-violet-bright"
+          >
+            Start building →
+          </Link>
+          <a
+            href="#developers"
+            className="rounded-lg border border-border px-5 py-2.5 text-[14px] font-medium text-text-secondary transition-colors hover:border-border-highlight hover:text-text-primary"
+          >
+            View docs
+          </a>
+        </div>
+
+        {/* Social proof */}
+        <p
+          className="landing-reveal mt-12 text-[13px] text-text-muted"
+          style={{ animationDelay: "320ms" }}
+        >
+          Trusted by engineering teams at 200+ companies.
+        </p>
       </div>
     </section>
   );
 }
-

@@ -1592,7 +1592,7 @@ export function DMChatView({
                         <button
                             onClick={handleSend}
                             disabled={sending || !messageInput.trim()}
-                            className="w-8 h-8 rounded-md bg-accent-violet text-white hover:bg-accent-violet/90 disabled:opacity-50 flex items-center justify-center"
+                            className="w-8 h-8 rounded-md bg-accent-violet text-on-accent hover:bg-accent-violet/90 disabled:opacity-50 flex items-center justify-center"
                         >
                             <Send className="w-4 h-4" />
                         </button>

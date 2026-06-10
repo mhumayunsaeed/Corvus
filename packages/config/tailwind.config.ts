@@ -47,9 +47,16 @@ const config: Config = {
         "accent-hover": ch("accent-violet-bright"),
         "accent-pressed": ch("accent-violet-dim"),
         "accent-soft": "rgb(var(--c-accent-violet) / 0.14)",
+        "accent-muted": "rgb(var(--c-accent-violet) / 0.5)",
         "accent-contrast": ch("text-on-accent"),
+        "on-accent": ch("text-on-accent"),
         live: ch("live"),
         "live-soft": "rgb(var(--c-live) / 0.14)",
+
+        // ── Presence / status ─────────────────────────────
+        "status-online": ch("status-online"),
+        "status-idle": ch("status-idle"),
+        "status-dnd": ch("status-dnd"),
 
         // ── Text hierarchy ────────────────────────────────
         "text-primary": ch("text-primary"),
@@ -135,9 +142,9 @@ const config: Config = {
         page: "320ms",
       },
       boxShadow: {
-        // Violet glow
-        glow: "0 0 0 1px rgba(124, 106, 247, 0.15), 0 0 20px rgba(124, 106, 247, 0.12), 0 0 40px rgba(124, 106, 247, 0.06)",
-        "glow-sm": "0 0 0 1px rgba(124, 106, 247, 0.12), 0 0 12px rgba(124, 106, 247, 0.08)",
+        // Accent glow (amber)
+        glow: "0 0 0 1px rgba(232, 163, 61, 0.15), 0 0 20px rgba(232, 163, 61, 0.12), 0 0 40px rgba(232, 163, 61, 0.06)",
+        "glow-sm": "0 0 0 1px rgba(232, 163, 61, 0.12), 0 0 12px rgba(232, 163, 61, 0.08)",
         // Teal glow
         "glow-teal": "0 0 0 1px rgba(45, 212, 191, 0.15), 0 0 20px rgba(45, 212, 191, 0.1)",
         "glow-teal-sm": "0 0 0 1px rgba(45, 212, 191, 0.12), 0 0 12px rgba(45, 212, 191, 0.07)",
@@ -148,7 +155,8 @@ const config: Config = {
         "float-lg": "0 10px 25px -5px rgba(0,0,0,0.4), 0 4px 10px -5px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.04)",
         "inner-glow": "inset 0 1px 0 rgba(255, 255, 255, 0.04), inset 0 -1px 0 rgba(0,0,0,0.15)",
         // Input focus
-        "focus-violet": "0 0 0 2px rgba(124, 106, 247, 0.2)",
+        "focus-violet": "0 0 0 2px rgba(232, 163, 61, 0.2)",
+        "focus-accent": "0 0 0 3px rgba(232, 163, 61, 0.25)",
         // Modal
         modal: "0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05)",
         // Theme-aware elevation system (e1–e4)

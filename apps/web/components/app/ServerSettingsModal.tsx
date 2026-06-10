@@ -434,7 +434,7 @@ export function ServerSettingsModal({
                                 <button
                                     onClick={handleSave}
                                     disabled={saving || !hasChanges}
-                                    className="px-6 py-2.5 bg-accent-violet text-white rounded-[10px] font-medium text-body transition-all hover:bg-accent-violet/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-6 py-2.5 bg-accent-violet text-on-accent rounded-[10px] font-medium text-body transition-all hover:bg-accent-violet/90 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {saving ? "Saving..." : "Save Changes"}
                                 </button>
@@ -570,7 +570,7 @@ export function ServerSettingsModal({
                                 <h2 className="text-xl font-bold text-text-primary">Roles</h2>
                                 <button
                                     onClick={() => setCreatingRole(true)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-violet text-white rounded-lg text-body font-medium hover:bg-accent-violet/80 transition-colors"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-violet text-on-accent rounded-lg text-body font-medium hover:bg-accent-violet/80 transition-colors"
                                 >
                                     <Plus className="w-4 h-4" />
                                     Create Role
@@ -608,7 +608,7 @@ export function ServerSettingsModal({
                                                     console.error("Failed to create role:", err);
                                                 }
                                             }}
-                                            className="px-4 py-2 bg-accent-violet text-white rounded-lg text-body font-medium hover:bg-accent-violet/80 transition-colors"
+                                            className="px-4 py-2 bg-accent-violet text-on-accent rounded-lg text-body font-medium hover:bg-accent-violet/80 transition-colors"
                                         >
                                             Create
                                         </button>
@@ -783,7 +783,7 @@ export function ServerSettingsModal({
                                                             }
                                                         }}
                                                         disabled={savingRole}
-                                                        className="px-5 py-2 bg-accent-violet text-white rounded-lg font-medium text-body hover:bg-accent-violet/80 transition-colors disabled:opacity-50"
+                                                        className="px-5 py-2 bg-accent-violet text-on-accent rounded-lg font-medium text-body hover:bg-accent-violet/80 transition-colors disabled:opacity-50"
                                                     >
                                                         {savingRole ? "Saving..." : "Save Changes"}
                                                     </button>

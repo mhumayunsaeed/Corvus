@@ -1,119 +1,41 @@
-"use client";
-import { BRAND_DESCRIPTION, BRAND_MOTTO, BRAND_TAGLINE } from "@/lib/brand";
-
-const footerColumns = [
-  {
-    title: "Product",
-    links: [
-      { label: "Features", href: "#features" },
-      { label: "Pricing", href: "#pricing" },
-      { label: "Download", href: "#download" },
-      { label: "Changelog", href: "#" },
-      { label: "Status", href: "#" },
-    ],
-  },
-  {
-    title: "Company",
-    links: [
-      { label: "About", href: "#" },
-      { label: "Blog", href: "#" },
-      { label: "Careers", href: "#" },
-      { label: "Press Kit", href: "#" },
-    ],
-  },
-  {
-    title: "Legal",
-    links: [
-      { label: "Terms of Service", href: "#" },
-      { label: "Privacy Policy", href: "#" },
-      { label: "Cookie Policy", href: "#" },
-      { label: "GDPR", href: "#" },
-    ],
-  },
-  {
-    title: "Community",
-    links: [
-      { label: "Twitter / X", href: "#" },
-      { label: "GitHub", href: "#" },
-      { label: "Reddit", href: "#" },
-    ],
-  },
+const columns: { heading: string; links: string[] }[] = [
+  { heading: "Product", links: ["Features", "Voice & Video", "Pricing", "Changelog"] },
+  { heading: "Developers", links: ["Documentation", "API Reference", "SDKs", "Status"] },
+  { heading: "Company", links: ["About", "Blog", "Careers", "Contact"] },
+  { heading: "Legal", links: ["Privacy", "Terms", "Security", "GDPR"] },
 ];
-
-function XIcon() {
-  return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-    </svg>
-  );
-}
-
-function GitHubIcon() {
-  return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-    </svg>
-  );
-}
-
-function DiscordIcon() {
-  return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-    </svg>
-  );
-}
 
 export function Footer() {
   return (
-    <footer className="border-t border-border pt-16 pb-8 px-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-10 mb-16">
-          {/* Brand column */}
-          <div className="col-span-2">
-            <div className="flex items-center gap-2.5 mb-4">
-              <img src="/corvus-logo.png" alt="Corvus" className="w-9 h-9 rounded-full" />
-              <span className="text-text-primary font-semibold text-emphasis">
+    <footer className="border-t border-border px-6">
+      <div className="mx-auto max-w-6xl">
+        {/* Columns */}
+        <div className="grid grid-cols-2 gap-8 pb-12 pt-12 md:grid-cols-[1.4fr_repeat(4,1fr)]">
+          <div className="col-span-2 md:col-span-1">
+            <div className="flex items-center gap-2">
+              <span className="text-accent-violet text-[15px] leading-none">◈</span>
+              <span className="text-[15px] font-semibold tracking-[-0.01em] text-text-primary">
                 Corvus
               </span>
             </div>
-            <p className="text-body text-text-muted leading-relaxed max-w-[240px]">
-              {BRAND_TAGLINE} {BRAND_DESCRIPTION}
+            <p className="mt-3 max-w-[220px] text-[13px] leading-[1.5] text-text-muted">
+              Secure voice, video, and real-time chat at constellation scale.
             </p>
-
-            {/* Social icons */}
-            <div className="flex items-center gap-2 mt-6">
-              {[
-                { icon: <XIcon />, label: "Twitter" },
-                { icon: <GitHubIcon />, label: "GitHub" },
-                { icon: <DiscordIcon />, label: "Discord" },
-              ].map((s) => (
-                <a
-                  key={s.label}
-                  href="#"
-                  aria-label={s.label}
-                  className="w-9 h-9 rounded-sm bg-surface border border-border flex items-center justify-center text-text-muted hover:text-text-primary hover:border-accent-violet/40 transition-all duration-150"
-                >
-                  {s.icon}
-                </a>
-              ))}
-            </div>
           </div>
 
-          {/* Nav columns */}
-          {footerColumns.map((col) => (
-            <div key={col.title}>
-              <h4 className="text-micro text-text-muted font-semibold uppercase tracking-wider mb-4">
-                {col.title}
-              </h4>
-              <ul className="space-y-2.5">
+          {columns.map((col) => (
+            <div key={col.heading}>
+              <p className="text-[12px] uppercase tracking-[0.1em] text-text-muted">
+                {col.heading}
+              </p>
+              <ul className="mt-4">
                 {col.links.map((link) => (
-                  <li key={link.label}>
+                  <li key={link} className="leading-[2]">
                     <a
-                      href={link.href}
-                      className="text-body text-text-muted hover:text-text-primary transition-colors duration-150"
+                      href="#"
+                      className="text-[14px] text-text-secondary transition-colors hover:text-text-primary"
                     >
-                      {link.label}
+                      {link}
                     </a>
                   </li>
                 ))}
@@ -122,14 +44,40 @@ export function Footer() {
           ))}
         </div>
 
-        {/* Bottom bar */}
-        <div className="pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-micro text-text-muted">
-            &copy; {new Date().getFullYear()} Corvus. All rights reserved.
+        {/* Bottom row */}
+        <div className="flex flex-col items-center justify-between gap-4 border-t border-border py-8 sm:flex-row">
+          <p className="text-[13px] text-text-muted">
+            © 2025 Corvus. All rights reserved.
           </p>
-          <p className="text-micro text-text-muted italic">
-            &ldquo;{BRAND_MOTTO}&rdquo;
-          </p>
+          <div className="flex items-center gap-5">
+            <a
+              href="#"
+              aria-label="GitHub"
+              className="text-text-muted transition-colors hover:text-text-primary"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
+              </svg>
+            </a>
+            <a
+              href="#"
+              aria-label="X"
+              className="text-text-muted transition-colors hover:text-text-primary"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                <path d="M12.6 0h2.45l-5.36 6.12L16 16h-4.94l-3.87-5.06L2.76 16H.3l5.73-6.55L0 0h5.06l3.5 4.63L12.6 0zm-.86 14.5h1.36L4.32 1.42H2.86l8.88 13.08z" />
+              </svg>
+            </a>
+            <a
+              href="#"
+              aria-label="Discord"
+              className="text-text-muted transition-colors hover:text-text-primary"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                <path d="M13.55 3.01A13.2 13.2 0 0010.2 2l-.17.32a9.6 9.6 0 014.36 2.13A13.7 13.7 0 008 4.92a13.7 13.7 0 00-6.39 1.53A9.6 9.6 0 015.97 2.3 13.2 13.2 0 005.8 2 13.2 13.2 0 002.45 3.01C.84 5.5.27 7.93.46 10.32a13.4 13.4 0 003.96 1.97l.32-.45c-.43-.16-.84-.36-1.23-.6.1-.07.2-.15.3-.22a9.5 9.5 0 008.38 0c.1.07.2.15.3.22-.39.24-.8.44-1.23.6l.32.45a13.4 13.4 0 003.96-1.97c.23-2.77-.4-5.18-2.31-7.31zM5.62 9.1c-.77 0-1.4-.71-1.4-1.58 0-.87.62-1.58 1.4-1.58.78 0 1.41.71 1.4 1.58 0 .87-.62 1.58-1.4 1.58zm4.76 0c-.77 0-1.4-.71-1.4-1.58 0-.87.62-1.58 1.4-1.58.78 0 1.41.71 1.4 1.58 0 .87-.62 1.58-1.4 1.58z" />
+              </svg>
+            </a>
+          </div>
         </div>
       </div>
     </footer>

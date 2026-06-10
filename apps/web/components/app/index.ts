@@ -12,5 +12,6 @@ export { VoiceControlBar } from "./VoiceControlBar";
 export { LinkEmbed } from "./LinkEmbed";
 export { CallModal } from "./CallModal";
 export { IncomingCallNotification } from "./IncomingCallNotification";
+export { MeetingNotesButton, MeetingNotesPanel } from "./MeetingNotesPanel";
 export { UserSettingsModal } from "./UserSettingsModal";
 export { ServerSettingsModal } from "./ServerSettingsModal";
