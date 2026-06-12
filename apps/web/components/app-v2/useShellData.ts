@@ -178,7 +178,7 @@ function dmToSummary(c: DMConversationData, meId: string): DMSummary {
  * /spaces preview always renders something. This is the seam between the new
  * design surface and the existing data layer.
  */
-export function useShellData(): { data: AppShellData; live: boolean } {
+export function useShellData(forceDemo = false): { data: AppShellData; live: boolean } {
   const user = useAuthStore((s) => s.user);
   const servers = useAppStore((s) => s.servers);
   const channelsByServer = useAppStore((s) => s.channelsByServer);
@@ -195,7 +195,7 @@ export function useShellData(): { data: AppShellData; live: boolean } {
   }, []);
 
   return useMemo(() => {
-    if (!user || servers.length === 0) {
+    if (forceDemo || !user || servers.length === 0) {
       return { data: applyWorkspace(SAMPLE_DATA, workspace), live: false };
     }
 

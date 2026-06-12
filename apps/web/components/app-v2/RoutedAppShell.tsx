@@ -27,7 +27,7 @@ function slugify(name: string) {
  * The Corvus stores hold the data, lazily filled by the loaders below.
  * Falls back to sample data when logged out.
  */
-export function RoutedAppShell() {
+export function RoutedAppShell({ isDemo = false }: { isDemo?: boolean }) {
   const params = useParams();
   const router = useRouter();
 
@@ -39,7 +39,8 @@ export function RoutedAppShell() {
   const channelFromUrl = view === "space" ? slug[1] : undefined;
   const dmFromUrl = view === "dms" ? slug[1] : undefined;
 
-  const { data, live } = useShellData();
+  const { data, live } = useShellData(isDemo);
+  const prefix = isDemo ? "/spaces/demo" : "/spaces";
 
   // Slug ↔ id resolution. URLs carry slugified names; ids still work so old
   // links and entities without a loaded name don't break.
@@ -148,22 +149,22 @@ export function RoutedAppShell() {
         activeSpaceId,
         activeChannelId: channelIdFromUrl,
         activeDmId: dmIdFromUrl,
-        onSelectSpace: (id) => router.push(`/spaces/${spaceSlug(id)}`),
+        onSelectSpace: (id) => router.push(`${prefix}/${spaceSlug(id)}`),
         onSelectChannel: (id, spaceId) => {
           const space = spaceId ?? activeSpaceId;
-          router.push(space ? `/spaces/${spaceSlug(space)}/${channelSlug(space, id)}` : `/spaces`);
+          router.push(space ? `${prefix}/${spaceSlug(space)}/${channelSlug(space, id)}` : prefix);
         },
-        onOpenHome: () => router.push(`/spaces/home`),
-        onOpenDMs: (id) => router.push(id ? `/spaces/dm/${dmSlug(id)}` : `/spaces/dm`),
+        onOpenHome: () => router.push(`${prefix}/home`),
+        onOpenDMs: (id) => router.push(id ? `${prefix}/dm/${dmSlug(id)}` : `${prefix}/dm`),
         hrefs: {
-          home: "/spaces/home",
-          dms: "/spaces/dm",
-          space: (id) => `/spaces/${spaceSlug(id)}`,
+          home: `${prefix}/home`,
+          dms: `${prefix}/dm`,
+          space: (id) => `${prefix}/${spaceSlug(id)}`,
           channel: (id) =>
             activeSpaceId
-              ? `/spaces/${spaceSlug(activeSpaceId)}/${channelSlug(activeSpaceId, id)}`
-              : "/spaces",
-          dm: (id) => `/spaces/dm/${dmSlug(id)}`,
+              ? `${prefix}/${spaceSlug(activeSpaceId)}/${channelSlug(activeSpaceId, id)}`
+              : prefix,
+          dm: (id) => `${prefix}/dm/${dmSlug(id)}`,
         },
       }}
     />

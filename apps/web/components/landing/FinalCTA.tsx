@@ -18,6 +18,12 @@ export function FinalCTA() {
           >
             Start building →
           </Link>
+          <Link
+            href="/spaces/demo"
+            className="rounded-lg border border-border px-6 py-3 text-[15px] font-medium text-text-secondary transition-colors hover:border-border-highlight hover:text-text-primary"
+          >
+            Try Demo
+          </Link>
           <a
             href="#developers"
             className="rounded-lg border border-border px-6 py-3 text-[15px] font-medium text-text-secondary transition-colors hover:border-border-highlight hover:text-text-primary"

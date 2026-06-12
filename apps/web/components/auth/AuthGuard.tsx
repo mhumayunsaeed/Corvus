@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 
-const PUBLIC_ROUTES = ["/", "/login", "/register", "/confirm-email", "/forgot-password", "/reset-password", "/auth/callback", "/spaces", "/setup", "/admin", "/changelog"];
-const PUBLIC_PREFIXES = ["/spaces/", "/admin/", "/product/", "/developers/", "/legal/"]; // app shell · admin panel · marketing pages
+const PUBLIC_ROUTES = ["/", "/login", "/register", "/confirm-email", "/forgot-password", "/reset-password", "/auth/callback", "/spaces/demo", "/setup", "/admin", "/changelog"];
+const PUBLIC_PREFIXES = ["/spaces/demo/", "/admin/", "/product/", "/developers/", "/legal/"]; // app shell · admin panel · marketing pages
 const AUTH_ROUTES = ["/login", "/register"]; // redirect away if already logged in
 
 /** Check if pathname matches any route in the list (handles trailing slashes) */

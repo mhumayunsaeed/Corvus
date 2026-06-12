@@ -47,6 +47,12 @@ export function Hero() {
           >
             Start building →
           </Link>
+          <Link
+            href="/spaces/demo"
+            className="rounded-lg border border-border px-5 py-2.5 text-[14px] font-medium text-text-secondary transition-colors hover:border-border-highlight hover:text-text-primary"
+          >
+            Try Demo
+          </Link>
           <a
             href="#developers"
             className="rounded-lg border border-border px-5 py-2.5 text-[14px] font-medium text-text-secondary transition-colors hover:border-border-highlight hover:text-text-primary"
