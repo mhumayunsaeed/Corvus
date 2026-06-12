@@ -13,7 +13,7 @@ type Availability = "idle" | "checking" | "available" | "taken";
 
 export function SignupForm() {
   const router = useRouter();
-  const { register, googleLogin, checkUsername, isLoading } = useAuthStore();
+  const { register, googleLogin, githubLogin, checkUsername, isLoading } = useAuthStore();
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -144,7 +144,17 @@ export function SignupForm() {
 
       <AuthDivider />
 
-      <OAuthButton label="Continue with GitHub" icon={<GitHubMark />} onClick={() => setFormError("GitHub sign-up isn't available yet — use Google or email.")} />
+      <OAuthButton
+        label="Continue with GitHub"
+        icon={<GitHubMark />}
+        onClick={async () => {
+          try {
+            await githubLogin();
+          } catch (err) {
+            setFormError(err instanceof Error ? err.message : "GitHub sign-up failed.");
+          }
+        }}
+      />
       <OAuthButton
         label="Continue with Google"
         icon={<GoogleMark />}

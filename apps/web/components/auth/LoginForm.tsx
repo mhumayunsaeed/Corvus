@@ -8,7 +8,7 @@ import { AuthDivider } from "./AuthDivider";
 import { OAuthButton, GoogleMark, GitHubMark } from "./OAuthButton";
 
 export function LoginForm() {
-  const { login, googleLogin, isLoading } = useAuthStore();
+  const { login, googleLogin, githubLogin, isLoading } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -96,7 +96,17 @@ export function LoginForm() {
 
       <AuthDivider />
 
-      <OAuthButton label="Continue with GitHub" icon={<GitHubMark />} onClick={() => setFormError("GitHub sign-in isn't available yet — use Google or email.")} />
+      <OAuthButton
+        label="Continue with GitHub"
+        icon={<GitHubMark />}
+        onClick={async () => {
+          try {
+            await githubLogin();
+          } catch (err) {
+            setFormError(err instanceof Error ? err.message : "GitHub sign-in failed.");
+          }
+        }}
+      />
       <OAuthButton
         label="Continue with Google"
         icon={<GoogleMark />}

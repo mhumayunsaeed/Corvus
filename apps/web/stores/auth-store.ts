@@ -9,6 +9,7 @@ import {
     savePendingSignupProfile,
     signInWithEmail,
     signInWithGoogle,
+    signInWithGithub,
     signOutSupabase,
     signUpWithEmail,
 } from "@/lib/auth";
@@ -33,6 +34,7 @@ interface AuthState {
     // Actions
     login: (email: string, password: string) => Promise<void>;
     googleLogin: () => Promise<void>;
+    githubLogin: () => Promise<void>;
     register: (data: {
         displayName: string;
         username: string;
@@ -189,6 +191,18 @@ export const useAuthStore = create<AuthState>()(
                     // Redirects the browser to Google; the session is finalized
                     // on /auth/callback via restoreSession().
                     await signInWithGoogle();
+                } finally {
+                    set({ isLoading: false });
+                }
+            },
+
+            githubLogin: async () => {
+                set({ isLoading: true });
+
+                try {
+                    // Redirects the browser to GitHub; the session is finalized
+                    // on /auth/callback via restoreSession().
+                    await signInWithGithub();
                 } finally {
                     set({ isLoading: false });
                 }

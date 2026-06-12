@@ -135,6 +135,14 @@ export async function signInWithGoogle(): Promise<void> {
     if (error) throw new Error(error.message);
 }
 
+export async function signInWithGithub(): Promise<void> {
+    const { error } = await getSupabaseClient().auth.signInWithOAuth({
+        provider: "github",
+        options: { redirectTo: getAuthCallbackUrl() },
+    });
+    if (error) throw new Error(error.message);
+}
+
 export async function signOutSupabase(): Promise<void> {
     await getSupabaseClient().auth.signOut();
 }
