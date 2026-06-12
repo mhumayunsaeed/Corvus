@@ -19,6 +19,7 @@ import stickerRoutes from "./routes/stickers.js";
 import attachmentRoutes from "./routes/attachments.js";
 import roles from "./routes/roles.js";
 import channelPermissions from "./routes/channel-permissions.js";
+import workspace from "./routes/workspace.js";
 import { buildOpenApiSummary, renderApiDocs } from "./docs.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -133,5 +134,6 @@ app.route("/", stage); // routes are /channels/:channelId/stage/*
 app.route("/", stickerRoutes); // routes are /stickers/*
 app.route("/", roles); // routes are /servers/:serverId/roles and /roles/:id
 app.route("/", channelPermissions); // routes are /channels/:channelId/permissions
+app.route("/", workspace); // routes are /servers/:id/modules, /channels/:id/* module state, settings
 
 export default app;

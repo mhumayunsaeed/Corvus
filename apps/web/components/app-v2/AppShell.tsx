@@ -32,6 +32,26 @@ import type { ChannelType } from "@/components/ui";
 import { useToastStore } from "@/stores/toast-store";
 import { useWorkspaceStore } from "@/stores/workspace-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { useAppStore } from "@/stores/app-store";
+import { useChatStore } from "@/stores/chat-store";
+import {
+  createChannel as createChannelApi,
+  createServer,
+  deleteChannel as deleteChannelApi,
+  deleteServer as deleteServerApi,
+  fetchWorkspaceModules,
+  pinChannelMessage,
+  saveBoardState,
+  saveDocsState,
+  saveGitHubState,
+  saveIncidentState,
+  sendDMMessage,
+  sendMessage as sendChannelMessageApi,
+  unpinChannelMessage,
+  updateServer as updateServerApi,
+  addReaction as addChannelReactionApi,
+  removeReaction as removeChannelReactionApi,
+} from "@/lib/api";
 import { notifyEvent, ringIncoming } from "@/lib/notify";
 import type {
   BoardData,
@@ -201,6 +221,10 @@ export function AppShell({
     sectionName: string;
   } | null>(null);
   const workspace = useWorkspaceStore();
+  const authUser = useAuthStore((s) => s.user);
+  const appStore = useAppStore();
+  const chatStore = useChatStore();
+  const isLive = !!authUser;
   const demoPlayed = useRef(false);
   const hydrated = useRef(false);
   // Locally-echoed messages (sends, clips) layered over the prop-driven feed.
@@ -217,6 +241,19 @@ export function AppShell({
   const allChannels = useMemo(() => sections.flatMap((s) => s.channels), [sections]);
   const activeChannel = allChannels.find((c) => c.id === activeChannelId) ?? firstText;
   const space = data.spaces.find((s) => s.id === activeSpaceId);
+
+  const refreshModules = async (spaceId: string) => {
+    const modules = await fetchWorkspaceModules(spaceId);
+    appStore.setWorkspaceModules(spaceId, modules);
+  };
+
+  const toApiChannelName = (name: string) =>
+    name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 50) || "channel";
 
   // Ctrl/Cmd+F → search panel · Ctrl+Shift+R → clip recorder (brief §Search, §Clips)
   useEffect(() => {
@@ -432,6 +469,17 @@ export function AppShell({
   const togglePin = (targetId: string) => (msgId: string) => {
     const msg = messagesFor(targetId).find((m) => m.id === msgId);
     const next = !(msg?.pinned ?? false);
+    const isDmTarget = data.dmConversations?.some((c) => c.id === targetId);
+    if (isLive && !isDmTarget) {
+      const request = next ? pinChannelMessage(targetId, msgId) : unpinChannelMessage(targetId, msgId);
+      request.catch((err) => {
+        useToastStore.getState().addToast({
+          title: "Pin failed",
+          body: err instanceof Error ? err.message : "Could not update the pin in Supabase.",
+          variant: "error",
+        });
+      });
+    }
     setPinOv((ov) => ({ ...ov, [msgId]: next }));
     useToastStore.getState().addToast({
       title: next ? "Message pinned" : "Message unpinned",
@@ -450,6 +498,19 @@ export function AppShell({
     const msg = messagesFor(targetId).find((m) => m.id === msgId);
     const current = msg?.reactions?.find((r) => r.emoji === emoji);
     const reactedNow = current?.reacted ?? false;
+    const isDmTarget = data.dmConversations?.some((c) => c.id === targetId);
+    if (isLive && !isDmTarget && authUser) {
+      const request = reactedNow
+        ? removeChannelReactionApi(msgId, emoji)
+        : addChannelReactionApi(msgId, emoji);
+      request
+        .then(() => {
+          if (reactedNow) chatStore.removeReaction(targetId, msgId, emoji, authUser.id, authUser.id);
+          else chatStore.addReaction(targetId, msgId, emoji, authUser.id, authUser.id);
+        })
+        .catch(() => {});
+      return;
+    }
     setReactionOv((ov) => {
       const forMsg = { ...(ov[msgId] ?? {}) };
       const existing = forMsg[emoji] ?? { delta: 0, reacted: false };
@@ -465,6 +526,22 @@ export function AppShell({
     attachments?: ChatMessage["attachments"],
     replyTo?: ChatMessage["replyTo"]
   ) => {
+    const isDmTarget = data.dmConversations?.some((c) => c.id === targetId);
+    if (isLive && !isDmTarget) {
+      sendChannelMessageApi(targetId, { content: text, replyToId: replyTo?.id })
+        .then((r) => chatStore.addMessage(targetId, r.message))
+        .catch((err) => {
+          useToastStore.getState().addToast({
+            title: "Message failed",
+            body: err instanceof Error ? err.message : "Could not save the message in Supabase.",
+            variant: "error",
+          });
+        });
+      return;
+    }
+    if (isLive && isDmTarget) {
+      sendDMMessage(targetId, text, replyTo?.id).catch(() => {});
+    }
     const msg: ChatMessage = {
       id: `local${Date.now()}`,
       author: data.me,
@@ -631,6 +708,39 @@ export function AppShell({
         return { id, name: c.name, type: c.type };
       }),
     }));
+    if (isLive) {
+      createServer({
+        name,
+        channels: template.blueprint.flatMap((section) =>
+          section.channels.map((channel) => ({
+            name: toApiChannelName(channel.name),
+            type: channel.type,
+            category: section.section,
+          }))
+        ),
+      })
+        .then(async ({ server }) => {
+          appStore.addServer(server);
+          appStore.setChannels(server.channels);
+          await refreshModules(server.id);
+          setShowCreateSpace(false);
+          const firstChannel = server.channels.find((c) => c.type === "text") ?? server.channels[0];
+          if (firstChannel) openChannelIn(server.id, firstChannel.id);
+          useToastStore.getState().addToast({
+            title: "Space created",
+            body: `${name} is synced with Supabase.`,
+            variant: "success",
+          });
+        })
+        .catch((err) => {
+          useToastStore.getState().addToast({
+            title: "Space failed",
+            body: err instanceof Error ? err.message : "Could not create the space.",
+            variant: "error",
+          });
+        });
+      return;
+    }
     workspace.createSpace({ id: spaceId, name }, sections, { boards, incidents });
     setShowCreateSpace(false);
     const firstChannel = sections.flatMap((s) => s.channels).find((c) => c.type === "text");
@@ -653,6 +763,27 @@ export function AppShell({
 
   const addChannel = (name: string, type: ChannelType) => {
     if (!addChannelTarget) return;
+    if (isLive) {
+      createChannelApi(addChannelTarget.spaceId, {
+        name: toApiChannelName(name),
+        type,
+        category: addChannelTarget.sectionName,
+      })
+        .then(async ({ channel }) => {
+          appStore.addChannel(channel);
+          await refreshModules(addChannelTarget.spaceId);
+          setAddChannelTarget(null);
+          selectChannel(channel.id);
+        })
+        .catch((err) => {
+          useToastStore.getState().addToast({
+            title: "Channel failed",
+            body: err instanceof Error ? err.message : "Could not create the channel.",
+            variant: "error",
+          });
+        });
+      return;
+    }
     const id = `ch${Date.now()}`;
     workspace.addChannel(
       addChannelTarget.spaceId,
@@ -695,6 +826,42 @@ export function AppShell({
     };
     workspace.createConversation(convo);
     openDMs(convo.id);
+  };
+
+  const updateBoardState = (channelId: string, board: BoardData) => {
+    if (!isLive) {
+      workspace.updateBoard(channelId, board);
+      return;
+    }
+    appStore.upsertBoardState(channelId, board);
+    saveBoardState(channelId, board).catch(() => {});
+  };
+
+  const updateDocsState = (channelId: string, docs: DocContent[]) => {
+    if (!isLive) {
+      workspace.updateDocs(channelId, docs);
+      return;
+    }
+    appStore.upsertDocsState(channelId, docs);
+    saveDocsState(channelId, docs).catch(() => {});
+  };
+
+  const updateIncidentState = (channelId: string, incident: IncidentMeta) => {
+    if (!isLive) {
+      workspace.updateIncident(channelId, incident);
+      return;
+    }
+    appStore.upsertIncidentState(channelId, incident);
+    saveIncidentState(channelId, incident).catch(() => {});
+  };
+
+  const connectGitHubState = (channelId: string, prs: PullRequest[]) => {
+    if (!isLive) {
+      workspace.connectGitHub(channelId, prs);
+      return;
+    }
+    appStore.upsertGitHubState(channelId, prs);
+    saveGitHubState(channelId, { pullRequests: prs }).catch(() => {});
   };
 
   const renderMain = () => {
@@ -773,7 +940,7 @@ export function AppShell({
           <BoardView
             key={channelId}
             board={board}
-            onChange={(b) => workspace.updateBoard(channelId, b)}
+            onChange={(b) => updateBoardState(channelId, b)}
           />
         ) : null;
       }
@@ -784,7 +951,7 @@ export function AppShell({
             key={channelId}
             docs={data.docsByChannel?.[channelId] ?? []}
             me={data.me}
-            onChangeDocs={(docs) => workspace.updateDocs(channelId, docs)}
+            onChangeDocs={(docs) => updateDocsState(channelId, docs)}
           />
         );
       }
@@ -794,7 +961,7 @@ export function AppShell({
           <GitHubView
             prs={data.prsByChannel?.[channelId] ?? []}
             onConnect={() => {
-              workspace.connectGitHub(channelId, seedPRs());
+              connectGitHubState(channelId, seedPRs());
               useToastStore.getState().addToast({
                 title: "GitHub connected",
                 body: "corvus/web and corvus/gateway now route PRs to this channel.",
@@ -815,7 +982,7 @@ export function AppShell({
             incident={incident}
             messages={channelMessages}
             me={data.me}
-            onUpdate={(meta) => workspace.updateIncident(channelId, meta)}
+            onUpdate={(meta) => updateIncidentState(channelId, meta)}
             onSend={sendMessage(channelId)}
           />
         ) : null;
@@ -973,13 +1140,53 @@ export function AppShell({
           sections={sections}
           members={data.membersBySpace[activeSpaceId]}
           onClose={() => setShowSettings(false)}
-          onRenameSpace={(name) => workspace.renameSpace(activeSpaceId, name)}
+          onRenameSpace={(name) => {
+            if (!isLive) {
+              workspace.renameSpace(activeSpaceId, name);
+              return;
+            }
+            updateServerApi(activeSpaceId, { name })
+              .then(({ server }) => appStore.updateServer(activeSpaceId, server))
+              .catch((err) => {
+                useToastStore.getState().addToast({
+                  title: "Rename failed",
+                  body: err instanceof Error ? err.message : "Could not rename this space.",
+                  variant: "error",
+                });
+              });
+          }}
           onDeleteSpace={() => {
-            workspace.deleteSpace(activeSpaceId);
+            if (isLive) {
+              deleteServerApi(activeSpaceId)
+                .then(() => appStore.removeServer(activeSpaceId))
+                .catch((err) => {
+                  useToastStore.getState().addToast({
+                    title: "Delete failed",
+                    body: err instanceof Error ? err.message : "Could not delete this space.",
+                    variant: "error",
+                  });
+                });
+            } else {
+              workspace.deleteSpace(activeSpaceId);
+            }
             setShowSettings(false);
             openHome();
           }}
-          onDeleteChannel={(id) => workspace.removeChannel(id)}
+          onDeleteChannel={(id) => {
+            if (isLive) {
+              deleteChannelApi(id)
+                .then(() => appStore.removeChannel(id))
+                .catch((err) => {
+                  useToastStore.getState().addToast({
+                    title: "Delete failed",
+                    body: err instanceof Error ? err.message : "Could not delete this channel.",
+                    variant: "error",
+                  });
+                });
+              return;
+            }
+            workspace.removeChannel(id);
+          }}
           onAddChannel={(sectionId) => {
             setShowSettings(false);
             openAddChannel(sectionId);

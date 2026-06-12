@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { ServerData, ChannelData, DMConversationData } from "@/lib/api";
+import type { ServerData, ChannelData, DMConversationData, WorkspaceModulesData } from "@/lib/api";
 
 interface AppState {
     // Active selections
@@ -15,6 +15,7 @@ interface AppState {
     // Per-space channel cache — lets re-opening a space render instantly while
     // fresh data loads in the background.
     channelsByServer: Record<string, ChannelData[]>;
+    workspaceModules: WorkspaceModulesData;
 
     // Actions
     setActiveServer: (serverId: string | null) => void;
@@ -30,7 +31,21 @@ interface AppState {
     updateServer: (serverId: string, updates: Partial<ServerData>) => void;
     addChannel: (channel: ChannelData) => void;
     removeChannel: (channelId: string) => void;
+    setWorkspaceModules: (serverId: string, modules: WorkspaceModulesData) => void;
+    upsertBoardState: (channelId: string, board: unknown) => void;
+    upsertDocsState: (channelId: string, docs: unknown) => void;
+    upsertIncidentState: (channelId: string, incident: unknown) => void;
+    upsertGitHubState: (channelId: string, pullRequests: unknown, config?: unknown) => void;
 }
+
+const emptyWorkspaceModules: WorkspaceModulesData = {
+    boardsByChannel: {},
+    docsByChannel: {},
+    incidentsByChannel: {},
+    canvasByChannel: {},
+    prsByChannel: {},
+    githubConfigByChannel: {},
+};
 
 export const useAppStore = create<AppState>()(
     persist(
@@ -42,6 +57,7 @@ export const useAppStore = create<AppState>()(
     channels: [],
     dmConversations: [],
     channelsByServer: {},
+    workspaceModules: emptyWorkspaceModules,
 
     setActiveServer: (serverId) =>
         set((state) => ({
@@ -174,6 +190,60 @@ export const useAppStore = create<AppState>()(
                     state.activeChannelId === channelId ? null : state.activeChannelId,
             };
         }),
+
+    setWorkspaceModules: (_serverId, modules) =>
+        set((state) => ({
+            workspaceModules: {
+                boardsByChannel: { ...state.workspaceModules.boardsByChannel, ...modules.boardsByChannel },
+                docsByChannel: { ...state.workspaceModules.docsByChannel, ...modules.docsByChannel },
+                incidentsByChannel: {
+                    ...state.workspaceModules.incidentsByChannel,
+                    ...modules.incidentsByChannel,
+                },
+                canvasByChannel: { ...state.workspaceModules.canvasByChannel, ...modules.canvasByChannel },
+                prsByChannel: { ...state.workspaceModules.prsByChannel, ...modules.prsByChannel },
+                githubConfigByChannel: {
+                    ...state.workspaceModules.githubConfigByChannel,
+                    ...modules.githubConfigByChannel,
+                },
+            },
+        })),
+
+    upsertBoardState: (channelId, board) =>
+        set((state) => ({
+            workspaceModules: {
+                ...state.workspaceModules,
+                boardsByChannel: { ...state.workspaceModules.boardsByChannel, [channelId]: board },
+            },
+        })),
+
+    upsertDocsState: (channelId, docs) =>
+        set((state) => ({
+            workspaceModules: {
+                ...state.workspaceModules,
+                docsByChannel: { ...state.workspaceModules.docsByChannel, [channelId]: docs },
+            },
+        })),
+
+    upsertIncidentState: (channelId, incident) =>
+        set((state) => ({
+            workspaceModules: {
+                ...state.workspaceModules,
+                incidentsByChannel: { ...state.workspaceModules.incidentsByChannel, [channelId]: incident },
+            },
+        })),
+
+    upsertGitHubState: (channelId, pullRequests, config) =>
+        set((state) => ({
+            workspaceModules: {
+                ...state.workspaceModules,
+                prsByChannel: { ...state.workspaceModules.prsByChannel, [channelId]: pullRequests },
+                githubConfigByChannel:
+                    config === undefined
+                        ? state.workspaceModules.githubConfigByChannel
+                        : { ...state.workspaceModules.githubConfigByChannel, [channelId]: config },
+            },
+        })),
         }),
         {
             name: "corvus-app-cache",
@@ -189,6 +259,7 @@ export const useAppStore = create<AppState>()(
                 servers: state.servers,
                 channelsByServer: state.channelsByServer,
                 dmConversations: state.dmConversations,
+                workspaceModules: state.workspaceModules,
             }),
         }
     )

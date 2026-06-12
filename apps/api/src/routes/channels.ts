@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
+import { CHANNEL_TYPES, ensureChannelModuleState } from "../lib/module-state.js";
 
 const channels = new Hono<AuthEnv>();
 
@@ -16,7 +17,7 @@ const createChannelSchema = z.object({
         .max(50)
         .regex(/^[a-z0-9-]+$/, "Channel name can only contain lowercase letters, numbers, and hyphens")
         .transform((v) => v.toLowerCase()),
-    type: z.enum(["text", "voice", "announcement", "forum", "stage"]).default("text"),
+    type: z.enum(CHANNEL_TYPES).default("text"),
     category: z.string().min(1).max(50).default("General"),
     topic: z.string().max(200).optional(),
 });
@@ -76,6 +77,8 @@ channels.post("/servers/:serverId/channels", async (c) => {
             position: (maxPos._max.position ?? -1) + 1,
         },
     });
+
+    await ensureChannelModuleState(channel);
 
     return c.json({ channel }, 201);
 });

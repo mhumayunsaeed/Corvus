@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
 import { DEFAULT_MEMBER_PERMISSIONS, ADMIN_PERMISSIONS } from "../lib/permissions.js";
+import { CHANNEL_TYPES, ensureChannelModuleStates } from "../lib/module-state.js";
 
 const servers = new Hono<AuthEnv>();
 
@@ -12,7 +13,7 @@ servers.use("*", authMiddleware);
 
 const channelTemplateSchema = z.object({
     name: z.string().min(1).max(100),
-    type: z.enum(["text", "voice", "announcement", "forum", "stage"]),
+    type: z.enum(CHANNEL_TYPES),
     category: z.string().min(1).max(100),
 });
 
@@ -99,6 +100,12 @@ servers.post("/", async (c) => {
     }
 
     // Step 2: Create default roles (non-blocking — server already exists)
+    try {
+        await ensureChannelModuleStates(server.channels);
+    } catch (err) {
+        console.error("[POST /servers] Failed to create module state for", server.id, err);
+    }
+
     try {
         await Promise.all([
             prisma.role.create({

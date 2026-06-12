@@ -97,6 +97,16 @@ function toChannelType(type: string): ChannelType {
       return "stage";
     case "announcement":
       return "announcement";
+    case "board":
+      return "board";
+    case "docs":
+      return "docs";
+    case "canvas":
+      return "canvas";
+    case "github":
+      return "github";
+    case "incident":
+      return "incident";
     default:
       return "text";
   }
@@ -175,6 +185,7 @@ export function useShellData(): { data: AppShellData; live: boolean } {
   const channels = useAppStore((s) => s.channels);
   const activeServerId = useAppStore((s) => s.activeServerId);
   const dmConversations = useAppStore((s) => s.dmConversations);
+  const workspaceModules = useAppStore((s) => s.workspaceModules);
   const chatMessages = useChatStore((s) => s.messages);
   const workspace = useWorkspaceStore();
 
@@ -233,8 +244,22 @@ export function useShellData(): { data: AppShellData; live: boolean } {
       messagesByChannel,
       membersBySpace,
       dmConversations: dmConversations.map((c) => dmToSummary(c, user.id)),
+      boardsByChannel: workspaceModules.boardsByChannel as AppShellData["boardsByChannel"],
+      docsByChannel: workspaceModules.docsByChannel as AppShellData["docsByChannel"],
+      incidentsByChannel: workspaceModules.incidentsByChannel as AppShellData["incidentsByChannel"],
+      prsByChannel: workspaceModules.prsByChannel as AppShellData["prsByChannel"],
     };
 
-    return { data: applyWorkspace(data, workspace), live: true };
-  }, [user, servers, channelsByServer, channels, activeServerId, dmConversations, chatMessages, workspace]);
+    return { data, live: true };
+  }, [
+    user,
+    servers,
+    channelsByServer,
+    channels,
+    activeServerId,
+    dmConversations,
+    chatMessages,
+    workspaceModules,
+    workspace,
+  ]);
 }

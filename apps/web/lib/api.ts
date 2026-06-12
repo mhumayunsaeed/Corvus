@@ -316,6 +316,15 @@ export interface UploadAttachmentResponse {
     maxSizeBytes: number;
 }
 
+export interface WorkspaceModulesData {
+    boardsByChannel: Record<string, unknown>;
+    docsByChannel: Record<string, unknown>;
+    incidentsByChannel: Record<string, unknown>;
+    canvasByChannel: Record<string, unknown>;
+    prsByChannel: Record<string, unknown>;
+    githubConfigByChannel: Record<string, unknown>;
+}
+
 // ─── Server API ─────────────────────────────────────────────────
 
 export function fetchServers() {
@@ -371,6 +380,67 @@ export function updateChannel(id: string, data: { name?: string; topic?: string 
 
 export function deleteChannel(id: string) {
     return api<{ message: string }>(`/channels/${id}`, { method: "DELETE" });
+}
+
+export function fetchWorkspaceModules(serverId: string) {
+    return api<WorkspaceModulesData>(`/servers/${serverId}/modules`);
+}
+
+export function saveBoardState(channelId: string, board: unknown) {
+    return api<{ board: unknown }>(`/channels/${channelId}/board`, {
+        method: "PUT",
+        body: JSON.stringify({ board }),
+    });
+}
+
+export function saveDocsState(channelId: string, docs: unknown) {
+    return api<{ docs: unknown }>(`/channels/${channelId}/docs`, {
+        method: "PUT",
+        body: JSON.stringify({ docs }),
+    });
+}
+
+export function saveIncidentState(channelId: string, incident: unknown) {
+    return api<{ incident: unknown }>(`/channels/${channelId}/incident`, {
+        method: "PUT",
+        body: JSON.stringify({ incident }),
+    });
+}
+
+export function saveCanvasState(channelId: string, data: unknown) {
+    return api<{ data: unknown }>(`/channels/${channelId}/canvas`, {
+        method: "PUT",
+        body: JSON.stringify({ data }),
+    });
+}
+
+export function saveGitHubState(channelId: string, data: { config?: unknown; pullRequests?: unknown }) {
+    return api<{ config: unknown; pullRequests: unknown }>(`/channels/${channelId}/github`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+    });
+}
+
+export function fetchUserSettings() {
+    return api<{ settings: Record<string, unknown> }>("/users/me/settings");
+}
+
+export function saveUserSettings(settings: Record<string, unknown>) {
+    return api<{ settings: Record<string, unknown> }>("/users/me/settings", {
+        method: "PUT",
+        body: JSON.stringify({ settings }),
+    });
+}
+
+export function fetchServerSettings(serverId: string) {
+    return api<{ settings: Record<string, unknown> }>(`/servers/${serverId}/settings`);
+}
+
+export function saveServerSettings(serverId: string, settings: Record<string, unknown>) {
+    return api<{ settings: Record<string, unknown> }>(`/servers/${serverId}/settings`, {
+        method: "PUT",
+        body: JSON.stringify({ settings }),
+    });
 }
 
 // ─── Message API ────────────────────────────────────────────────

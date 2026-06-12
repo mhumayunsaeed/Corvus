@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAppStore } from "@/stores/app-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { fetchChannels, fetchMessages, fetchServers } from "@/lib/api";
+import { fetchChannels, fetchMessages, fetchServers, fetchWorkspaceModules } from "@/lib/api";
 import { AppShell } from "./AppShell";
 import { useShellData } from "./useShellData";
 
@@ -61,6 +61,7 @@ export function RoutedAppShell() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const setServers = useAppStore((s) => s.setServers);
   const setChannels = useAppStore((s) => s.setChannels);
+  const setWorkspaceModules = useAppStore((s) => s.setWorkspaceModules);
   const channelsByServer = useAppStore((s) => s.channelsByServer);
   const setMessages = useChatStore((s) => s.setMessages);
   const messages = useChatStore((s) => s.messages);
@@ -109,6 +110,19 @@ export function RoutedAppShell() {
       cancelled = true;
     };
   }, [isAuthenticated, activeSpaceId, channelsByServer, setChannels]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !activeSpaceId) return;
+    let cancelled = false;
+    fetchWorkspaceModules(activeSpaceId)
+      .then((modules) => {
+        if (!cancelled) setWorkspaceModules(activeSpaceId, modules);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, activeSpaceId, setWorkspaceModules]);
 
   // Load the active channel's messages on first open.
   useEffect(() => {

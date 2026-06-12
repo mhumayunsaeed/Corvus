@@ -47,6 +47,7 @@ model User {
   pinnedDMMessages       PinnedDMMessage[]
   pinnedChannelMessages  PinnedMessage[]
   channelReads           ChannelRead[]
+  settings               UserSettings?
 
   @@map("users")
 }
@@ -65,6 +66,7 @@ model Server {
   channels Channel[]
   invites  Invite[]
   roles    Role[]
+  settings ServerSettings?
 
   @@map("servers")
 }
@@ -100,9 +102,99 @@ model Channel {
   reads                ChannelRead[]
   permissionOverrides  ChannelPermissionOverride[]
   pinnedMessages       PinnedMessage[]
+  boardState           ChannelBoard?
+  docsState            ChannelDocs?
+  incidentState        ChannelIncident?
+  canvasState          ChannelCanvas?
+  githubState          ChannelGitHub?
 
   @@index([serverId])
   @@map("channels")
+}
+
+model UserSettings {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model ServerSettings {
+  id        String   @id @default(cuid())
+  serverId  String   @unique @map("server_id")
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@map("server_settings")
+}
+
+model ChannelBoard {
+  id        String   @id @default(cuid())
+  channelId String   @unique @map("channel_id")
+  board     Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@map("channel_boards")
+}
+
+model ChannelDocs {
+  id        String   @id @default(cuid())
+  channelId String   @unique @map("channel_id")
+  docs      Json     @default("[]")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@map("channel_docs")
+}
+
+model ChannelIncident {
+  id        String   @id @default(cuid())
+  channelId String   @unique @map("channel_id")
+  incident  Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@map("channel_incidents")
+}
+
+model ChannelCanvas {
+  id        String   @id @default(cuid())
+  channelId String   @unique @map("channel_id")
+  data      Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@map("channel_canvases")
+}
+
+model ChannelGitHub {
+  id           String   @id @default(cuid())
+  channelId    String   @unique @map("channel_id")
+  config       Json     @default("{}")
+  pullRequests Json     @default("[]") @map("pull_requests")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@map("channel_github")
 }
 
 model ChannelRead {

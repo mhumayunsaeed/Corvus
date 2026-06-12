@@ -8,6 +8,7 @@ import { requestPasswordReset, updateEmail } from "@/lib/auth";
 import { playNotificationTone, showSystemNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOUNDS, type NotificationKind } from "@/lib/sounds";
 import { API_URL } from "@/lib/endpoints";
+import { fetchUserSettings, saveUserSettings } from "@/lib/api";
 
 /**
  * User/app settings sections (brief §Settings) — every control here reads and
@@ -85,6 +86,7 @@ type Widen<T> = T extends boolean ? boolean : T extends number ? number : T exte
 
 function useLocalPref<T extends string | number | boolean>(key: string, fallback: T) {
   const [value, setValue] = useState<Widen<T>>(fallback as Widen<T>);
+  const signedIn = useAuthStore((s) => !!s.user);
   useEffect(() => {
     try {
       const raw = localStorage.getItem(key);
@@ -92,13 +94,28 @@ function useLocalPref<T extends string | number | boolean>(key: string, fallback
     } catch {
       /* unreadable pref — keep fallback */
     }
-  }, [key]);
+    if (!signedIn) return;
+    fetchUserSettings()
+      .then(({ settings }) => {
+        const remote = settings[key];
+        if (typeof remote === typeof fallback) {
+          setValue(remote as Widen<T>);
+          localStorage.setItem(key, JSON.stringify(remote));
+        }
+      })
+      .catch(() => {});
+  }, [fallback, key, signedIn]);
   const update = (next: Widen<T>) => {
     setValue(next);
     try {
       localStorage.setItem(key, JSON.stringify(next));
     } catch {
       /* storage full/blocked — state still applies for the session */
+    }
+    if (signedIn) {
+      void fetchUserSettings()
+        .then(({ settings }) => saveUserSettings({ ...settings, [key]: next }))
+        .catch(() => {});
     }
   };
   return [value, update] as const;
