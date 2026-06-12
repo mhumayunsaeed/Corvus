@@ -21,7 +21,11 @@ import { SAMPLE_DATA } from "./sample-data";
  * friend-request state) over the base shell data — same idea as the chat echo
  * layers, but for structure.
  */
-function applyWorkspace(base: AppShellData, ws: WorkspaceState): AppShellData {
+function applyWorkspace(
+  base: AppShellData,
+  ws: WorkspaceState,
+  options: { includeLocalFriends?: boolean } = {}
+): AppShellData {
   const removedSpaces = new Set(ws.removedSpaceIds);
   const removedChannels = new Set(ws.removedChannelIds);
 
@@ -49,9 +53,11 @@ function applyWorkspace(base: AppShellData, ws: WorkspaceState): AppShellData {
     });
   }
 
-  const friends = [...(base.friends ?? []), ...ws.addedFriends]
-    .filter((f) => ws.friendStates[f.id] !== "removed")
-    .map((f) => (ws.friendStates[f.id] === "accepted" ? { ...f, pending: undefined } : f));
+  const localFriends = options.includeLocalFriends === false ? [] : ws.addedFriends;
+  const friendStates = options.includeLocalFriends === false ? {} : ws.friendStates;
+  const friends = [...(base.friends ?? []), ...localFriends]
+    .filter((f) => friendStates[f.id] !== "removed")
+    .map((f) => (friendStates[f.id] === "accepted" ? { ...f, pending: undefined } : f));
 
   // My status propagates everywhere I appear: the dock, member lists, feeds.
   const me = ws.myStatus
@@ -281,7 +287,7 @@ export function useShellData(forceDemo = false): { data: AppShellData; live: boo
       prsByChannel: workspaceModules.prsByChannel as AppShellData["prsByChannel"],
     };
 
-    return { data: applyWorkspace(data, workspace), live: true };
+    return { data: applyWorkspace(data, workspace, { includeLocalFriends: false }), live: true };
   }, [
     user,
     servers,

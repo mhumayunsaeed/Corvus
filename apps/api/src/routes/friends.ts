@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
@@ -10,8 +11,7 @@ friends.use("*", authMiddleware);
 friends.use("*", async (c, next) => {
     const hasFriendModels =
         typeof db.friend !== "undefined" &&
-        typeof db.friendRequest !== "undefined" &&
-        typeof db.block !== "undefined";
+        typeof db.friendRequest !== "undefined";
 
     if (!hasFriendModels) {
         return c.json(
@@ -44,6 +44,42 @@ const publicUserSelect = {
     bio: true,
 };
 
+function newId(prefix: string) {
+    return `${prefix}_${randomUUID()}`;
+}
+
+function isMissingTableError(error: unknown): boolean {
+    const err = error as { code?: string; message?: string } | null;
+    return (
+        err?.code === "P2021" ||
+        Boolean(err?.message?.includes("does not exist") || err?.message?.includes("not exist"))
+    );
+}
+
+async function optionalBlockFindMany(args: unknown) {
+    if (typeof db.block === "undefined") return [];
+    try {
+        return await db.block.findMany(args);
+    } catch (error) {
+        if (isMissingTableError(error)) return [];
+        throw error;
+    }
+}
+
+async function optionalBlockFindFirst(args: unknown) {
+    if (typeof db.block === "undefined") return null;
+    try {
+        return await db.block.findFirst(args);
+    } catch (error) {
+        if (isMissingTableError(error)) return null;
+        throw error;
+    }
+}
+
+function ensureBlockModel() {
+    return typeof db.block !== "undefined";
+}
+
 // GET /friends - dashboard data
 friends.get("/friends", async (c) => {
     const userId = c.get("userId");
@@ -64,7 +100,7 @@ friends.get("/friends", async (c) => {
             include: { receiver: { select: publicUserSelect } },
             orderBy: { createdAt: "desc" },
         }),
-        db.block.findMany({
+        optionalBlockFindMany({
             where: { blockerId: userId },
             include: { blocked: { select: publicUserSelect } },
             orderBy: { createdAt: "desc" },
@@ -107,6 +143,7 @@ friends.get("/friends/search", async (c) => {
             id: { not: userId },
             OR: [
                 { username: { contains: query, mode: "insensitive" } },
+                { displayName: { contains: query, mode: "insensitive" } },
                 { email: { contains: query, mode: "insensitive" } },
             ],
         },
@@ -135,11 +172,11 @@ friends.get("/friends/search", async (c) => {
                 where: { senderId: { in: targetIds }, receiverId: userId, status: "pending" },
                 select: { id: true, senderId: true },
             }),
-            db.block.findMany({
+            optionalBlockFindMany({
                 where: { blockerId: userId, blockedId: { in: targetIds } },
                 select: { blockedId: true },
             }),
-            db.block.findMany({
+            optionalBlockFindMany({
                 where: { blockerId: { in: targetIds }, blockedId: userId },
                 select: { blockerId: true },
             }),
@@ -235,7 +272,7 @@ friends.post("/friends/requests", async (c) => {
     }
 
     const [existingBlock, friendLink] = await Promise.all([
-        db.block.findFirst({
+        optionalBlockFindFirst({
             where: {
                 OR: [
                     { blockerId: userId, blockedId: targetUser.id },
@@ -282,8 +319,8 @@ friends.post("/friends/requests", async (c) => {
             });
             await tx.friend.createMany({
                 data: [
-                    { userId, friendId: targetUser.id },
-                    { userId: targetUser.id, friendId: userId },
+                    { id: newId("friend"), userId, friendId: targetUser.id },
+                    { id: newId("friend"), userId: targetUser.id, friendId: userId },
                 ],
                 skipDuplicates: true,
             });
@@ -332,6 +369,7 @@ friends.post("/friends/requests", async (c) => {
     } else {
         request = await db.friendRequest.create({
             data: {
+                id: newId("friend_request"),
                 senderId: userId,
                 receiverId: targetUser.id,
                 status: "pending",
@@ -373,7 +411,7 @@ friends.post("/friends/requests/:id/accept", async (c) => {
         return c.json({ error: "This friend request is no longer pending." }, 400);
     }
 
-    const blocked = await db.block.findFirst({
+    const blocked = await optionalBlockFindFirst({
         where: {
             OR: [
                 { blockerId: userId, blockedId: request.senderId },
@@ -398,8 +436,8 @@ friends.post("/friends/requests/:id/accept", async (c) => {
 
         await tx.friend.createMany({
             data: [
-                { userId, friendId: request.senderId },
-                { userId: request.senderId, friendId: userId },
+                { id: newId("friend"), userId, friendId: request.senderId },
+                { id: newId("friend"), userId: request.senderId, friendId: userId },
             ],
             skipDuplicates: true,
         });
@@ -481,6 +519,10 @@ friends.delete("/friends/requests/:id", async (c) => {
 
 // POST /friends/block
 friends.post("/friends/block", async (c) => {
+    if (!ensureBlockModel()) {
+        return c.json({ error: "Blocking is not initialized in this database." }, 503);
+    }
+
     const currentUserId = c.get("userId");
     const body = await c.req.json();
     const result = blockSchema.safeParse(body);
@@ -514,6 +556,7 @@ friends.post("/friends/block", async (c) => {
                 },
             },
             create: {
+                id: newId("block"),
                 blockerId: currentUserId,
                 blockedId: targetUserId,
             },
@@ -552,6 +595,10 @@ friends.post("/friends/block", async (c) => {
 
 // DELETE /friends/block/:userId
 friends.delete("/friends/block/:userId", async (c) => {
+    if (!ensureBlockModel()) {
+        return c.json({ error: "Blocking is not initialized in this database." }, 503);
+    }
+
     const currentUserId = c.get("userId");
     const targetUserId = c.req.param("userId");
 

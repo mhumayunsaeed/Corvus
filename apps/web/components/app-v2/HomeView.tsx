@@ -4,6 +4,7 @@ import { useState } from "react";
 import { cn } from "@corvus/ui";
 import { Avatar, ChannelGlyph } from "@/components/ui";
 import { FriendsView } from "./FriendsView";
+import type { FriendSearchResult } from "@/lib/api";
 import type { AppShellData } from "./AppShell";
 
 type HomeTab = "overview" | "friends";
@@ -18,13 +19,15 @@ export function HomeView({
   onOpenChannel,
   onOpenDM,
   onSendFriendRequest,
+  onSearchFriendUsers,
   onAcceptFriend,
   onDeclineFriend,
 }: {
   data: AppShellData;
   onOpenChannel?: (spaceId: string, channelId: string) => void;
   onOpenDM?: (friendId: string) => void;
-  onSendFriendRequest?: (username: string) => void;
+  onSendFriendRequest?: (target: string) => void;
+  onSearchFriendUsers?: (query: string) => Promise<FriendSearchResult[]>;
   onAcceptFriend?: (id: string) => void;
   onDeclineFriend?: (id: string) => void;
 }) {
@@ -92,6 +95,7 @@ export function HomeView({
           onMessage={onOpenDM}
           onCall={onOpenDM}
           onSendRequest={onSendFriendRequest}
+          onSearchUsers={onSearchFriendUsers}
           onAccept={onAcceptFriend}
           onDecline={onDeclineFriend}
         />

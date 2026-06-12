@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@corvus/ui";
-import { MessageSquare, Phone, Check, X, UserPlus } from "lucide-react";
+import { MessageSquare, Phone, Check, X, UserPlus, Loader2 } from "lucide-react";
 import { Avatar } from "@/components/ui";
+import type { FriendSearchResult } from "@/lib/api";
 import type { FriendEntry, Presence } from "./types";
 
 type FriendsTab = "online" | "all" | "pending" | "add";
@@ -39,6 +40,7 @@ export function FriendsView({
   onMessage,
   onCall,
   onSendRequest,
+  onSearchUsers,
   onAccept,
   onDecline,
   embedded,
@@ -47,7 +49,8 @@ export function FriendsView({
   onMessage?: (id: string) => void;
   onCall?: (id: string) => void;
   /** Send a friend request by exact username — instant, optimistic. */
-  onSendRequest?: (username: string) => void;
+  onSendRequest?: (target: string) => void;
+  onSearchUsers?: (query: string) => Promise<FriendSearchResult[]>;
   onAccept?: (id: string) => void;
   /** Decline an incoming request or cancel an outgoing one. */
   onDecline?: (id: string) => void;
@@ -56,11 +59,55 @@ export function FriendsView({
 }) {
   const [tab, setTab] = useState<FriendsTab>("online");
   const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<FriendSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tab !== "add" || !onSearchUsers) {
+      setSearchResults([]);
+      setSearching(false);
+      setSearchError(null);
+      return;
+    }
+
+    const nextQuery = query.trim();
+    if (nextQuery.length < 2) {
+      setSearchResults([]);
+      setSearching(false);
+      setSearchError(null);
+      return;
+    }
+
+    let active = true;
+    setSearching(true);
+    setSearchError(null);
+
+    const timer = window.setTimeout(() => {
+      onSearchUsers(nextQuery)
+        .then((users) => {
+          if (active) setSearchResults(users);
+        })
+        .catch((err) => {
+          if (!active) return;
+          setSearchResults([]);
+          setSearchError(err instanceof Error ? err.message : "Could not search users.");
+        })
+        .finally(() => {
+          if (active) setSearching(false);
+        });
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [onSearchUsers, query, tab]);
 
   const sendRequest = () => {
-    const username = query.trim();
-    if (!username) return;
-    onSendRequest?.(username);
+    const target = query.trim();
+    if (!target) return;
+    onSendRequest?.(target);
     setQuery("");
     setTab("pending");
   };
@@ -135,6 +182,50 @@ export function FriendsView({
               <UserPlus size={14} /> Send request
             </button>
           </div>
+          <div className="mt-5 overflow-hidden rounded-md border border-border">
+            <div className="flex h-9 items-center justify-between border-b border-border bg-surface-subtle px-3">
+              <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted">
+                Search results
+              </span>
+              {searching && <Loader2 size={14} className="animate-spin text-text-muted" />}
+            </div>
+            {searchError ? (
+              <p className="px-3 py-4 text-[13px] text-danger">{searchError}</p>
+            ) : query.trim().length < 2 ? (
+              <p className="px-3 py-4 text-[13px] text-text-muted">
+                Type at least 2 characters to search.
+              </p>
+            ) : searchResults.length === 0 && !searching ? (
+              <p className="px-3 py-4 text-[13px] text-text-muted">No users found.</p>
+            ) : (
+              searchResults.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex min-h-[56px] items-center gap-3 border-b border-border px-3 last:border-b-0"
+                >
+                  <Avatar
+                    src={user.avatarUrl}
+                    name={user.displayName || user.username}
+                    size={32}
+                    radius={8}
+                  />
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <p className="truncate text-[14px] font-medium text-text-primary">
+                      {user.displayName || user.username}
+                    </p>
+                    <p className="truncate font-mono text-[11px] text-text-muted">
+                      @{user.username} - {relationLabel(user)}
+                    </p>
+                  </div>
+                  <SearchResultAction
+                    user={user}
+                    onSendRequest={onSendRequest}
+                    onAccept={onAccept}
+                  />
+                </div>
+              ))
+            )}
+          </div>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
@@ -202,6 +293,67 @@ export function FriendsView({
         </div>
       )}
     </div>
+  );
+}
+
+function relationLabel(user: FriendSearchResult) {
+  switch (user.relationStatus) {
+    case "friends":
+      return "friends";
+    case "incoming_request":
+      return "incoming request";
+    case "outgoing_request":
+      return "request sent";
+    case "blocked_by_you":
+      return "blocked";
+    case "blocked_you":
+      return "unavailable";
+    default:
+      return "not connected";
+  }
+}
+
+function SearchResultAction({
+  user,
+  onSendRequest,
+  onAccept,
+}: {
+  user: FriendSearchResult;
+  onSendRequest?: (target: string) => void;
+  onAccept?: (id: string) => void;
+}) {
+  if (user.relationStatus === "incoming_request" && user.pendingRequestId) {
+    return (
+      <button
+        type="button"
+        onClick={() => onAccept?.(user.pendingRequestId!)}
+        className="flex h-8 shrink-0 items-center gap-2 rounded-sm border border-border bg-surface-raised px-3 text-[12px] font-medium text-success transition-colors hover:bg-success/10"
+      >
+        <Check size={14} /> Accept
+      </button>
+    );
+  }
+
+  if (user.relationStatus !== "none") {
+    return (
+      <button
+        type="button"
+        disabled
+        className="h-8 shrink-0 cursor-not-allowed rounded-sm border border-border bg-surface-overlay px-3 text-[12px] text-text-faint"
+      >
+        {user.relationStatus === "outgoing_request" ? "Pending" : "Added"}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSendRequest?.(user.id)}
+      className="flex h-8 shrink-0 items-center gap-2 rounded-sm border border-border bg-surface-raised px-3 text-[12px] font-medium text-text-secondary transition-colors hover:bg-hover-row hover:text-text-primary"
+    >
+      <UserPlus size={14} /> Add
+    </button>
   );
 }
 

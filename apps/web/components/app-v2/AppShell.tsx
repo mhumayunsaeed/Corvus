@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavRail } from "./NavRail";
 import { SpacePanel } from "./SpacePanel";
 import { DMPanel } from "./DMPanel";
@@ -57,6 +57,7 @@ import {
   cancelFriendRequest as cancelFriendRequestApi,
   removeFriend as removeFriendApi,
   fetchFriendDashboard,
+  searchFriendUsers as searchFriendUsersApi,
 } from "@/lib/api";
 import { notifyEvent, ringIncoming } from "@/lib/notify";
 import type {
@@ -666,8 +667,16 @@ export function AppShell({
       .catch(() => {});
   };
 
-  const sendFriendRequest = (username: string) => {
-    const existing = data.friends?.find((f) => f.name.toLowerCase() === username.toLowerCase());
+  const searchFriendUsers = useCallback((query: string) => {
+    if (!isLive) return Promise.resolve([]);
+    return searchFriendUsersApi(query).then((r) => r.users);
+  }, [isLive]);
+
+  const sendFriendRequest = (target: string) => {
+    const normalizedTarget = target.toLowerCase();
+    const existing = data.friends?.find(
+      (f) => f.id === target || f.name.toLowerCase() === normalizedTarget
+    );
     if (existing) {
       useToastStore.getState().addToast({
         title: existing.pending ? "Request already pending" : "Already friends",
@@ -678,11 +687,15 @@ export function AppShell({
     }
 
     if (isLive) {
-      sendFriendRequestApi(username)
-        .then(() => {
+      sendFriendRequestApi(target)
+        .then((result) => {
+          const name = result.user.username || result.user.displayName || target;
           useToastStore.getState().addToast({
-            title: "Request sent",
-            body: `@${username} will see it instantly under Pending.`,
+            title: result.status === "accepted" ? "Friend added" : "Request sent",
+            body:
+              result.status === "accepted"
+                ? `You and @${name} are now friends.`
+                : `@${name} will see it under Pending.`,
             variant: "success",
           });
           refreshFriends();
@@ -698,10 +711,10 @@ export function AppShell({
     }
 
     const id = `fr${Date.now()}`;
-    workspace.sendFriendRequest({ id, name: username, presence: "offline", pending: "outgoing" });
+    workspace.sendFriendRequest({ id, name: target, presence: "offline", pending: "outgoing" });
     useToastStore.getState().addToast({
       title: "Request sent",
-      body: `@${username} will see it instantly under Pending.`,
+      body: `@${target} will see it instantly under Pending.`,
       variant: "success",
     });
     // Demo seam — the realtime backend would push the acceptance.
@@ -711,7 +724,7 @@ export function AppShell({
         notifyEvent({
           kind: "other",
           title: "Friend request accepted",
-          body: `${username} accepted your request.`,
+          body: `${target} accepted your request.`,
         });
       }, 4000);
     }
@@ -991,6 +1004,7 @@ export function AppShell({
             openDMs(convo?.id);
           }}
           onSendFriendRequest={sendFriendRequest}
+          onSearchFriendUsers={searchFriendUsers}
           onAcceptFriend={acceptFriend}
           onDeclineFriend={declineOrRemoveFriend}
         />

@@ -6,6 +6,7 @@ import { useAppStore } from "@/stores/app-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
 import { fetchChannels, fetchMessages, fetchServers, fetchWorkspaceModules, fetchFriendDashboard } from "@/lib/api";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { AppShell } from "./AppShell";
 import { useShellData } from "./useShellData";
 
@@ -60,6 +61,7 @@ export function RoutedAppShell({ isDemo = false }: { isDemo?: boolean }) {
     return (name && slugify(name)) || id;
   };
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
   const setServers = useAppStore((s) => s.setServers);
   const setChannels = useAppStore((s) => s.setChannels);
   const setWorkspaceModules = useAppStore((s) => s.setWorkspaceModules);
@@ -111,6 +113,55 @@ export function RoutedAppShell({ isDemo = false }: { isDemo?: boolean }) {
       cancelled = true;
     };
   }, [isAuthenticated, setFriends]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id || !isSupabaseConfigured()) return;
+
+    const supabase = getSupabaseClient();
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
+    const refresh = () => {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        fetchFriendDashboard()
+          .then((r) => {
+            if (!cancelled) setFriends(r);
+          })
+          .catch(() => {});
+      }, 150);
+    };
+
+    const channel = supabase
+      .channel(`friend-dashboard:${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "friend_requests", filter: `sender_id=eq.${user.id}` },
+        refresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "friend_requests", filter: `receiver_id=eq.${user.id}` },
+        refresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "friends", filter: `user_id=eq.${user.id}` },
+        refresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "friends", filter: `friend_id=eq.${user.id}` },
+        refresh
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      if (timeout) clearTimeout(timeout);
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, setFriends, user?.id]);
 
   // Load the active space's channels when we don't have them cached.
   useEffect(() => {
