@@ -66,7 +66,12 @@ export function AuthShell({
           {/* Wordmark + positioning line */}
           <div className="mb-8 text-center">
             <div className="inline-flex items-center gap-2">
-              <span className="text-accent text-[18px] leading-none">◈</span>
+              <img
+                src="/corvus-logo-small.png"
+                alt=""
+                className="h-7 w-7 rounded-full"
+                draggable={false}
+              />
               <span className="text-[20px] font-semibold tracking-[-0.02em] text-text-primary">
                 Corvus
               </span>

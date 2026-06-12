@@ -4,5 +4,6 @@ export { StatsBar } from "./StatsBar";
 export { AudienceSection } from "./AudienceSection";
 export { Features } from "./Features";
 export { DeveloperSection } from "./DeveloperSection";
+export { SelfHostSection } from "./SelfHostSection";
 export { FinalCTA } from "./FinalCTA";
 export { Footer } from "./Footer";

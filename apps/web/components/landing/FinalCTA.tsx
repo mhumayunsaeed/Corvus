@@ -8,7 +8,7 @@ export function FinalCTA() {
           Your stack. Your rules.
         </h2>
         <p className="mt-4 text-[16px] leading-[1.6] text-text-secondary">
-          Free to use. MIT licensed. Deploy on anything that runs Docker.
+          Start free. Deploy on your infrastructure when you are ready.
         </p>
 
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
@@ -27,7 +27,7 @@ export function FinalCTA() {
         </div>
 
         <p className="mt-8 text-[12px] text-text-muted">
-          No credit card. No vendor lock-in. No 300 MB Electron app.
+          No credit card. No vendor lock-in. No 300 MB Electron tax.
         </p>
       </div>
     </section>

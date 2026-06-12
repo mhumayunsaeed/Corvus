@@ -22,7 +22,7 @@ export function RoutedAppShell() {
   const spaceFromUrl = slug[0];
   const channelFromUrl = slug[1];
 
-  const { data } = useShellData();
+  const { data, live } = useShellData();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const setServers = useAppStore((s) => s.setServers);
   const setChannels = useAppStore((s) => s.setChannels);
@@ -79,6 +79,7 @@ export function RoutedAppShell() {
   return (
     <AppShell
       data={data}
+      demo={!live}
       control={{
         activeSpaceId,
         activeChannelId: channelFromUrl,

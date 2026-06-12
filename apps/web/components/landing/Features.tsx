@@ -52,7 +52,7 @@ const features: Feature[] = [
     label: "Project tools",
     title: "Kanban boards, built in.",
     description:
-      "Organize work without leaving your workspace. Boards, cards, assignees, and due dates — tied directly to your channels and team.",
+      "Organize sprints without leaving your workspace. Boards, cards, assignees, labels, and due dates — tied to your channels and repos.",
     span: "md:col-span-2",
   },
 ];

@@ -42,13 +42,9 @@ export function DeveloperSection() {
             <code>
               <K>import</K> {"{ CorvusClient }"} <K>from</K> <S>&apos;@corvus/sdk&apos;</S>
               {"\n\n"}
-              <K>const</K> client = <K>new</K> CorvusClient({"({"}
-              {"\n"}
-              {"  apiKey: process.env.CORVUS_API_KEY,"}
-              {"\n"}
-              {"})"}
+              <K>const</K> client = <K>new</K> CorvusClient({"({ apiKey: process.env.CORVUS_API_KEY })"}
               {"\n\n"}
-              <C>{"// Send a message to a channel"}</C>
+              <C>{"// Send a message"}</C>
               {"\n"}
               <K>await</K> client.channel(<S>&apos;eng-general&apos;</S>).send({"({"}
               {"\n"}
@@ -62,13 +58,16 @@ export function DeveloperSection() {
               <K>await</K> client.board(<S>&apos;sprint-12&apos;</S>).cards.create({"({"}
               {"\n"}
               {"  title:    "}
-              <S>&apos;Review PR #42&apos;</S>,
+              <S>&apos;Review authentication flow&apos;</S>,
               {"\n"}
               {"  assignee: "}
               <S>&apos;humayun&apos;</S>,
               {"\n"}
               {"  due:      "}
-              <S>&apos;2025-06-15&apos;</S>,
+              <S>&apos;2025-06-20&apos;</S>,
+              {"\n"}
+              {"  linkedPR: "}
+              <span className="text-text-primary/85">42</span>,
               {"\n"}
               {"})"}
             </code>

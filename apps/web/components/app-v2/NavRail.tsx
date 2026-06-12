@@ -1,18 +1,20 @@
 "use client";
 
 import { cn } from "@corvus/ui";
-import { MessageSquare, Plus, Settings } from "lucide-react";
+import { MessageSquare, Plus, Settings, Home } from "lucide-react";
 import type { SpaceSummary } from "./types";
 
 /**
- * 56px nav rail (brief §NavRail). Space icons only. Active state is a border +
- * subtle radius morph — no Discord pill, no blob. Unread is a single 6px dot.
+ * 56px nav rail (brief §NavRail). Home, then space icons. Active state is a
+ * border + subtle radius morph — no Discord pill, no blob. Unread is a 6px dot.
  */
 export function NavRail({
   spaces,
   activeSpaceId,
+  homeActive,
   dmsActive,
   dmsUnread,
+  onOpenHome,
   onSelectSpace,
   onOpenDMs,
   onAddSpace,
@@ -20,8 +22,10 @@ export function NavRail({
 }: {
   spaces: SpaceSummary[];
   activeSpaceId?: string;
+  homeActive?: boolean;
   dmsActive?: boolean;
   dmsUnread?: boolean;
+  onOpenHome?: () => void;
   onSelectSpace?: (id: string) => void;
   onOpenDMs?: () => void;
   onAddSpace?: () => void;
@@ -32,9 +36,26 @@ export function NavRail({
       aria-label="Spaces"
       className="flex h-full w-14 shrink-0 flex-col items-center border-r border-border bg-background py-3"
     >
+      <button
+        type="button"
+        aria-label="Home"
+        data-active={homeActive}
+        onClick={onOpenHome}
+        className={cn(
+          "mb-1 flex h-10 w-10 items-center justify-center border",
+          "transition-[border-radius,background-color,border-color,color] duration-200",
+          homeActive
+            ? "rounded-[14px] border-accent bg-accent-soft text-text-primary"
+            : "rounded-[10px] border-border bg-surface-raised text-text-secondary hover:rounded-[12px] hover:bg-surface-overlay hover:text-text-primary"
+        )}
+      >
+        <Home size={17} />
+      </button>
+      <div className="mb-2 h-px w-8 shrink-0 bg-border" />
+
       <div className="flex flex-1 flex-col items-center gap-1 overflow-y-auto scrollbar-none">
         {spaces.map((space) => {
-          const active = space.id === activeSpaceId && !dmsActive;
+          const active = space.id === activeSpaceId && !dmsActive && !homeActive;
           return (
             <button
               key={space.id}

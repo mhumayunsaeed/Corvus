@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 
-const PUBLIC_ROUTES = ["/", "/login", "/register", "/confirm-email", "/forgot-password", "/reset-password", "/auth/callback", "/spaces"];
-const PUBLIC_PREFIXES = ["/spaces/"]; // design-preview shell + its sub-routes
+const PUBLIC_ROUTES = ["/", "/login", "/register", "/confirm-email", "/forgot-password", "/reset-password", "/auth/callback", "/spaces", "/setup", "/admin", "/changelog"];
+const PUBLIC_PREFIXES = ["/spaces/", "/admin/", "/product/", "/developers/", "/legal/"]; // app shell · admin panel · marketing pages
 const AUTH_ROUTES = ["/login", "/register"]; // redirect away if already logged in
 
 /** Check if pathname matches any route in the list (handles trailing slashes) */
@@ -76,7 +76,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             router.replace("/login");
         } else if (isAuthenticated && isAuthRoute) {
             // Already logged in, on login/register → redirect to app
-            router.replace("/app");
+            router.replace("/spaces");
         }
     }, [isReady, sessionChecked, isAuthenticated, user, pathname, router]);
 

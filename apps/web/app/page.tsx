@@ -9,6 +9,7 @@ import {
   AudienceSection,
   Features,
   DeveloperSection,
+  SelfHostSection,
   FinalCTA,
   Footer,
 } from "@/components/landing";
@@ -39,6 +40,7 @@ export default function LandingPage() {
         <AudienceSection />
         <Features />
         <DeveloperSection />
+        <SelfHostSection />
         <FinalCTA />
       </main>
       <Footer />

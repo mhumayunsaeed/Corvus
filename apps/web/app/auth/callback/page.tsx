@@ -29,7 +29,7 @@ function AuthCallbackContent() {
                 }
 
                 if (!cancelled) {
-                    router.replace("/app");
+                    router.replace("/spaces");
                 }
             } catch (err) {
                 if (!cancelled) {

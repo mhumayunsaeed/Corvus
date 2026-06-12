@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { cn } from "@corvus/ui";
 
+// Root-relative anchors so the links also work from /product, /legal, etc.
 const navLinks = [
-  { label: "Product", href: "#product" },
-  { label: "Developers", href: "#developers" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "Blog", href: "#blog" },
+  { label: "Product", href: "/#product" },
+  { label: "Developers", href: "/#developers" },
+  { label: "Self-host", href: "/#self-host" },
+  { label: "Changelog", href: "/changelog" },
 ];
 
 export function Nav() {
@@ -39,7 +40,12 @@ export function Nav() {
       >
         {/* Wordmark */}
         <Link href="/" className="flex items-center gap-2">
-          <span className="text-accent-violet text-[15px] leading-none">◈</span>
+          <img
+            src="/corvus-logo-small.png"
+            alt=""
+            className="h-7 w-7 rounded-full"
+            draggable={false}
+          />
           <span className="text-[15px] font-semibold tracking-[-0.01em] text-text-primary">
             Corvus
           </span>
