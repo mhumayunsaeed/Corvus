@@ -38,16 +38,32 @@ export function FriendsView({
   friends,
   onMessage,
   onCall,
+  onSendRequest,
+  onAccept,
+  onDecline,
   embedded,
 }: {
   friends: FriendEntry[];
   onMessage?: (id: string) => void;
   onCall?: (id: string) => void;
+  /** Send a friend request by exact username — instant, optimistic. */
+  onSendRequest?: (username: string) => void;
+  onAccept?: (id: string) => void;
+  /** Decline an incoming request or cancel an outgoing one. */
+  onDecline?: (id: string) => void;
   /** When embedded (Home tab) the view skips its own header. */
   embedded?: boolean;
 }) {
   const [tab, setTab] = useState<FriendsTab>("online");
   const [query, setQuery] = useState("");
+
+  const sendRequest = () => {
+    const username = query.trim();
+    if (!username) return;
+    onSendRequest?.(username);
+    setQuery("");
+    setTab("pending");
+  };
 
   const accepted = friends.filter((f) => !f.pending);
   const visible =
@@ -99,12 +115,16 @@ export function FriendsView({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") sendRequest();
+              }}
               placeholder="username"
               className="h-10 min-w-0 flex-1 rounded-md border border-border bg-surface-input px-3 font-mono text-[13px] text-text-primary outline-none transition-colors placeholder:text-text-faint focus:border-border-active"
             />
             <button
               type="button"
               disabled={!query.trim()}
+              onClick={sendRequest}
               className={cn(
                 "flex h-10 shrink-0 items-center gap-2 rounded-md px-4 text-[13px] font-medium transition-colors",
                 query.trim()
@@ -150,15 +170,15 @@ export function FriendsView({
               <div className="hidden items-center gap-1 group-hover:flex">
                 {f.pending === "incoming" ? (
                   <>
-                    <RowAction label="Accept" tone="success">
+                    <RowAction label="Accept" tone="success" onClick={() => onAccept?.(f.id)}>
                       <Check size={15} />
                     </RowAction>
-                    <RowAction label="Decline" tone="danger">
+                    <RowAction label="Decline" tone="danger" onClick={() => onDecline?.(f.id)}>
                       <X size={15} />
                     </RowAction>
                   </>
                 ) : f.pending === "outgoing" ? (
-                  <RowAction label="Cancel request" tone="danger">
+                  <RowAction label="Cancel request" tone="danger" onClick={() => onDecline?.(f.id)}>
                     <X size={15} />
                   </RowAction>
                 ) : (

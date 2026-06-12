@@ -16,6 +16,9 @@ import {
   Copy,
   Pencil,
   Trash2,
+  Phone,
+  PhoneMissed,
+  Video,
 } from "lucide-react";
 import { Avatar } from "@/components/ui";
 import type { Attachment, ChatMessage, LinkEmbed } from "./types";
@@ -215,6 +218,8 @@ function MessageRow({
           {message.embed && <LinkEmbedCard embed={message.embed} />}
 
           {message.clip && <ClipEmbed duration={message.clip.duration} size={message.clip.size} />}
+
+          {message.call && <CallEntry call={message.call} authorName={message.author.name} />}
 
           {message.reactions && message.reactions.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">
@@ -435,6 +440,47 @@ function AttachmentView({ attachment }: { attachment: Attachment }) {
       </span>
       <Download size={15} className="shrink-0 text-text-faint" />
     </a>
+  );
+}
+
+/** Call history entry — a quiet card logged when a call ends. */
+function CallEntry({
+  call,
+  authorName,
+}: {
+  call: NonNullable<ChatMessage["call"]>;
+  authorName: string;
+}) {
+  const label = call.missed
+    ? `Missed ${call.kind} call`
+    : `${call.kind === "video" ? "Video" : "Voice"} call`;
+  return (
+    <div className="mt-1.5 flex max-w-[380px] items-center gap-3 rounded-[10px] border border-border bg-surface-raised px-3.5 py-3">
+      <span
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+          call.missed ? "bg-danger/10 text-danger" : "bg-status-online/10 text-status-online"
+        )}
+      >
+        {call.missed ? (
+          <PhoneMissed size={16} />
+        ) : call.kind === "video" ? (
+          <Video size={16} />
+        ) : (
+          <Phone size={16} />
+        )}
+      </span>
+      <span className="min-w-0 flex-1 leading-tight">
+        <span className="block truncate text-[13px] font-medium text-text-primary">{label}</span>
+        <span className="font-mono text-[11px] text-text-muted">
+          {call.missed
+            ? `from ${authorName}`
+            : call.duration
+              ? `lasted ${call.duration}`
+              : "no answer"}
+        </span>
+      </span>
+    </div>
   );
 }
 

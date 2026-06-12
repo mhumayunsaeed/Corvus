@@ -2,16 +2,11 @@
 
 import { useState } from "react";
 import { cn } from "@corvus/ui";
-import { ChevronDown, Plus, Mic, Headphones, Settings } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { Avatar, ChannelGlyph } from "@/components/ui";
+import { ItemLink } from "./ItemLink";
+import { UserDock } from "./UserDock";
 import type { ChannelSection, ChannelSummary, MemberRef, Presence } from "./types";
-
-const PRESENCE_DOT: Record<Presence, string> = {
-  online: "bg-status-online",
-  idle: "bg-status-idle",
-  dnd: "bg-status-dnd",
-  offline: "bg-text-faint",
-};
 
 /**
  * 260px space sidebar (brief §SpacePanel). Real header + typographic section
@@ -25,6 +20,14 @@ export function SpacePanel({
   me,
   onSelectChannel,
   onOpenSpaceSettings,
+  onAddChannel,
+  onAddSection,
+  channelHref,
+  muted,
+  deafened,
+  onToggleMute,
+  onToggleDeafen,
+  onSetStatus,
 }: {
   spaceName: string;
   sections: ChannelSection[];
@@ -32,6 +35,19 @@ export function SpacePanel({
   me: MemberRef & { statusText?: string };
   onSelectChannel?: (id: string) => void;
   onOpenSpaceSettings?: () => void;
+  /** Open the add-channel dialog for a section. */
+  onAddChannel?: (sectionId: string) => void;
+  /** Open the add-section dialog. */
+  onAddSection?: () => void;
+  /** Real href per channel (routed shell) — rows render as anchors. */
+  channelHref?: (id: string) => string;
+  /** Self mute/deafen — carried into the next call you join. */
+  muted?: boolean;
+  deafened?: boolean;
+  onToggleMute?: () => void;
+  onToggleDeafen?: () => void;
+  /** Presence + custom status from the dock's status card. */
+  onSetStatus?: (presence: Presence, text?: string) => void;
 }) {
   return (
     <aside className="flex h-full w-[260px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface-raised">
@@ -48,35 +64,37 @@ export function SpacePanel({
       {/* Channels */}
       <div className="flex-1 overflow-y-auto py-2">
         {sections.map((section) => (
-          <Section key={section.id} section={section} activeChannelId={activeChannelId} onSelect={onSelectChannel} />
+          <Section
+            key={section.id}
+            section={section}
+            activeChannelId={activeChannelId}
+            onSelect={onSelectChannel}
+            onAddChannel={onAddChannel}
+            hrefFor={channelHref}
+          />
         ))}
+        {onAddSection && (
+          <button
+            type="button"
+            onClick={onAddSection}
+            className="mx-2 mt-2 flex h-8 w-[calc(100%-16px)] items-center gap-2 rounded-sm px-2 text-[13px] text-text-faint transition-colors hover:bg-hover-row hover:text-text-primary"
+          >
+            <Plus size={13} />
+            Add section
+          </button>
+        )}
       </div>
 
       {/* Footer — personal dock */}
-      <div className="flex h-[52px] shrink-0 items-center gap-2.5 border-t border-border bg-surface-raised px-2.5">
-        <div className="relative">
-          <Avatar src={me.avatar} name={me.name} size={28} shape="circle" />
-          {me.presence && (
-            <span
-              className={cn(
-                "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface-raised",
-                PRESENCE_DOT[me.presence]
-              )}
-            />
-          )}
-        </div>
-        <div className="min-w-0 flex-1 leading-tight">
-          <div className="truncate text-[13px] font-medium text-text-primary">{me.name}</div>
-          <div className="truncate font-mono text-[11px] text-text-muted">
-            {me.statusText ?? me.presence ?? "online"}
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5 text-text-faint">
-          <DockIcon label="Mute"><Mic size={16} /></DockIcon>
-          <DockIcon label="Deafen"><Headphones size={16} /></DockIcon>
-          <DockIcon label="User settings"><Settings size={16} /></DockIcon>
-        </div>
-      </div>
+      <UserDock
+        me={me}
+        muted={muted}
+        deafened={deafened}
+        onToggleMute={onToggleMute}
+        onToggleDeafen={onToggleDeafen}
+        onOpenSettings={onOpenSpaceSettings}
+        onSetStatus={onSetStatus}
+      />
     </aside>
   );
 }
@@ -85,10 +103,14 @@ function Section({
   section,
   activeChannelId,
   onSelect,
+  onAddChannel,
+  hrefFor,
 }: {
   section: ChannelSection;
   activeChannelId?: string;
   onSelect?: (id: string) => void;
+  onAddChannel?: (sectionId: string) => void;
+  hrefFor?: (id: string) => string;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
@@ -104,6 +126,8 @@ function Section({
         <button
           type="button"
           aria-label={`Add channel to ${section.name}`}
+          title="Add channel"
+          onClick={() => onAddChannel?.(section.id)}
           className="text-text-faint opacity-0 transition-opacity hover:text-text-primary group-hover:opacity-100"
         >
           <Plus size={14} />
@@ -115,6 +139,7 @@ function Section({
           channel={ch}
           active={ch.id === activeChannelId}
           onSelect={onSelect}
+          href={hrefFor?.(ch.id)}
         />
       ))}
     </div>
@@ -125,20 +150,23 @@ function ChannelRow({
   channel,
   active,
   onSelect,
+  href,
 }: {
   channel: ChannelSummary;
   active?: boolean;
   onSelect?: (id: string) => void;
+  href?: string;
 }) {
   return (
     <div className="relative">
       {channel.unread && !active && (
         <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r bg-accent" />
       )}
-      <button
-        type="button"
-        data-active={active}
-        onClick={() => onSelect?.(channel.id)}
+      <ItemLink
+        href={href}
+        onPress={() => onSelect?.(channel.id)}
+        active={active}
+        current={active}
         className={cn(
           "mx-2 flex h-[30px] w-[calc(100%-16px)] items-center gap-2 rounded-sm px-2 text-[14px] transition-colors duration-100",
           active
@@ -148,9 +176,9 @@ function ChannelRow({
               : "text-text-secondary hover:bg-hover-row hover:text-text-primary"
         )}
       >
-        <ChannelGlyph type={channel.type} size={10} />
+        <ChannelGlyph type={channel.type} size={14} />
         <span className="truncate">{channel.name}</span>
-      </button>
+      </ItemLink>
 
       {/* Voice participants inline */}
       {channel.type === "voice" && channel.participants && channel.participants.length > 0 && (
@@ -172,14 +200,3 @@ function ChannelRow({
   );
 }
 
-function DockIcon({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      className="flex h-7 w-7 items-center justify-center rounded-sm transition-colors hover:bg-hover-row hover:text-text-primary"
-    >
-      {children}
-    </button>
-  );
-}

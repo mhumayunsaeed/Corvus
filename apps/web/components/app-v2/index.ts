@@ -22,7 +22,7 @@ export { AutomationsSettings, WebhooksSettings } from "./AutomationsSettings";
 export { HomeView } from "./HomeView";
 export { FriendsView } from "./FriendsView";
 export { PinnedPanel } from "./PinnedPanel";
-export { CallModal, IncomingCallCard, type CallPeer } from "./CallUI";
+export { CallSession, IncomingCallCard, type ActiveCall, type CallPeer } from "./CallUI";
 export { StageView } from "./StageView";
 export {
   CallControls,

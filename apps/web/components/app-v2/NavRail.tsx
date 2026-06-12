@@ -2,6 +2,7 @@
 
 import { cn } from "@corvus/ui";
 import { MessageSquare, Plus, Settings, Home } from "lucide-react";
+import { ItemLink } from "./ItemLink";
 import type { SpaceSummary } from "./types";
 
 /**
@@ -19,6 +20,9 @@ export function NavRail({
   onOpenDMs,
   onAddSpace,
   onOpenSettings,
+  homeHref,
+  dmsHref,
+  spaceHref,
 }: {
   spaces: SpaceSummary[];
   activeSpaceId?: string;
@@ -30,17 +34,21 @@ export function NavRail({
   onOpenDMs?: () => void;
   onAddSpace?: () => void;
   onOpenSettings?: () => void;
+  /** Real hrefs (routed shell) — items render as anchors when provided. */
+  homeHref?: string;
+  dmsHref?: string;
+  spaceHref?: (id: string) => string;
 }) {
   return (
     <nav
       aria-label="Spaces"
       className="flex h-full w-14 shrink-0 flex-col items-center border-r border-border bg-background py-3"
     >
-      <button
-        type="button"
-        aria-label="Home"
-        data-active={homeActive}
-        onClick={onOpenHome}
+      <ItemLink
+        href={homeHref}
+        onPress={onOpenHome}
+        label="Home"
+        active={homeActive}
         className={cn(
           "mb-1 flex h-10 w-10 items-center justify-center border",
           "transition-[border-radius,background-color,border-color,color] duration-200",
@@ -50,20 +58,20 @@ export function NavRail({
         )}
       >
         <Home size={17} />
-      </button>
+      </ItemLink>
       <div className="mb-2 h-px w-8 shrink-0 bg-border" />
 
       <div className="flex flex-1 flex-col items-center gap-1 overflow-y-auto scrollbar-none">
         {spaces.map((space) => {
           const active = space.id === activeSpaceId && !dmsActive && !homeActive;
           return (
-            <button
+            <ItemLink
               key={space.id}
-              type="button"
-              data-active={active}
-              onClick={() => onSelectSpace?.(space.id)}
-              aria-label={space.name}
-              aria-current={active ? "true" : undefined}
+              href={spaceHref?.(space.id)}
+              onPress={() => onSelectSpace?.(space.id)}
+              label={space.name}
+              current={active}
+              active={active}
               className={cn(
                 "relative flex h-10 w-10 items-center justify-center border text-[14px] font-medium text-text-primary",
                 "transition-[border-radius,background-color,border-color] duration-200",
@@ -80,13 +88,13 @@ export function NavRail({
               {space.unread && !active && (
                 <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" />
               )}
-            </button>
+            </ItemLink>
           );
         })}
       </div>
 
       <div className="mt-2 flex flex-col items-center gap-3 pt-2">
-        <RailIcon label="Direct messages" active={dmsActive} unread={dmsUnread} onClick={onOpenDMs}>
+        <RailIcon label="Direct messages" active={dmsActive} unread={dmsUnread} href={dmsHref} onClick={onOpenDMs}>
           <MessageSquare size={20} />
         </RailIcon>
         <RailIcon label="Add a space" onClick={onAddSpace}>
@@ -104,20 +112,23 @@ function RailIcon({
   label,
   active,
   unread,
+  href,
   onClick,
   children,
 }: {
   label: string;
   active?: boolean;
   unread?: boolean;
+  href?: string;
   onClick?: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
+    <ItemLink
+      href={href}
+      onPress={onClick}
+      label={label}
+      active={active}
       className={cn(
         "relative flex h-9 w-9 items-center justify-center transition-colors",
         active ? "text-text-primary" : "text-text-faint hover:text-text-primary"
@@ -127,6 +138,6 @@ function RailIcon({
       {unread && (
         <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-accent" />
       )}
-    </button>
+    </ItemLink>
   );
 }

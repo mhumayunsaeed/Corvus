@@ -2,28 +2,57 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@corvus/ui";
-import { ArrowLeft, MoreHorizontal, Search } from "lucide-react";
-import { Avatar } from "@/components/ui";
-import type { DocBlock, DocBlockType, DocContent } from "./types";
+import { ArrowLeft, FilePlus, Search, Trash2 } from "lucide-react";
+import { Avatar, ChannelGlyph } from "@/components/ui";
+import type { DocBlock, DocBlockType, DocContent, MemberRef } from "./types";
 
 /**
  * Docs module (brief §Docs) — a focused, channel-linked knowledge layer.
  * Selecting a docs channel shows the document list; clicking a row opens the
  * editor (max-width 720 column, slash menu, minimal inline format bar).
  */
-export function DocsView({ docs: initial }: { docs: DocContent[] }) {
-  const [docs, setDocs] = useState(initial);
+export function DocsView({
+  docs,
+  me,
+  onChangeDocs,
+}: {
+  docs: DocContent[];
+  /** Author for newly created docs. */
+  me?: MemberRef;
+  /** Persist creations, edits, and deletions. */
+  onChangeDocs?: (docs: DocContent[]) => void;
+}) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
   const open = docs.find((d) => d.id === openId) ?? null;
+
+  const createDoc = () => {
+    const doc: DocContent = {
+      id: `doc${Date.now()}`,
+      title: "",
+      author: me ?? { id: "me", name: "you" },
+      editedLabel: "just now",
+      blocks: [{ id: `b${Date.now()}`, type: "p", text: "" }],
+    };
+    onChangeDocs?.([doc, ...docs]);
+    setOpenId(doc.id);
+  };
 
   if (open) {
     return (
       <DocEditor
         doc={open}
         onBack={() => setOpenId(null)}
-        onChange={(next) => setDocs((ds) => ds.map((d) => (d.id === next.id ? next : d)))}
+        onChange={(next) =>
+          onChangeDocs?.(
+            docs.map((d) => (d.id === next.id ? { ...next, editedLabel: "edited just now" } : d))
+          )
+        }
+        onDelete={() => {
+          setOpenId(null);
+          onChangeDocs?.(docs.filter((d) => d.id !== open.id));
+        }}
       />
     );
   }
@@ -35,8 +64,15 @@ export function DocsView({ docs: initial }: { docs: DocContent[] }) {
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-background">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
-        <span aria-hidden className="font-mono text-[14px] leading-none text-text-muted">↗</span>
+        <ChannelGlyph type="docs" size={16} />
         <h1 className="text-[15px] font-semibold text-text-primary">Docs</h1>
+        <button
+          type="button"
+          onClick={createDoc}
+          className="ml-auto flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent transition-colors hover:bg-accent-violet-bright"
+        >
+          <FilePlus size={14} /> New doc
+        </button>
       </header>
 
       <div className="p-4 pb-0">
@@ -59,14 +95,18 @@ export function DocsView({ docs: initial }: { docs: DocContent[] }) {
             onClick={() => setOpenId(doc.id)}
             className="flex h-12 w-full items-center gap-3 border-b border-border px-4 text-left transition-colors hover:bg-hover-row"
           >
-            <span aria-hidden className="font-mono text-[12px] text-text-muted">↗</span>
-            <span className="min-w-0 flex-1 truncate text-[14px] text-text-primary">{doc.title}</span>
+            <ChannelGlyph type="docs" size={13} />
+            <span className="min-w-0 flex-1 truncate text-[14px] text-text-primary">
+              {doc.title || "Untitled"}
+            </span>
             <Avatar size={20} radius={4} src={doc.author.avatar} name={doc.author.name} />
             <span className="font-mono text-[11px] text-text-muted">{doc.editedLabel}</span>
           </button>
         ))}
         {filtered.length === 0 && (
-          <p className="px-4 py-8 text-[13px] text-text-muted">No docs match “{query}”.</p>
+          <p className="px-4 py-8 text-[13px] text-text-muted">
+            {query ? `No docs match “${query}”.` : "No docs yet — create the first one."}
+          </p>
         )}
       </div>
     </section>
@@ -92,10 +132,12 @@ function DocEditor({
   doc,
   onBack,
   onChange,
+  onDelete,
 }: {
   doc: DocContent;
   onBack: () => void;
   onChange: (doc: DocContent) => void;
+  onDelete?: () => void;
 }) {
   const [slashAt, setSlashAt] = useState<string | null>(null); // block id with open slash menu
 
@@ -122,7 +164,9 @@ function DocEditor({
         >
           <ArrowLeft size={16} />
         </button>
-        <span className="truncate text-[14px] font-medium text-text-primary">{doc.title}</span>
+        <span className="truncate text-[14px] font-medium text-text-primary">
+          {doc.title || "Untitled"}
+        </span>
         <div className="ml-auto flex items-center gap-1">
           <button
             type="button"
@@ -130,13 +174,17 @@ function DocEditor({
           >
             Share
           </button>
-          <button
-            type="button"
-            aria-label="More"
-            className="flex h-7 w-7 items-center justify-center rounded-sm text-text-faint transition-colors hover:bg-hover-row hover:text-text-primary"
-          >
-            <MoreHorizontal size={16} />
-          </button>
+          {onDelete && (
+            <button
+              type="button"
+              aria-label="Delete doc"
+              title="Delete doc"
+              onClick={onDelete}
+              className="flex h-7 w-7 items-center justify-center rounded-sm text-text-faint transition-colors hover:bg-danger/10 hover:text-danger"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
         </div>
       </header>
 

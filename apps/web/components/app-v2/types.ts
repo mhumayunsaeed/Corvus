@@ -107,6 +107,8 @@ export interface ChatMessage {
   clip?: { duration: string; size?: string };
   /** Routed GitHub event — renders as a typographic system line, not a bot message. */
   githubEvent?: { text: string; meta: string };
+  /** Call history entry — logged into the conversation when a call ends. */
+  call?: { kind: "voice" | "video"; duration?: string; missed?: boolean };
 }
 
 /* ── Kanban (Module: Boards) ─────────────────────────────── */

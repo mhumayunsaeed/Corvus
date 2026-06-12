@@ -15,9 +15,20 @@ import {
   PenLine,
   Maximize2,
   X,
+  AudioLines,
+  Check,
 } from "lucide-react";
 import { Avatar } from "@/components/ui";
 import { CanvasView } from "./CanvasView";
+import {
+  NOISE_SUPPRESSION_LEVELS,
+  acquireMic,
+  getNoiseSuppressionLevel,
+  onNoiseSuppressionChange,
+  setNoiseSuppressionLevel,
+  type MicSession,
+  type NoiseSuppressionLevel,
+} from "@/lib/noise-suppression";
 import type { VoiceParticipant } from "./types";
 
 /**
@@ -48,37 +59,51 @@ function mediaToast(title: string, body: string) {
  * released when the surface unmounts.
  */
 export function useCallControls(initial?: Partial<CallControlsState>) {
-  const [state, setState] = useState<CallControlsState>({
-    muted: false,
-    deafened: false,
-    camera: false,
-    sharing: false,
-    whiteboard: false,
-    ...initial,
+  const [state, setState] = useState<CallControlsState>(() => {
+    const s = {
+      muted: false,
+      deafened: false,
+      camera: false,
+      sharing: false,
+      whiteboard: false,
+      ...initial,
+    };
+    if (s.deafened) s.muted = true;
+    return s;
   });
   const [camStream, setCamStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  const micRef = useRef<MediaStream | null>(null);
+  const micRef = useRef<MicSession | null>(null);
+  const mutedRef = useRef(Boolean(initial?.muted || initial?.deafened));
+  const [nsLevel, setNsLevel] = useState<NoiseSuppressionLevel>("standard");
 
-  // Join: acquire the microphone (best effort — UI still works without it).
+  // Follow the user's noise-suppression choice — including mid-call changes.
+  useEffect(() => {
+    setNsLevel(getNoiseSuppressionLevel());
+    return onNoiseSuppressionChange(setNsLevel);
+  }, []);
+
+  // Join (and re-join on suppression change): acquire the microphone through
+  // the noise-suppression engine. Best effort — UI still works without it.
   useEffect(() => {
     let cancelled = false;
-    navigator.mediaDevices
-      ?.getUserMedia({ audio: true })
-      .then((s) => {
+    acquireMic(nsLevel)
+      .then((session) => {
         if (cancelled) {
-          s.getTracks().forEach((t) => t.stop());
+          session.dispose();
           return;
         }
-        micRef.current = s;
+        // Joining muted/deafened (e.g. from the dock) keeps the mic dark.
+        session.setEnabled(!mutedRef.current);
+        micRef.current = session;
       })
       .catch(() => mediaToast("Microphone unavailable", "Check browser permissions to talk."));
     return () => {
       cancelled = true;
-      micRef.current?.getTracks().forEach((t) => t.stop());
+      micRef.current?.dispose();
       micRef.current = null;
     };
-  }, []);
+  }, [nsLevel]);
 
   // If the camera turns on at join (video call), acquire immediately.
   const wantsInitialCamera = useRef(Boolean(initial?.camera));
@@ -142,10 +167,9 @@ export function useCallControls(initial?: Partial<CallControlsState>) {
       const next = { ...s, [key]: !s[key] };
       // Deafening implies muting — undeafening leaves mute as-is (familiar semantics).
       if (key === "deafened" && next.deafened) next.muted = true;
-      // Apply mic state to the real tracks.
-      micRef.current?.getAudioTracks().forEach((t) => {
-        t.enabled = !next.muted;
-      });
+      // Apply mic state to the live session (survives re-acquisition).
+      mutedRef.current = next.muted;
+      micRef.current?.setEnabled(!next.muted);
       return next;
     });
   };
@@ -154,7 +178,16 @@ export function useCallControls(initial?: Partial<CallControlsState>) {
 }
 
 /** Bind a MediaStream to a <video> element. */
-function VideoSurface({ stream, mirror }: { stream: MediaStream; mirror?: boolean }) {
+function VideoSurface({
+  stream,
+  mirror,
+  fit = "cover",
+}: {
+  stream: MediaStream;
+  mirror?: boolean;
+  /** cover crops (camera tiles); contain letterboxes (screen shares). */
+  fit?: "cover" | "contain";
+}) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     if (ref.current) ref.current.srcObject = stream;
@@ -165,7 +198,11 @@ function VideoSurface({ stream, mirror }: { stream: MediaStream; mirror?: boolea
       autoPlay
       playsInline
       muted
-      className={cn("absolute inset-0 h-full w-full object-cover", mirror && "scale-x-[-1]")}
+      className={cn(
+        "absolute inset-0 h-full w-full",
+        fit === "contain" ? "object-contain" : "object-cover",
+        mirror && "scale-x-[-1]"
+      )}
     />
   );
 }
@@ -250,6 +287,7 @@ export function ScreenShareStage({
   self,
   stream,
   onStop,
+  className,
 }: {
   presenterName: string;
   /** True when the local user is the presenter. */
@@ -257,11 +295,17 @@ export function ScreenShareStage({
   /** Live display-capture stream — rendered in the stage. */
   stream?: MediaStream | null;
   onStop?: () => void;
+  className?: string;
 }) {
   return (
-    <div className="group/stage relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-bg-deep">
+    <div
+      className={cn(
+        "group/stage relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-bg-deep",
+        className
+      )}
+    >
       {stream ? (
-        <VideoSurface stream={stream} />
+        <VideoSurface stream={stream} fit="contain" />
       ) : (
         <div className="flex flex-col items-center gap-2">
           <MonitorUp size={22} className="text-text-faint" />
@@ -295,7 +339,14 @@ export function ScreenShareStage({
 
 /* ── Whiteboard layer ───────────────────────────────────────────────── */
 
-export function WhiteboardLayer({ onClose }: { onClose: () => void }) {
+export function WhiteboardLayer({
+  onClose,
+  storageKey,
+}: {
+  onClose: () => void;
+  /** Persist drawings under this key (e.g. the call's conversation id). */
+  storageKey?: string;
+}) {
   return (
     <div className="absolute inset-0 z-20 flex flex-col bg-background">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-border px-3">
@@ -312,7 +363,7 @@ export function WhiteboardLayer({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       <div className="min-h-0 flex-1">
-        <CanvasView channelName="whiteboard" bare />
+        <CanvasView channelName="whiteboard" bare storageKey={storageKey} />
       </div>
     </div>
   );
@@ -377,6 +428,7 @@ export function CallControls({
       >
         <PenLine size={18} />
       </ControlButton>
+      <NoiseSuppressionMenu size={size} />
       <button
         type="button"
         aria-label="Leave call"
@@ -389,6 +441,61 @@ export function CallControls({
         <PhoneOff size={18} />
       </button>
     </>
+  );
+}
+
+/** In-call noise-suppression picker — same engine the dock controls. */
+export function NoiseSuppressionMenu({ size = "h-10 w-10" }: { size?: string }) {
+  const [open, setOpen] = useState(false);
+  const [level, setLevel] = useState<NoiseSuppressionLevel>("standard");
+
+  useEffect(() => {
+    setLevel(getNoiseSuppressionLevel());
+    return onNoiseSuppressionChange(setLevel);
+  }, []);
+
+  return (
+    <div className="relative">
+      <ControlButton
+        size={size}
+        active={level !== "off"}
+        label={`Noise suppression — ${level}`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <AudioLines size={18} />
+      </ControlButton>
+      {open && (
+        <div
+          className="absolute bottom-full left-1/2 z-40 mb-2 w-[230px] -translate-x-1/2 rounded-[10px] border border-border bg-surface-overlay p-1"
+          style={{ boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}
+        >
+          <p className="px-2.5 pb-1 pt-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-text-muted">
+            Noise suppression
+          </p>
+          {NOISE_SUPPRESSION_LEVELS.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              onClick={() => {
+                setNoiseSuppressionLevel(l.id);
+                setOpen(false);
+              }}
+              className={cn(
+                "flex w-full items-start gap-2.5 rounded-sm px-2.5 py-1.5 text-left transition-colors hover:bg-hover-row"
+              )}
+            >
+              <span className="w-3.5 pt-0.5">
+                {level === l.id && <Check size={13} className="text-accent" />}
+              </span>
+              <span className="min-w-0 leading-tight">
+                <span className="block text-[13px] text-text-primary">{l.label}</span>
+                <span className="block text-[11px] text-text-muted">{l.description}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

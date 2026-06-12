@@ -17,10 +17,16 @@ export function HomeView({
   data,
   onOpenChannel,
   onOpenDM,
+  onSendFriendRequest,
+  onAcceptFriend,
+  onDeclineFriend,
 }: {
   data: AppShellData;
   onOpenChannel?: (spaceId: string, channelId: string) => void;
   onOpenDM?: (friendId: string) => void;
+  onSendFriendRequest?: (username: string) => void;
+  onAcceptFriend?: (id: string) => void;
+  onDeclineFriend?: (id: string) => void;
 }) {
   const [tab, setTab] = useState<HomeTab>("overview");
 
@@ -80,7 +86,15 @@ export function HomeView({
       </div>
 
       {tab === "friends" ? (
-        <FriendsView friends={friends} embedded onMessage={onOpenDM} onCall={onOpenDM} />
+        <FriendsView
+          friends={friends}
+          embedded
+          onMessage={onOpenDM}
+          onCall={onOpenDM}
+          onSendRequest={onSendFriendRequest}
+          onAccept={onAcceptFriend}
+          onDecline={onDeclineFriend}
+        />
       ) : (
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[760px] px-6 py-8">
@@ -116,7 +130,7 @@ export function HomeView({
                     onClick={() => onOpenChannel?.(ch.spaceId, ch.id)}
                     className="flex h-10 w-full items-center gap-3 border-b border-border px-1 text-left transition-colors hover:bg-hover-row"
                   >
-                    <ChannelGlyph type={ch.type} size={11} />
+                    <ChannelGlyph type={ch.type} size={13} />
                     <span
                       className={cn(
                         "min-w-0 flex-1 truncate text-[14px]",
@@ -149,7 +163,7 @@ export function HomeView({
                     onClick={() => onOpenChannel?.(channel.spaceId, channel.id)}
                     className="flex h-12 w-full items-center gap-3 border-b border-border px-1 text-left transition-colors hover:bg-hover-row"
                   >
-                    <ChannelGlyph type="voice" size={12} />
+                    <ChannelGlyph type="voice" size={13} />
                     <span className="min-w-0 flex-1 truncate text-[14px] text-text-primary">
                       {channel.name}
                     </span>

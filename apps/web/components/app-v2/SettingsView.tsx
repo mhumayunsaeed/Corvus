@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { cn } from "@corvus/ui";
-import { X } from "lucide-react";
-import { Avatar, Input } from "@/components/ui";
+import { X, Trash2 } from "lucide-react";
+import { Avatar, ChannelGlyph, Input } from "@/components/ui";
 import { AutomationsSettings, WebhooksSettings } from "./AutomationsSettings";
 import {
   MyAccountSettings,
@@ -15,7 +15,7 @@ import {
   DevicesSettings,
   AdvancedSettings,
 } from "./UserSettings";
-import type { MemberRef } from "./types";
+import type { ChannelSection, MemberRef } from "./types";
 
 /**
  * Settings (brief §Settings). Two-column layout — 240px nav + content — not a
@@ -24,18 +24,35 @@ import type { MemberRef } from "./types";
 const SECTIONS = [
   { group: "User", items: ["My Account", "Profile", "Privacy"] },
   { group: "App", items: ["Notifications", "Appearance", "Keybindings"] },
-  { group: "Space", items: ["Space profile", "Members", "Integrations", "Automations", "Webhooks"] },
+  {
+    group: "Space",
+    items: ["Space profile", "Channels", "Members", "Integrations", "Automations", "Webhooks", "Danger zone"],
+  },
   { group: "System", items: ["Devices", "Advanced"] },
 ];
 
 export function SettingsView({
   spaceName,
+  sections,
   members,
   onClose,
+  onRenameSpace,
+  onDeleteSpace,
+  onDeleteChannel,
+  onAddChannel,
+  onRemoveMember,
 }: {
   spaceName?: string;
+  /** The active space's sections — powers the Channels overview. */
+  sections?: ChannelSection[];
   members?: MemberRef[];
   onClose?: () => void;
+  onRenameSpace?: (name: string) => void;
+  onDeleteSpace?: () => void;
+  onDeleteChannel?: (channelId: string) => void;
+  /** Open the add-channel dialog for a section. */
+  onAddChannel?: (sectionId: string) => void;
+  onRemoveMember?: (memberId: string) => void;
 }) {
   const [active, setActive] = useState("My Account");
 
@@ -84,9 +101,17 @@ export function SettingsView({
           <div className="mt-4 h-px bg-border" />
 
           {active === "Space profile" ? (
-            <SpaceProfileSettings spaceName={spaceName} />
+            <SpaceProfileSettings spaceName={spaceName} onRename={onRenameSpace} />
+          ) : active === "Channels" ? (
+            <ChannelsSettings
+              sections={sections ?? []}
+              onDeleteChannel={onDeleteChannel}
+              onAddChannel={onAddChannel}
+            />
           ) : active === "Members" ? (
-            <MembersSettings members={members ?? []} />
+            <MembersSettings members={members ?? []} onRemove={onRemoveMember} />
+          ) : active === "Danger zone" ? (
+            <DangerZoneSettings spaceName={spaceName} onDeleteSpace={onDeleteSpace} />
           ) : active === "Automations" ? (
             <AutomationsSettings />
           ) : active === "Webhooks" ? (
@@ -117,13 +142,41 @@ export function SettingsView({
 }
 
 /** Space profile — name + invite link. The space's identity, no banner art. */
-function SpaceProfileSettings({ spaceName }: { spaceName?: string }) {
+function SpaceProfileSettings({
+  spaceName,
+  onRename,
+}: {
+  spaceName?: string;
+  onRename?: (name: string) => void;
+}) {
   const [copied, setCopied] = useState(false);
+  const [name, setName] = useState(spaceName ?? "Space");
+  const [saved, setSaved] = useState(false);
   const invite = "https://corvus.app/join/3f9a2c";
+  const dirty = name.trim() !== (spaceName ?? "Space") && name.trim().length > 0;
   return (
     <div className="mt-6 flex flex-col gap-6">
       <Field label="Space name" hint="Shown in the rail and at the top of the panel.">
-        <Input defaultValue={spaceName ?? "Space"} />
+        <div className="flex gap-2">
+          <Input value={name} onChange={(e) => setName(e.target.value)} />
+          <button
+            type="button"
+            disabled={!dirty}
+            onClick={() => {
+              onRename?.(name.trim());
+              setSaved(true);
+              setTimeout(() => setSaved(false), 1500);
+            }}
+            className={cn(
+              "h-9 shrink-0 rounded-md px-3 text-[13px] font-medium transition-colors",
+              dirty
+                ? "bg-accent text-on-accent hover:bg-accent-violet-bright"
+                : "border border-border text-text-faint"
+            )}
+          >
+            {saved ? "Saved" : "Save"}
+          </button>
+        </div>
       </Field>
       <div>
         <p className="mb-1.5 font-mono text-[12px] uppercase tracking-[0.08em] text-text-secondary">
@@ -153,8 +206,123 @@ function SpaceProfileSettings({ spaceName }: { spaceName?: string }) {
   );
 }
 
+/** Channels overview — every section and channel, with add and delete. */
+function ChannelsSettings({
+  sections,
+  onDeleteChannel,
+  onAddChannel,
+}: {
+  sections: ChannelSection[];
+  onDeleteChannel?: (channelId: string) => void;
+  onAddChannel?: (sectionId: string) => void;
+}) {
+  return (
+    <div className="mt-6 flex flex-col gap-6">
+      {sections.map((section) => (
+        <div key={section.id}>
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted">
+              {section.name} — {section.channels.length}
+            </p>
+            {onAddChannel && (
+              <button
+                type="button"
+                onClick={() => onAddChannel(section.id)}
+                className="h-6 rounded-sm px-2 text-[12px] text-text-secondary transition-colors hover:bg-hover-row hover:text-text-primary"
+              >
+                + Add channel
+              </button>
+            )}
+          </div>
+          <div className="mt-1 flex flex-col">
+            {section.channels.map((ch) => (
+              <div
+                key={ch.id}
+                className="group flex h-10 items-center gap-2.5 border-b border-border px-1 transition-colors last:border-b-0 hover:bg-hover-row"
+              >
+                <ChannelGlyph type={ch.type} size={14} />
+                <span className="min-w-0 flex-1 truncate text-[14px] text-text-primary">{ch.name}</span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-text-faint">
+                  {ch.type}
+                </span>
+                {onDeleteChannel && (
+                  <button
+                    type="button"
+                    aria-label={`Delete ${ch.name}`}
+                    onClick={() => onDeleteChannel(ch.id)}
+                    className="hidden h-7 w-7 items-center justify-center rounded-sm text-danger transition-colors hover:bg-danger/10 group-hover:flex"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      {sections.length === 0 && (
+        <p className="text-[13px] text-text-muted">Open a space to manage its channels.</p>
+      )}
+    </div>
+  );
+}
+
+/** Danger zone — destructive space actions, kept behind an explicit confirm. */
+function DangerZoneSettings({
+  spaceName,
+  onDeleteSpace,
+}: {
+  spaceName?: string;
+  onDeleteSpace?: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <div className="mt-6">
+      <div className="rounded-[10px] border border-danger/30 p-4">
+        <p className="text-[14px] font-medium text-text-primary">Delete this space</p>
+        <p className="mt-1 text-[12px] leading-relaxed text-text-muted">
+          Removes {spaceName ?? "this space"} and all of its channels from your workspace. This
+          cannot be undone.
+        </p>
+        {confirming ? (
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={onDeleteSpace}
+              className="h-8 rounded-md bg-danger px-3 text-[13px] font-medium text-white transition-colors hover:bg-danger/85"
+            >
+              Yes, delete {spaceName ?? "space"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="h-8 rounded-md border border-border px-3 text-[13px] text-text-secondary transition-colors hover:border-border-active hover:text-text-primary"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="mt-3 h-8 rounded-md border border-danger/40 px-3 text-[13px] font-medium text-danger transition-colors hover:bg-danger/10"
+          >
+            Delete space
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Space members — roles as quiet mono chips, actions on hover. */
-function MembersSettings({ members }: { members: MemberRef[] }) {
+function MembersSettings({
+  members,
+  onRemove,
+}: {
+  members: MemberRef[];
+  onRemove?: (memberId: string) => void;
+}) {
   return (
     <div className="mt-6">
       <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted">
@@ -176,6 +344,7 @@ function MembersSettings({ members }: { members: MemberRef[] }) {
             </span>
             <button
               type="button"
+              onClick={() => onRemove?.(m.id)}
               className="hidden h-7 rounded-sm px-2 text-[12px] text-danger transition-colors hover:bg-danger/10 group-hover:block"
             >
               Remove

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Search, Pin, Phone, Video } from "lucide-react";
+import { Users, Search, Pin, Phone, Video, AtSign } from "lucide-react";
 import { ChannelGlyph, type ChannelType } from "@/components/ui";
 import type { Attachment, ChatMessage, MemberRef } from "./types";
 import { Composer } from "./Composer";
@@ -54,9 +54,9 @@ export function MessageArea({
     <section className="flex h-full min-w-0 flex-1 flex-col bg-background">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
         {dm ? (
-          <span aria-hidden className="font-mono text-[14px] leading-none text-text-muted">@</span>
+          <AtSign aria-hidden size={16} className="shrink-0 text-text-muted" />
         ) : (
-          <ChannelGlyph type={channelType} size={14} />
+          <ChannelGlyph type={channelType} size={16} />
         )}
         <h1 className="text-[15px] font-semibold text-text-primary">{channelName}</h1>
         {topic && (
@@ -83,7 +83,7 @@ export function MessageArea({
 
       <div className="flex flex-1 flex-col overflow-y-auto py-4">
         {messages.length === 0 ? (
-          <WelcomeState channelName={channelName} channelType={channelType} />
+          <WelcomeState channelName={channelName} channelType={channelType} dm={Boolean(dm)} />
         ) : (
           <MessageFeed
             messages={messages}
@@ -119,13 +119,33 @@ export function MessageArea({
   );
 }
 
-function WelcomeState({ channelName, channelType }: { channelName: string; channelType: ChannelType }) {
+function WelcomeState({
+  channelName,
+  channelType,
+  dm,
+}: {
+  channelName: string;
+  channelType: ChannelType;
+  dm?: boolean;
+}) {
   return (
-    <div className="px-4 py-8">
-      <ChannelGlyph type={channelType} size={32} />
-      <h2 className="mt-4 text-[24px] font-semibold text-text-primary">{channelName}</h2>
-      <p className="mt-1 text-[15px] text-text-secondary">This is the beginning of {channelName}.</p>
-      <p className="mt-0.5 text-[13px] text-text-muted">Send a message to get started.</p>
+    <div className="mt-auto px-4 pb-2 pt-12">
+      <div className="flex h-16 w-16 items-center justify-center rounded-[18px] border border-border bg-surface-raised">
+        {dm ? (
+          <AtSign aria-hidden size={26} className="text-text-muted" />
+        ) : (
+          <ChannelGlyph type={channelType} size={26} />
+        )}
+      </div>
+      <h2 className="mt-4 text-[22px] font-semibold text-text-primary">
+        {dm ? channelName : `Welcome to #${channelName}`}
+      </h2>
+      <p className="mt-1.5 max-w-[520px] text-[14px] leading-relaxed text-text-secondary">
+        {dm
+          ? `This is the beginning of your direct message history with ${channelName}.`
+          : `This is the very start of #${channelName}. Say something to get the conversation going.`}
+      </p>
+      <div className="mt-6 h-px bg-border" />
     </div>
   );
 }

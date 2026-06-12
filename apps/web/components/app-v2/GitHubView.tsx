@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { cn } from "@corvus/ui";
+import { GitPullRequest } from "lucide-react";
+import { ChannelGlyph } from "@/components/ui";
 import type { CIStatus, PullRequest, PRStatus } from "./types";
 
 type Filter = "all" | "review" | "changes" | "approved" | "merged";
@@ -26,7 +28,14 @@ const STATUS_DOT: Record<PRStatus, string> = {
  * GitHub Connect — the PR review feed (brief §GitHub). A native surface, not
  * a notification plugin: status dot, mono metadata, CI badge, review count.
  */
-export function GitHubView({ prs }: { prs: PullRequest[] }) {
+export function GitHubView({
+  prs,
+  onConnect,
+}: {
+  prs: PullRequest[];
+  /** Connect a repository — shown when the channel has no feed yet. */
+  onConnect?: () => void;
+}) {
   const [filter, setFilter] = useState<Filter>("all");
 
   const visible = prs.filter((pr) => {
@@ -37,10 +46,38 @@ export function GitHubView({ prs }: { prs: PullRequest[] }) {
     return pr.status === "merged";
   });
 
+  // Not connected yet — the setup state for freshly-created github channels.
+  if (prs.length === 0) {
+    return (
+      <section className="flex h-full min-w-0 flex-1 flex-col bg-background">
+        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
+          <ChannelGlyph type="github" size={16} />
+          <h1 className="text-[15px] font-semibold text-text-primary">Pull Requests</h1>
+        </header>
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-surface-raised">
+            <GitPullRequest size={24} className="text-text-muted" />
+          </span>
+          <p className="text-[15px] font-medium text-text-primary">Connect a repository</p>
+          <p className="max-w-[42ch] text-center text-[13px] leading-relaxed text-text-muted">
+            PRs, reviews, and CI status route into this channel once a repository is connected.
+          </p>
+          <button
+            type="button"
+            onClick={onConnect}
+            className="mt-1 h-9 rounded-md bg-accent px-4 text-[13px] font-medium text-on-accent transition-colors hover:bg-accent-violet-bright"
+          >
+            Connect GitHub
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-background">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
-        <span aria-hidden className="font-mono text-[14px] leading-none text-text-muted">↗</span>
+        <ChannelGlyph type="github" size={16} />
         <h1 className="text-[15px] font-semibold text-text-primary">Pull Requests</h1>
       </header>
 

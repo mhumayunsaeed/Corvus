@@ -1,20 +1,34 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@corvus/ui";
+import {
+  MousePointer2,
+  Hand,
+  PenLine,
+  Square,
+  Circle,
+  MoveUpRight,
+  Type,
+  StickyNote,
+  Eraser,
+  Contrast,
+  type LucideIcon,
+} from "lucide-react";
+import { ChannelGlyph } from "@/components/ui";
 
 type Tool = "select" | "hand" | "pen" | "rect" | "circle" | "arrow" | "text" | "sticky" | "eraser";
 
-const TOOLS: { id: Tool; glyph: string; label: string }[] = [
-  { id: "select", glyph: "↖", label: "Select" },
-  { id: "hand", glyph: "✥", label: "Hand" },
-  { id: "pen", glyph: "✒", label: "Pen" },
-  { id: "rect", glyph: "▭", label: "Rectangle" },
-  { id: "circle", glyph: "◯", label: "Circle" },
-  { id: "arrow", glyph: "→", label: "Arrow" },
-  { id: "text", glyph: "T", label: "Text" },
-  { id: "sticky", glyph: "▦", label: "Sticky note" },
-  { id: "eraser", glyph: "◻", label: "Eraser" },
+const TOOLS: { id: Tool; icon: LucideIcon; label: string }[] = [
+  { id: "select", icon: MousePointer2, label: "Select" },
+  { id: "hand", icon: Hand, label: "Hand" },
+  { id: "pen", icon: PenLine, label: "Pen" },
+  { id: "rect", icon: Square, label: "Rectangle" },
+  { id: "circle", icon: Circle, label: "Circle" },
+  { id: "arrow", icon: MoveUpRight, label: "Arrow" },
+  { id: "text", icon: Type, label: "Text" },
+  { id: "sticky", icon: StickyNote, label: "Sticky note" },
+  { id: "eraser", icon: Eraser, label: "Eraser" },
 ];
 
 interface Shape {
@@ -37,10 +51,13 @@ interface Shape {
 export function CanvasView({
   channelName,
   bare,
+  storageKey,
 }: {
   channelName: string;
   /** Skip the channel header — used when embedded as a call whiteboard. */
   bare?: boolean;
+  /** Persist drawings under this key (e.g. the channel id). */
+  storageKey?: string;
 }) {
   const [tool, setTool] = useState<Tool>("pen");
   const [shapes, setShapes] = useState<Shape[]>([]);
@@ -50,6 +67,28 @@ export function CanvasView({
   const svgRef = useRef<SVGSVGElement>(null);
   const panStart = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const erasing = useRef(false);
+  const loaded = useRef(false);
+
+  // Persisted drawings — load once, then write through.
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const raw = localStorage.getItem(`corvus-canvas-${storageKey}`);
+      if (raw) setShapes(JSON.parse(raw) as Shape[]);
+    } catch {
+      /* corrupt cache — start clean */
+    }
+    loaded.current = true;
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!storageKey || !loaded.current) return;
+    try {
+      localStorage.setItem(`corvus-canvas-${storageKey}`, JSON.stringify(shapes));
+    } catch {
+      /* storage full — keep drawing in memory */
+    }
+  }, [shapes, storageKey]);
 
   const toCanvas = (e: React.PointerEvent) => {
     const rect = svgRef.current!.getBoundingClientRect();
@@ -129,7 +168,7 @@ export function CanvasView({
     >
       {!bare && (
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
-          <span aria-hidden className="font-mono text-[14px] leading-none text-text-muted">◈</span>
+          <ChannelGlyph type="canvas" size={16} />
           <h1 className="text-[15px] font-semibold text-text-primary">{channelName}</h1>
           <span className="ml-auto font-mono text-[11px] text-text-muted">{shapes.length} objects</span>
         </header>
@@ -164,8 +203,16 @@ export function CanvasView({
           </g>
         </svg>
 
-        {/* Vertical toolbar — left edge */}
-        <div className="absolute left-3 top-1/2 flex -translate-y-1/2 flex-col gap-0.5 rounded-[10px] border border-border bg-surface-overlay p-1">
+        {/* Toolbar — vertical on the left edge; horizontal and compact when
+            embedded as a call whiteboard so it never outgrows the stage. */}
+        <div
+          className={cn(
+            "absolute flex rounded-[10px] border border-border bg-surface-overlay p-1",
+            bare
+              ? "left-1/2 top-2 -translate-x-1/2 flex-row items-center gap-0.5"
+              : "left-3 top-1/2 -translate-y-1/2 flex-col gap-0.5"
+          )}
+        >
           {TOOLS.map((t) => (
             <button
               key={t.id}
@@ -175,16 +222,17 @@ export function CanvasView({
               data-active={tool === t.id}
               onClick={() => setTool(t.id)}
               className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-sm font-mono text-[15px] transition-colors",
+                "flex items-center justify-center rounded-sm transition-colors",
+                bare ? "h-8 w-8" : "h-9 w-9",
                 tool === t.id
                   ? "bg-accent/10 text-accent"
                   : "text-text-secondary hover:bg-hover-row hover:text-text-primary"
               )}
             >
-              {t.glyph}
+              <t.icon size={16} />
             </button>
           ))}
-          <div className="mx-1 my-1 h-px bg-border" />
+          <div className={cn("bg-border", bare ? "mx-1 my-1 w-px self-stretch" : "mx-1 my-1 h-px")} />
           <button
             type="button"
             aria-label={lightBoard ? "Dark board" : "White board"}
@@ -192,13 +240,14 @@ export function CanvasView({
             aria-pressed={lightBoard}
             onClick={() => setLightBoard((v) => !v)}
             className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-sm font-mono text-[15px] transition-colors",
+              "flex items-center justify-center rounded-sm transition-colors",
+              bare ? "h-8 w-8" : "h-9 w-9",
               lightBoard
                 ? "bg-accent/10 text-accent"
                 : "text-text-secondary hover:bg-hover-row hover:text-text-primary"
             )}
           >
-            ◐
+            <Contrast size={16} />
           </button>
         </div>
       </div>

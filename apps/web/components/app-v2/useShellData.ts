@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useAppStore } from "@/stores/app-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
+import { useWorkspaceStore, type WorkspaceState } from "@/stores/workspace-store";
 import type {
   ChannelData,
   DMConversationData,
@@ -14,6 +15,79 @@ import type { ChannelType } from "@/components/ui";
 import type { AppShellData } from "./AppShell";
 import type { ChatMessage, DMSummary, MemberRef, Presence } from "./types";
 import { SAMPLE_DATA } from "./sample-data";
+
+/**
+ * Layer locally-created workspace entities (spaces, channels, group DMs,
+ * friend-request state) over the base shell data — same idea as the chat echo
+ * layers, but for structure.
+ */
+function applyWorkspace(base: AppShellData, ws: WorkspaceState): AppShellData {
+  const removedSpaces = new Set(ws.removedSpaceIds);
+  const removedChannels = new Set(ws.removedChannelIds);
+
+  const spaces = [...base.spaces, ...ws.localSpaces]
+    .filter((s) => !removedSpaces.has(s.id))
+    .map((s) => (ws.spaceRenames[s.id] ? { ...s, name: ws.spaceRenames[s.id] } : s));
+
+  const sectionsBySpace: AppShellData["sectionsBySpace"] = {
+    ...base.sectionsBySpace,
+    ...ws.localSections,
+  };
+  for (const { spaceId, section } of ws.addedSections) {
+    sectionsBySpace[spaceId] = [...(sectionsBySpace[spaceId] ?? []), section];
+  }
+  const mergedSections: AppShellData["sectionsBySpace"] = {};
+  for (const [spaceId, sections] of Object.entries(sectionsBySpace)) {
+    mergedSections[spaceId] = sections.map((sec) => {
+      const added = ws.addedChannels
+        .filter((a) => a.spaceId === spaceId && a.sectionId === sec.id)
+        .map((a) => a.channel);
+      return {
+        ...sec,
+        channels: [...sec.channels, ...added].filter((c) => !removedChannels.has(c.id)),
+      };
+    });
+  }
+
+  const friends = [...(base.friends ?? []), ...ws.addedFriends]
+    .filter((f) => ws.friendStates[f.id] !== "removed")
+    .map((f) => (ws.friendStates[f.id] === "accepted" ? { ...f, pending: undefined } : f));
+
+  // My status propagates everywhere I appear: the dock, member lists, feeds.
+  const me = ws.myStatus
+    ? {
+        ...base.me,
+        presence: ws.myStatus.presence,
+        statusText: ws.myStatus.text || ws.myStatus.presence,
+      }
+    : base.me;
+
+  const membersBySpace: AppShellData["membersBySpace"] = {};
+  for (const [spaceId, members] of Object.entries(base.membersBySpace)) {
+    const removed = new Set(ws.removedMembers[spaceId] ?? []);
+    membersBySpace[spaceId] = members
+      .filter((m) => !removed.has(m.id))
+      .map((m) => (ws.myStatus && m.id === base.me.id ? { ...m, presence: ws.myStatus.presence } : m));
+  }
+
+  return {
+    ...base,
+    me,
+    spaces,
+    sectionsBySpace: mergedSections,
+    dmConversations: [...ws.localConvos, ...(base.dmConversations ?? [])],
+    friends,
+    membersBySpace,
+    boardsByChannel: { ...base.boardsByChannel, ...ws.localBoards, ...ws.boardOverrides },
+    docsByChannel: { ...base.docsByChannel, ...ws.docsOverrides },
+    incidentsByChannel: {
+      ...base.incidentsByChannel,
+      ...ws.localIncidents,
+      ...ws.incidentOverrides,
+    },
+    prsByChannel: { ...base.prsByChannel, ...ws.localPRs },
+  };
+}
 
 function toChannelType(type: string): ChannelType {
   switch (type) {
@@ -102,10 +176,16 @@ export function useShellData(): { data: AppShellData; live: boolean } {
   const activeServerId = useAppStore((s) => s.activeServerId);
   const dmConversations = useAppStore((s) => s.dmConversations);
   const chatMessages = useChatStore((s) => s.messages);
+  const workspace = useWorkspaceStore();
+
+  // skipHydration store — load persisted creations after mount (SSR-safe).
+  useEffect(() => {
+    void useWorkspaceStore.persist.rehydrate();
+  }, []);
 
   return useMemo(() => {
     if (!user || servers.length === 0) {
-      return { data: SAMPLE_DATA, live: false };
+      return { data: applyWorkspace(SAMPLE_DATA, workspace), live: false };
     }
 
     const sectionsBySpace: AppShellData["sectionsBySpace"] = {};
@@ -155,6 +235,6 @@ export function useShellData(): { data: AppShellData; live: boolean } {
       dmConversations: dmConversations.map((c) => dmToSummary(c, user.id)),
     };
 
-    return { data, live: true };
-  }, [user, servers, channelsByServer, channels, activeServerId, dmConversations, chatMessages]);
+    return { data: applyWorkspace(data, workspace), live: true };
+  }, [user, servers, channelsByServer, channels, activeServerId, dmConversations, chatMessages, workspace]);
 }

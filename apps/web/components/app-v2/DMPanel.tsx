@@ -1,9 +1,11 @@
 "use client";
 
 import { cn } from "@corvus/ui";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { Avatar } from "@/components/ui";
-import type { DMSummary, Presence } from "./types";
+import { ItemLink } from "./ItemLink";
+import { UserDock } from "./UserDock";
+import type { DMSummary, MemberRef, Presence } from "./types";
 
 const DOT: Record<Presence, string> = {
   online: "bg-status-online",
@@ -20,15 +22,47 @@ export function DMPanel({
   conversations,
   activeId,
   onSelect,
+  onNewConversation,
+  conversationHref,
+  me,
+  muted,
+  deafened,
+  onToggleMute,
+  onToggleDeafen,
+  onOpenSettings,
+  onSetStatus,
 }: {
   conversations: DMSummary[];
   activeId?: string;
   onSelect?: (id: string) => void;
+  /** Open the new DM / group DM dialog. */
+  onNewConversation?: () => void;
+  /** Real href per conversation (routed shell) — rows render as anchors. */
+  conversationHref?: (id: string) => string;
+  /** Personal dock (same as the space sidebar). */
+  me?: MemberRef & { statusText?: string };
+  muted?: boolean;
+  deafened?: boolean;
+  onToggleMute?: () => void;
+  onToggleDeafen?: () => void;
+  onOpenSettings?: () => void;
+  onSetStatus?: (presence: Presence, text?: string) => void;
 }) {
   return (
     <aside className="flex h-full w-[260px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface-raised">
       <div className="px-4 pb-2 pt-3.5">
-        <h2 className="text-[15px] font-semibold text-text-primary">Direct Messages</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-[15px] font-semibold text-text-primary">Direct Messages</h2>
+          <button
+            type="button"
+            aria-label="New conversation"
+            title="New DM or group"
+            onClick={onNewConversation}
+            className="flex h-6 w-6 items-center justify-center rounded-sm text-text-faint transition-colors hover:bg-hover-row hover:text-text-primary"
+          >
+            <Plus size={15} />
+          </button>
+        </div>
         <div className="mt-3 flex h-8 items-center gap-2 rounded-md border border-border bg-surface-overlay px-2.5">
           <Search size={14} className="text-text-faint" />
           <input
@@ -40,11 +74,12 @@ export function DMPanel({
 
       <div className="flex-1 overflow-y-auto py-1">
         {conversations.map((c) => (
-          <button
+          <ItemLink
             key={c.id}
-            type="button"
-            data-active={c.id === activeId}
-            onClick={() => onSelect?.(c.id)}
+            href={conversationHref?.(c.id)}
+            onPress={() => onSelect?.(c.id)}
+            active={c.id === activeId}
+            current={c.id === activeId}
             className={cn(
               "mx-2 flex h-11 w-[calc(100%-16px)] items-center gap-2.5 rounded-sm px-2 transition-colors",
               c.id === activeId ? "bg-surface-overlay" : "hover:bg-hover-row"
@@ -75,9 +110,21 @@ export function DMPanel({
             ) : c.lastLabel ? (
               <span className="font-mono text-[11px] text-text-faint">{c.lastLabel}</span>
             ) : null}
-          </button>
+          </ItemLink>
         ))}
       </div>
+
+      {me && (
+        <UserDock
+          me={me}
+          muted={muted}
+          deafened={deafened}
+          onToggleMute={onToggleMute}
+          onToggleDeafen={onToggleDeafen}
+          onOpenSettings={onOpenSettings}
+          onSetStatus={onSetStatus}
+        />
+      )}
     </aside>
   );
 }

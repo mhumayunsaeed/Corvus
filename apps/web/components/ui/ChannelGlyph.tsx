@@ -1,9 +1,18 @@
 import { cn } from "@corvus/ui";
+import {
+  Hash,
+  Volume2,
+  Radio,
+  Megaphone,
+  SquareKanban,
+  FileText,
+  Presentation,
+  GitPullRequest,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 
-/**
- * The signature typographic channel indicator. A monospace character does the
- * job of an icon but reads as native to the text — not pasted on. (brief §SpacePanel)
- */
+/** The channel-type indicator — one icon per channel kind. (brief §SpacePanel) */
 export type ChannelType =
   | "text"
   | "voice"
@@ -15,16 +24,16 @@ export type ChannelType =
   | "github"
   | "incident";
 
-const GLYPH: Record<ChannelType, string> = {
-  text: "—", // em-dash
-  voice: "◎", // circle with dot
-  stage: "◈",
-  announcement: "↗",
-  board: "▦", // kanban
-  docs: "↗",
-  canvas: "◈",
-  github: "↗",
-  incident: "!",
+const ICON: Record<ChannelType, LucideIcon> = {
+  text: Hash,
+  voice: Volume2,
+  stage: Radio,
+  announcement: Megaphone,
+  board: SquareKanban,
+  docs: FileText,
+  canvas: Presentation,
+  github: GitPullRequest,
+  incident: TriangleAlert,
 };
 
 export function ChannelGlyph({
@@ -36,17 +45,16 @@ export function ChannelGlyph({
   className?: string;
   size?: number;
 }) {
+  const Icon = ICON[type];
   return (
-    <span
+    <Icon
       aria-hidden
+      size={size}
       className={cn(
-        "font-mono leading-none select-none",
+        "shrink-0",
         type === "incident" ? "text-danger" : "text-text-muted",
         className
       )}
-      style={{ fontSize: size }}
-    >
-      {GLYPH[type]}
-    </span>
+    />
   );
 }
