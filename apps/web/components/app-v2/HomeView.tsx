@@ -18,6 +18,7 @@ export function HomeView({
   data,
   onOpenChannel,
   onOpenDM,
+  onCallFriend,
   onSendFriendRequest,
   onSearchFriendUsers,
   onAcceptFriend,
@@ -26,6 +27,7 @@ export function HomeView({
   data: AppShellData;
   onOpenChannel?: (spaceId: string, channelId: string) => void;
   onOpenDM?: (friendId: string) => void;
+  onCallFriend?: (friendId: string) => void;
   onSendFriendRequest?: (target: string) => void;
   onSearchFriendUsers?: (query: string) => Promise<FriendSearchResult[]>;
   onAcceptFriend?: (id: string) => void;
@@ -93,7 +95,7 @@ export function HomeView({
           friends={friends}
           embedded
           onMessage={onOpenDM}
-          onCall={onOpenDM}
+          onCall={onCallFriend}
           onSendRequest={onSendFriendRequest}
           onSearchUsers={onSearchFriendUsers}
           onAccept={onAcceptFriend}

@@ -132,6 +132,24 @@ function buildDirectKey(a: string, b: string) {
     return [a, b].sort().join(":");
 }
 
+function isMissingTableError(error: unknown): boolean {
+    const err = error as { code?: string; message?: string } | null;
+    return (
+        err?.code === "P2021" ||
+        Boolean(err?.message?.includes("does not exist") || err?.message?.includes("not exist"))
+    );
+}
+
+async function optionalBlockFindFirst(args: unknown) {
+    if (typeof db.block === "undefined") return null;
+    try {
+        return await db.block.findFirst(args);
+    } catch (error) {
+        if (isMissingTableError(error)) return null;
+        throw error;
+    }
+}
+
 function mapConversation(conversation: any) {
     return {
         id: conversation.id,
@@ -257,7 +275,7 @@ dms.post("/dms", async (c) => {
         return c.json({ error: "You can only create DMs with your friends." }, 403);
     }
 
-    const blocked = await db.block.findFirst({
+    const blocked = await optionalBlockFindFirst({
         where: {
             OR: [
                 {

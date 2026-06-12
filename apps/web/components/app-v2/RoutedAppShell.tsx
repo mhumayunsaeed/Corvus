@@ -5,7 +5,15 @@ import { useParams, useRouter } from "next/navigation";
 import { useAppStore } from "@/stores/app-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { fetchChannels, fetchMessages, fetchServers, fetchWorkspaceModules, fetchFriendDashboard } from "@/lib/api";
+import {
+  fetchChannels,
+  fetchDMConversations,
+  fetchDMMessages,
+  fetchMessages,
+  fetchServers,
+  fetchWorkspaceModules,
+  fetchFriendDashboard,
+} from "@/lib/api";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { AppShell } from "./AppShell";
 import { useShellData } from "./useShellData";
@@ -64,6 +72,7 @@ export function RoutedAppShell({ isDemo = false }: { isDemo?: boolean }) {
   const user = useAuthStore((s) => s.user);
   const setServers = useAppStore((s) => s.setServers);
   const setChannels = useAppStore((s) => s.setChannels);
+  const setDMConversations = useAppStore((s) => s.setDMConversations);
   const setWorkspaceModules = useAppStore((s) => s.setWorkspaceModules);
   const setFriends = useAppStore((s) => s.setFriends);
   const channelsByServer = useAppStore((s) => s.channelsByServer);
@@ -113,6 +122,19 @@ export function RoutedAppShell({ isDemo = false }: { isDemo?: boolean }) {
       cancelled = true;
     };
   }, [isAuthenticated, setFriends]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    fetchDMConversations()
+      .then((r) => {
+        if (!cancelled) setDMConversations(r.conversations);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, setDMConversations]);
 
   useEffect(() => {
     if (!isAuthenticated || !user?.id || !isSupabaseConfigured()) return;
@@ -205,6 +227,20 @@ export function RoutedAppShell({ isDemo = false }: { isDemo?: boolean }) {
       cancelled = true;
     };
   }, [isAuthenticated, channelIdFromUrl, messages, setMessages]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !dmIdFromUrl) return;
+    if (messages[dmIdFromUrl]) return;
+    let cancelled = false;
+    fetchDMMessages(dmIdFromUrl)
+      .then((r) => {
+        if (!cancelled) setMessages(dmIdFromUrl, r.messages as never, r.nextCursor, r.hasMore);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, dmIdFromUrl, messages, setMessages]);
 
   return (
     <AppShell

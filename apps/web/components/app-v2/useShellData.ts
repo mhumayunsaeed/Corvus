@@ -167,6 +167,7 @@ function dmToSummary(c: DMConversationData, meId: string): DMSummary {
     c.name ?? (c.type === "group" ? others.map((p) => p.displayName).join(", ") : primary?.displayName ?? "Direct");
   return {
     id: c.id,
+    peerId: c.type === "direct" ? primary?.id : undefined,
     name,
     avatar: primary?.avatarUrl,
     presence: toPresence(primary?.status),

@@ -51,6 +51,7 @@ import {
   updateServer as updateServerApi,
   addReaction as addChannelReactionApi,
   removeReaction as removeChannelReactionApi,
+  createDMConversation as createDMConversationApi,
   sendFriendRequest as sendFriendRequestApi,
   acceptFriendRequest as acceptFriendRequestApi,
   declineFriendRequest as declineFriendRequestApi,
@@ -107,6 +108,19 @@ function fmtCallDuration(totalSeconds: number) {
   const m = Math.floor(totalSeconds / 60);
   const s = totalSeconds % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function statusToPresence(status: string | undefined): Presence {
+  switch (status) {
+    case "online":
+      return "online";
+    case "idle":
+      return "idle";
+    case "dnd":
+      return "dnd";
+    default:
+      return "offline";
+  }
 }
 
 /** Demo feed for freshly-connected GitHub channels (the realtime seam). */
@@ -436,7 +450,7 @@ export function AppShell({
     }
   };
 
-  const openDMs = (conversationId?: string) => {
+  const openDMs = useCallback((conversationId?: string) => {
     if (control?.onOpenDMs) {
       control.onOpenDMs(conversationId);
       return;
@@ -444,7 +458,7 @@ export function AppShell({
     setLocalHomeActive(false);
     setLocalDmsActive(true);
     if (conversationId) setLocalDmId(conversationId);
-  };
+  }, [control]);
 
   // Merge base messages with every local layer: echoes, reactions, pins,
   // edits, deletions. One pipeline for channels, DMs, and group DMs.
@@ -608,12 +622,16 @@ export function AppShell({
 
   // Start an outgoing DM call — group DMs ring every member (the demo seam
   // for the realtime call stack).
+  const startCallForConversation = useCallback((conversation: DMSummary, video?: boolean) => {
+    const peers: CallPeer[] = conversation.group?.length
+      ? conversation.group.map((g) => ({ id: g.id, name: g.name, avatar: g.avatar }))
+      : [{ id: conversation.peerId ?? conversation.id, name: conversation.name, avatar: conversation.avatar }];
+    setCall({ conversationId: conversation.id, peers, video, name: conversation.name });
+  }, []);
+
   const startCall = (video?: boolean) => {
     if (!dmConversation) return;
-    const peers: CallPeer[] = dmConversation.group?.length
-      ? dmConversation.group.map((g) => ({ id: g.id, name: g.name, avatar: g.avatar }))
-      : [{ id: dmConversation.id, name: dmConversation.name, avatar: dmConversation.avatar }];
-    setCall({ conversationId: dmConversation.id, peers, video, name: dmConversation.name });
+    startCallForConversation(dmConversation, video);
   };
 
   // Log a call entry into a conversation's feed (history for 1:1 and groups).
@@ -667,10 +685,111 @@ export function AppShell({
       .catch(() => {});
   };
 
+  const pendingDirectDms = useRef(new Set<string>());
+
+  const findDirectDmForFriend = useCallback(
+    (friend: FriendEntry) =>
+      data.dmConversations?.find(
+        (conversation) =>
+          !conversation.group &&
+          (conversation.peerId === friend.id ||
+            conversation.id === friend.id ||
+            conversation.name.toLowerCase() === friend.name.toLowerCase())
+      ),
+    [data.dmConversations]
+  );
+
+  const ensureDirectDm = useCallback(
+    async (
+      friend: FriendEntry,
+      options: { open?: boolean; call?: boolean; quiet?: boolean } = {}
+    ) => {
+      const existing = findDirectDmForFriend(friend);
+      if (existing) {
+        if (options.open || options.call) openDMs(existing.id);
+        if (options.call) startCallForConversation(existing, false);
+        return existing;
+      }
+
+      if (!isLive) {
+        const convo: DMSummary = {
+          id: `dm${Date.now()}`,
+          peerId: friend.id,
+          name: friend.name,
+          avatar: friend.avatar,
+          presence: friend.presence,
+        };
+        workspace.createConversation(convo);
+        if (options.open || options.call) openDMs(convo.id);
+        if (options.call) startCallForConversation(convo, false);
+        return convo;
+      }
+
+      if (pendingDirectDms.current.has(friend.id)) return null;
+      pendingDirectDms.current.add(friend.id);
+
+      try {
+        const result = await createDMConversationApi({ participantIds: [friend.id] });
+        appStore.upsertDMConversation(result.conversation);
+        const convo: DMSummary = {
+          id: result.conversation.id,
+          peerId: friend.id,
+          name: friend.name,
+          avatar: friend.avatar,
+          presence: friend.presence,
+        };
+        if (options.open || options.call) openDMs(result.conversation.id);
+        if (options.call) startCallForConversation(convo, false);
+        return convo;
+      } catch (err) {
+        if (!options.quiet) {
+          useToastStore.getState().addToast({
+            title: "Direct message failed",
+            body: err instanceof Error ? err.message : "Could not create the direct message.",
+            variant: "error",
+          });
+        }
+        return null;
+      } finally {
+        pendingDirectDms.current.delete(friend.id);
+      }
+    },
+    [
+      appStore,
+      findDirectDmForFriend,
+      isLive,
+      openDMs,
+      startCallForConversation,
+      workspace,
+    ]
+  );
+
+  useEffect(() => {
+    if (!isLive) return;
+    for (const friend of data.friends ?? []) {
+      if (friend.pending || findDirectDmForFriend(friend) || pendingDirectDms.current.has(friend.id)) {
+        continue;
+      }
+      void ensureDirectDm(friend, { quiet: true });
+    }
+  }, [data.friends, ensureDirectDm, findDirectDmForFriend, isLive]);
+
   const searchFriendUsers = useCallback((query: string) => {
     if (!isLive) return Promise.resolve([]);
     return searchFriendUsersApi(query).then((r) => r.users);
   }, [isLive]);
+
+  const openFriendDm = (friendId: string) => {
+    const friend = data.friends?.find((f) => !f.pending && f.id === friendId);
+    if (!friend) return;
+    void ensureDirectDm(friend, { open: true });
+  };
+
+  const callFriend = (friendId: string) => {
+    const friend = data.friends?.find((f) => !f.pending && f.id === friendId);
+    if (!friend) return;
+    void ensureDirectDm(friend, { open: true, call: true });
+  };
 
   const sendFriendRequest = (target: string) => {
     const normalizedTarget = target.toLowerCase();
@@ -698,6 +817,17 @@ export function AppShell({
                 : `@${name} will see it under Pending.`,
             variant: "success",
           });
+          if (result.status === "accepted") {
+            void ensureDirectDm(
+              {
+                id: result.user.id,
+                name: result.user.displayName || result.user.username,
+                avatar: result.user.avatarUrl,
+                presence: statusToPresence(result.user.status),
+              },
+              { quiet: true }
+            );
+          }
           refreshFriends();
         })
         .catch((err) => {
@@ -734,12 +864,21 @@ export function AppShell({
     const f = data.friends?.find((x) => x.id === id);
     if (isLive) {
       acceptFriendRequestApi(id)
-        .then(() => {
+        .then((result) => {
           useToastStore.getState().addToast({
             title: "Friend added",
             body: f ? `You and ${f.name} are now friends.` : "You're now friends.",
             variant: "success",
           });
+          void ensureDirectDm(
+            {
+              id: result.user.id,
+              name: result.user.displayName || result.user.username,
+              avatar: result.user.avatarUrl,
+              presence: statusToPresence(result.user.status),
+            },
+            { quiet: true }
+          );
           refreshFriends();
         })
         .catch((err) => {
@@ -999,10 +1138,8 @@ export function AppShell({
         <HomeView
           data={data}
           onOpenChannel={openChannelIn}
-          onOpenDM={(friendId) => {
-            const convo = data.dmConversations?.find((c) => c.id === friendId || c.name === friendId);
-            openDMs(convo?.id);
-          }}
+          onOpenDM={openFriendDm}
+          onCallFriend={callFriend}
           onSendFriendRequest={sendFriendRequest}
           onSearchFriendUsers={searchFriendUsers}
           onAcceptFriend={acceptFriend}

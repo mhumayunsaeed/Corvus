@@ -36,6 +36,8 @@ export interface MemberRef {
 
 export interface DMSummary {
   id: string;
+  /** Other user's id for direct DMs. */
+  peerId?: string;
   name: string;
   avatar?: string | null;
   presence?: Presence;
