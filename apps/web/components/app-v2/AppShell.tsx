@@ -51,6 +51,12 @@ import {
   updateServer as updateServerApi,
   addReaction as addChannelReactionApi,
   removeReaction as removeChannelReactionApi,
+  sendFriendRequest as sendFriendRequestApi,
+  acceptFriendRequest as acceptFriendRequestApi,
+  declineFriendRequest as declineFriendRequestApi,
+  cancelFriendRequest as cancelFriendRequestApi,
+  removeFriend as removeFriendApi,
+  fetchFriendDashboard,
 } from "@/lib/api";
 import { notifyEvent, ringIncoming } from "@/lib/notify";
 import type {
@@ -653,6 +659,13 @@ export function AppShell({
   };
 
   /* ── Friends — instant, optimistic request flow ── */
+  const refreshFriends = () => {
+    if (!isLive) return;
+    fetchFriendDashboard()
+      .then((r) => appStore.setFriends(r))
+      .catch(() => {});
+  };
+
   const sendFriendRequest = (username: string) => {
     const existing = data.friends?.find((f) => f.name.toLowerCase() === username.toLowerCase());
     if (existing) {
@@ -663,6 +676,27 @@ export function AppShell({
       });
       return;
     }
+
+    if (isLive) {
+      sendFriendRequestApi(username)
+        .then(() => {
+          useToastStore.getState().addToast({
+            title: "Request sent",
+            body: `@${username} will see it instantly under Pending.`,
+            variant: "success",
+          });
+          refreshFriends();
+        })
+        .catch((err) => {
+          useToastStore.getState().addToast({
+            title: "Failed to send request",
+            body: err instanceof Error ? err.message : "Could not send friend request.",
+            variant: "error",
+          });
+        });
+      return;
+    }
+
     const id = `fr${Date.now()}`;
     workspace.sendFriendRequest({ id, name: username, presence: "offline", pending: "outgoing" });
     useToastStore.getState().addToast({
@@ -685,12 +719,94 @@ export function AppShell({
 
   const acceptFriend = (id: string) => {
     const f = data.friends?.find((x) => x.id === id);
+    if (isLive) {
+      acceptFriendRequestApi(id)
+        .then(() => {
+          useToastStore.getState().addToast({
+            title: "Friend added",
+            body: f ? `You and ${f.name} are now friends.` : "You're now friends.",
+            variant: "success",
+          });
+          refreshFriends();
+        })
+        .catch((err) => {
+          useToastStore.getState().addToast({
+            title: "Failed to accept friend request",
+            body: err instanceof Error ? err.message : "Could not accept friend request.",
+            variant: "error",
+          });
+        });
+      return;
+    }
+
     workspace.acceptFriend(id);
     useToastStore.getState().addToast({
       title: "Friend added",
       body: f ? `You and ${f.name} are now friends.` : "You're now friends.",
       variant: "success",
     });
+  };
+
+  const declineOrRemoveFriend = (id: string) => {
+    if (!isLive) {
+      workspace.removeFriend(id);
+      return;
+    }
+    const f = data.friends?.find((x) => x.id === id);
+    if (!f) return;
+
+    if (f.pending === "incoming") {
+      declineFriendRequestApi(id)
+        .then(() => {
+          useToastStore.getState().addToast({
+            title: "Request declined",
+            body: `Declined request from @${f.name}.`,
+            variant: "info",
+          });
+          refreshFriends();
+        })
+        .catch((err) => {
+          useToastStore.getState().addToast({
+            title: "Failed to decline request",
+            body: err instanceof Error ? err.message : "Could not decline request.",
+            variant: "error",
+          });
+        });
+    } else if (f.pending === "outgoing") {
+      cancelFriendRequestApi(id)
+        .then(() => {
+          useToastStore.getState().addToast({
+            title: "Request canceled",
+            body: `Canceled request to @${f.name}.`,
+            variant: "info",
+          });
+          refreshFriends();
+        })
+        .catch((err) => {
+          useToastStore.getState().addToast({
+            title: "Failed to cancel request",
+            body: err instanceof Error ? err.message : "Could not cancel request.",
+            variant: "error",
+          });
+        });
+    } else {
+      removeFriendApi(id)
+        .then(() => {
+          useToastStore.getState().addToast({
+            title: "Friend removed",
+            body: `@${f.name} removed from friends.`,
+            variant: "info",
+          });
+          refreshFriends();
+        })
+        .catch((err) => {
+          useToastStore.getState().addToast({
+            title: "Failed to remove friend",
+            body: err instanceof Error ? err.message : "Could not remove friend.",
+            variant: "error",
+          });
+        });
+    }
   };
 
   /* ── Creation flows — spaces, sections, channels, conversations ── */
@@ -876,7 +992,7 @@ export function AppShell({
           }}
           onSendFriendRequest={sendFriendRequest}
           onAcceptFriend={acceptFriend}
-          onDeclineFriend={(id) => workspace.removeFriend(id)}
+          onDeclineFriend={declineOrRemoveFriend}
         />
       );
     }

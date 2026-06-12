@@ -13,7 +13,7 @@ import type {
 } from "@/lib/api";
 import type { ChannelType } from "@/components/ui";
 import type { AppShellData } from "./AppShell";
-import type { ChatMessage, DMSummary, MemberRef, Presence } from "./types";
+import type { ChatMessage, DMSummary, MemberRef, Presence, FriendEntry } from "./types";
 import { SAMPLE_DATA } from "./sample-data";
 
 /**
@@ -188,6 +188,7 @@ export function useShellData(forceDemo = false): { data: AppShellData; live: boo
   const workspaceModules = useAppStore((s) => s.workspaceModules);
   const chatMessages = useChatStore((s) => s.messages);
   const workspace = useWorkspaceStore();
+  const liveFriends = useAppStore((s) => s.friends);
 
   // skipHydration store — load persisted creations after mount (SSR-safe).
   useEffect(() => {
@@ -195,7 +196,7 @@ export function useShellData(forceDemo = false): { data: AppShellData; live: boo
   }, []);
 
   return useMemo(() => {
-    if (forceDemo || !user || servers.length === 0) {
+    if (forceDemo || !user) {
       return { data: applyWorkspace(SAMPLE_DATA, workspace), live: false };
     }
 
@@ -203,6 +204,35 @@ export function useShellData(forceDemo = false): { data: AppShellData; live: boo
     for (const server of servers as ServerData[]) {
       const chans = channelsByServer[server.id] ?? (server.id === activeServerId ? channels : []);
       sectionsBySpace[server.id] = buildSections(chans);
+    }
+
+    let friendsList: FriendEntry[] = [];
+    if (liveFriends) {
+      const accepted: FriendEntry[] = liveFriends.friends.map((f) => ({
+        id: f.user.id,
+        name: f.user.displayName || f.user.username,
+        avatar: f.user.avatarUrl,
+        presence: toPresence(f.user.status),
+        status: f.user.bio || undefined,
+      }));
+
+      const pendingIncoming: FriendEntry[] = liveFriends.pendingIncoming.map((r) => ({
+        id: r.id,
+        name: r.user.displayName || r.user.username,
+        avatar: r.user.avatarUrl,
+        presence: toPresence(r.user.status),
+        pending: "incoming",
+      }));
+
+      const pendingOutgoing: FriendEntry[] = liveFriends.pendingOutgoing.map((r) => ({
+        id: r.id,
+        name: r.user.displayName || r.user.username,
+        avatar: r.user.avatarUrl,
+        presence: toPresence(r.user.status),
+        pending: "outgoing",
+      }));
+
+      friendsList = [...accepted, ...pendingIncoming, ...pendingOutgoing];
     }
 
     const messagesByChannel: AppShellData["messagesByChannel"] = {};
@@ -244,13 +274,14 @@ export function useShellData(forceDemo = false): { data: AppShellData; live: boo
       messagesByChannel,
       membersBySpace,
       dmConversations: dmConversations.map((c) => dmToSummary(c, user.id)),
+      friends: friendsList,
       boardsByChannel: workspaceModules.boardsByChannel as AppShellData["boardsByChannel"],
       docsByChannel: workspaceModules.docsByChannel as AppShellData["docsByChannel"],
       incidentsByChannel: workspaceModules.incidentsByChannel as AppShellData["incidentsByChannel"],
       prsByChannel: workspaceModules.prsByChannel as AppShellData["prsByChannel"],
     };
 
-    return { data, live: true };
+    return { data: applyWorkspace(data, workspace), live: true };
   }, [
     user,
     servers,
@@ -261,5 +292,6 @@ export function useShellData(forceDemo = false): { data: AppShellData; live: boo
     chatMessages,
     workspaceModules,
     workspace,
+    liveFriends,
   ]);
 }

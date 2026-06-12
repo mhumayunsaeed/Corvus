@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { ServerData, ChannelData, DMConversationData, WorkspaceModulesData } from "@/lib/api";
+import type { ServerData, ChannelData, DMConversationData, WorkspaceModulesData, FriendDashboardData } from "@/lib/api";
 
 interface AppState {
     // Active selections
@@ -16,6 +16,7 @@ interface AppState {
     // fresh data loads in the background.
     channelsByServer: Record<string, ChannelData[]>;
     workspaceModules: WorkspaceModulesData;
+    friends: FriendDashboardData | null;
 
     // Actions
     setActiveServer: (serverId: string | null) => void;
@@ -36,6 +37,7 @@ interface AppState {
     upsertDocsState: (channelId: string, docs: unknown) => void;
     upsertIncidentState: (channelId: string, incident: unknown) => void;
     upsertGitHubState: (channelId: string, pullRequests: unknown, config?: unknown) => void;
+    setFriends: (friends: FriendDashboardData | null) => void;
 }
 
 const emptyWorkspaceModules: WorkspaceModulesData = {
@@ -58,6 +60,7 @@ export const useAppStore = create<AppState>()(
     dmConversations: [],
     channelsByServer: {},
     workspaceModules: emptyWorkspaceModules,
+    friends: null,
 
     setActiveServer: (serverId) =>
         set((state) => ({
@@ -244,6 +247,7 @@ export const useAppStore = create<AppState>()(
                         : { ...state.workspaceModules.githubConfigByChannel, [channelId]: config },
             },
         })),
+    setFriends: (friends) => set({ friends }),
         }),
         {
             name: "corvus-app-cache",

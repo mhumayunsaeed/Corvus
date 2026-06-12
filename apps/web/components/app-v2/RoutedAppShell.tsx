@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAppStore } from "@/stores/app-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { fetchChannels, fetchMessages, fetchServers, fetchWorkspaceModules } from "@/lib/api";
+import { fetchChannels, fetchMessages, fetchServers, fetchWorkspaceModules, fetchFriendDashboard } from "@/lib/api";
 import { AppShell } from "./AppShell";
 import { useShellData } from "./useShellData";
 
@@ -63,6 +63,7 @@ export function RoutedAppShell({ isDemo = false }: { isDemo?: boolean }) {
   const setServers = useAppStore((s) => s.setServers);
   const setChannels = useAppStore((s) => s.setChannels);
   const setWorkspaceModules = useAppStore((s) => s.setWorkspaceModules);
+  const setFriends = useAppStore((s) => s.setFriends);
   const channelsByServer = useAppStore((s) => s.channelsByServer);
   const setMessages = useChatStore((s) => s.setMessages);
   const messages = useChatStore((s) => s.messages);
@@ -96,6 +97,20 @@ export function RoutedAppShell({ isDemo = false }: { isDemo?: boolean }) {
       cancelled = true;
     };
   }, [isAuthenticated, setServers]);
+
+  // Load friends once when authenticated.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    fetchFriendDashboard()
+      .then((r) => {
+        if (!cancelled) setFriends(r);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, setFriends]);
 
   // Load the active space's channels when we don't have them cached.
   useEffect(() => {
