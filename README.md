@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Corvus.png" alt="Corvus" width="120" />
+  
 </p>
 
 <h1 align="center">Corvus</h1>
