@@ -295,9 +295,10 @@ Have an idea? [Open a feature request](https://github.com/Humayun-glitch/Corvus/
 
 ## License
 
-Corvus is **not open source**. &copy; 2026 Corvus &mdash; all rights reserved.
-Please don't redistribute, rehost, or publish modified versions without
-permission. Formal licensing terms are being finalized.
+
+Corvus is now **open source**. © 2026 Corvus.
+
+You are free to use, self-host, modify, and contribute to the project under the terms of the project license. See the `LICENSE` file for full details.
 
 ---
 
