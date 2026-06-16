@@ -56,7 +56,7 @@ Discord is great, but it collects extensive user data and locks communities into
 <img width="1919" height="869" alt="image" src="https://github.com/user-attachments/assets/1d8fc732-ed71-4cbb-9a8d-ef27ca4f409c" />
 
 <p align="center">
-  ![Uploading image.png…]()
+  
 
 </p>
 
