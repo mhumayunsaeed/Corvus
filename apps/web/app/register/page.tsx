@@ -1,6 +1,6 @@
 "use client";
 
-import { AuthShell, SignupForm } from "@/components/auth";
+import { AuthShell, SignupForm } from "@/features/auth";
 
 export default function Register() {
   return (

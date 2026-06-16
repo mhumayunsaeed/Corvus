@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { MarketingPage, type MarketingPageContent } from "@/components/landing/MarketingPage";
+import { MarketingPage, type MarketingPageContent } from "@/features/landing/components/MarketingPage";
 
 const PAGES: Record<string, MarketingPageContent> = {
   terms: {

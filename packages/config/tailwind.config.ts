@@ -12,7 +12,8 @@ const config: Config = {
   darkMode: ["selector", '[data-theme="dark"]'],
   content: [
     "../../apps/web/app/**/*.{ts,tsx}",
-    "../../apps/web/components/**/*.{ts,tsx}",
+    "../../apps/web/features/**/*.{ts,tsx}",
+    "../../apps/web/shared/**/*.{ts,tsx}",
     "../../packages/ui/src/**/*.{ts,tsx}",
   ],
   theme: {

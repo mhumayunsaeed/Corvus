@@ -12,7 +12,7 @@ import {
   SelfHostSection,
   FinalCTA,
   Footer,
-} from "@/components/landing";
+} from "@/features/landing";
 
 export default function LandingPage() {
   const router = useRouter();

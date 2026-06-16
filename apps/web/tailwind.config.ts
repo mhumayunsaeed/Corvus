@@ -5,7 +5,8 @@ const config: Config = {
   ...baseConfig,
   content: [
     "./app/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
+    "./features/**/*.{ts,tsx}",
+    "./shared/**/*.{ts,tsx}",
     "../../packages/ui/src/**/*.{ts,tsx}",
   ],
 };

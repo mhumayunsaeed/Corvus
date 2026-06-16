@@ -1,4 +1,4 @@
-import { MarketingPage, type MarketingPageContent } from "@/components/landing/MarketingPage";
+import { MarketingPage, type MarketingPageContent } from "@/features/landing/components/MarketingPage";
 
 const content: MarketingPageContent = {
   eyebrow: "Developers · Changelog",

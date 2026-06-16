@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, EyeOff, KeyRound, CheckCircle2, XCircle } from "lucide-react";
-import { getActiveSupabaseSession, updatePassword } from "@/lib/auth";
+import { getActiveSupabaseSession, updatePassword } from "@/features/auth/api/auth";
 
 function ResetPasswordContent() {
     const router = useRouter();

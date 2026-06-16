@@ -1,7 +1,7 @@
 "use client";
 
-import { RoutedAppShell } from "@/components/app-v2/RoutedAppShell";
-import { ToastViewport } from "@/components/ui";
+import { RoutedAppShell } from "@/features/workspace/components/RoutedAppShell";
+import { ToastViewport } from "@/shared/components/ui";
 
 /**
  * Routed shell (brief Part 2). URLs use name slugs (raw ids also resolve):

@@ -1,7 +1,7 @@
 "use client";
 
-import { RoutedAppShell } from "@/components/app-v2/RoutedAppShell";
-import { ToastViewport } from "@/components/ui";
+import { RoutedAppShell } from "@/features/workspace/components/RoutedAppShell";
+import { ToastViewport } from "@/shared/components/ui";
 
 /**
  * Interactive Demo Route (brief Part 2).

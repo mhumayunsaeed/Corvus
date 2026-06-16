@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Mail, ArrowLeft, RefreshCw } from "lucide-react";
-import { resendVerificationEmail } from "@/lib/auth";
+import { resendVerificationEmail } from "@/features/auth/api/auth";
 
 function ConfirmEmailContent() {
     const searchParams = useSearchParams();

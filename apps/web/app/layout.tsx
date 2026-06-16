@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { Space_Grotesk } from "next/font/google";
 import { Titlebar, ThemeProvider, ThemeScript } from "@corvus/ui";
-import { AuthGuard } from "@/components/auth";
-import { BRAND_DESCRIPTION } from "@/lib/brand";
+import { AuthGuard } from "@/features/auth";
+import { BRAND_DESCRIPTION } from "@/shared/lib/brand";
 import "./globals.css";
 
 // Expressive display face for headings, brand moments, and empty states.

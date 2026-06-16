@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
-import { useAuthStore } from "@/stores/auth-store";
+import { useAuthStore } from "@/features/auth/store/auth-store";
 
 function AuthCallbackContent() {
     const router = useRouter();
