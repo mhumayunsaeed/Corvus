@@ -31,7 +31,7 @@ fn main() {
                     .config()
                     .app
                     .windows
-                    .get(0)
+                    .first()
                     .cloned()
                     .expect("Missing main window config");
                 if main_config.label.is_empty() {

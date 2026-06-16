@@ -41,6 +41,12 @@ apps/api/uploads/
 # Supabase local migrations
 supabase/migrations/
 
+# Supabase local SQL/policies
+supabase/*.sql
+
+# Local refactor notes
+REFACTOR_SUMMARY.md
+
 # Secrets / signing keys (never commit)
 *.key
 apps/desktop/~/
