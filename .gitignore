@@ -38,6 +38,9 @@ pnpm-debug.log*
 # Uploads (local dev)
 apps/api/uploads/
 
+# Supabase local migrations
+supabase/migrations/
+
 # Secrets / signing keys (never commit)
 *.key
 apps/desktop/~/
