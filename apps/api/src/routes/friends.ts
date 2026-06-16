@@ -5,6 +5,9 @@ import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
 
 const friends = new Hono<AuthEnv>();
+// Intentional `any`: the friend-system models may be absent at runtime when the
+// schema hasn't been migrated. Accessing them dynamically lets the middleware
+// below degrade gracefully (503) instead of crashing. See `optionalBlock*` too.
 const db = prisma as any;
 
 friends.use("*", authMiddleware);

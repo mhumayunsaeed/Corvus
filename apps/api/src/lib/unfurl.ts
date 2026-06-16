@@ -2,7 +2,7 @@ import { parse } from "node-html-parser";
 import { resolve as dnsResolve } from "node:dns/promises";
 import { isIP } from "node:net";
 
-const URL_REGEX = /https?:\/\/[^\s<>\[\]()]+/gi;
+const URL_REGEX = /https?:\/\/[^\s<>[\]()]+/gi;
 
 function isPrivateIP(ip: string): boolean {
     // IPv4 private/reserved ranges

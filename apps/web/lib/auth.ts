@@ -268,7 +268,7 @@ export async function exchangeSupabaseSession(
             response = await fetch(url, { ...requestInit, signal: controller.signal });
             clearTimeout(timeoutId);
             break;
-        } catch (err) {
+        } catch {
             clearTimeout(timeoutId);
             if (attempt < maxAttempts) {
                 await new Promise((r) => setTimeout(r, 800 * attempt));

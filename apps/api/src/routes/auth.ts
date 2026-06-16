@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { verify } from "@node-rs/argon2";
 import type { Prisma } from "../generated/prisma/index.js";
@@ -48,7 +48,7 @@ function checkRateLimit(key: string, maxAttempts: number, windowMs: number = 15 
     return true;
 }
 
-function getClientIp(c: any): string {
+function getClientIp(c: Context): string {
     return c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
         || c.req.header("x-real-ip")
         || "unknown";

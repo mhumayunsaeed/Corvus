@@ -290,6 +290,7 @@ export function useShellData(forceDemo = false): { data: AppShellData; live: boo
 
     return { data: applyWorkspace(data, workspace, { includeLocalFriends: false }), live: true };
   }, [
+    forceDemo,
     user,
     servers,
     channelsByServer,

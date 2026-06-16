@@ -265,38 +265,34 @@ export const useAuthStore = create<AuthState>()(
                     return true;
                 }
 
-                try {
-                    const session = await getActiveSupabaseSession();
-                    const email = session?.user?.email?.trim().toLowerCase();
+                const session = await getActiveSupabaseSession();
+                const email = session?.user?.email?.trim().toLowerCase();
 
-                    if (!email) {
-                        return false;
-                    }
-
-                    const pendingSignup = getPendingSignupProfile(email);
-                    const data = await exchangeSupabaseSession(
-                        pendingSignup
-                            ? {
-                                displayName: pendingSignup.displayName,
-                                username: pendingSignup.username,
-                            }
-                            : undefined
-                    );
-
-                    if (!data) {
-                        return false;
-                    }
-
-                    clearPendingSignupProfile(email);
-                    set({
-                        user: data.user,
-                        token: data.token,
-                        isAuthenticated: true,
-                    });
-                    return true;
-                } catch (err) {
-                    throw err;
+                if (!email) {
+                    return false;
                 }
+
+                const pendingSignup = getPendingSignupProfile(email);
+                const data = await exchangeSupabaseSession(
+                    pendingSignup
+                        ? {
+                            displayName: pendingSignup.displayName,
+                            username: pendingSignup.username,
+                        }
+                        : undefined
+                );
+
+                if (!data) {
+                    return false;
+                }
+
+                clearPendingSignupProfile(email);
+                set({
+                    user: data.user,
+                    token: data.token,
+                    isAuthenticated: true,
+                });
+                return true;
             },
 
             logout: () => {

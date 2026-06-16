@@ -4,7 +4,7 @@ import { playNotification, type NotificationKind } from "@/lib/sounds";
 export type NotificationSoundKind = NotificationKind;
 
 const APP_TITLE = "Corvus";
-const overlayIconCache = new Map<string, Promise<any | null>>();
+const overlayIconCache = new Map<string, ReturnType<typeof createOverlayIcon>>();
 
 /**
  * Play a notification cue. `soundName` selects the voicing (see

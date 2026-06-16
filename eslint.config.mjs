@@ -12,6 +12,7 @@ export default tseslint.config(
             "**/out/**",
             "**/.turbo/**",
             "**/gen/**",
+            "**/generated/**",
             "**/*.config.{js,mjs,cjs,ts}",
             "**/*.cjs",
             "**/generate-icons.*",

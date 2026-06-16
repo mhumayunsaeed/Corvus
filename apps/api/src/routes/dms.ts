@@ -6,6 +6,9 @@ import { broadcastToDMConversation } from "../services/realtime.js";
 import { executeSlashCommand } from "../lib/slash-commands.js";
 
 const dms = new Hono<AuthEnv>();
+// Intentional `any`: the DM-system models may be absent at runtime when the
+// schema hasn't been migrated. Accessing them dynamically lets the middleware
+// below degrade gracefully (503) instead of crashing.
 const db = prisma as any;
 
 dms.use("*", authMiddleware);
