@@ -5,19 +5,19 @@ export function FinalCTA() {
     <section id="pricing" className="border-t border-border px-6 py-24 sm:py-28">
       <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
         <h2 className="text-[40px] font-medium leading-[1.1] tracking-[-0.025em] text-text-primary">
-          Your stack. Your rules.
+          Get in early.
         </h2>
         <p className="mt-4 text-[16px] leading-[1.6] text-text-secondary">
-          Start free. Deploy on your infrastructure when you are ready.
+          Join the waitlist now and be first in when early access opens.
         </p>
 
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
-          <Link
-            href="/register"
+          <a
+            href="#waitlist"
             className="rounded-lg bg-accent-violet px-6 py-3 text-[15px] font-medium text-on-accent transition-colors hover:bg-accent-violet-bright"
           >
-            Start building →
-          </Link>
+            Join the waitlist →
+          </a>
           <Link
             href="/spaces/demo"
             className="rounded-lg border border-border px-6 py-3 text-[15px] font-medium text-text-secondary transition-colors hover:border-border-highlight hover:text-text-primary"

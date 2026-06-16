@@ -109,6 +109,26 @@ export async function api<T>(
     return (data ?? ({} as T)) as T;
 }
 
+// ─── Waitlist API (public, pre-launch) ──────────────────────────
+
+export interface WaitlistJoinResponse {
+    alreadyJoined: boolean;
+    position: number;
+    count: number;
+}
+
+export function joinWaitlist(data: { email: string; name?: string; source?: string }) {
+    return api<WaitlistJoinResponse>("/waitlist", {
+        method: "POST",
+        body: JSON.stringify(data),
+        maxRetries: 0,
+    });
+}
+
+export function fetchWaitlistCount() {
+    return api<{ count: number }>("/waitlist/count", { maxRetries: 1 });
+}
+
 // ─── Server Types ───────────────────────────────────────────────
 
 export interface ServerData {

@@ -6,14 +6,13 @@
 
 <p align="center">
   <strong>A modern, privacy-first communication platform.</strong><br/>
-  Open-source alternative to Discord &mdash; built with Tauri, Next.js, and Hono.
+  A self-hostable alternative to Discord &mdash; built with Tauri, Next.js, and Hono.
 </p>
 
 <p align="center">
   <a href="https://github.com/Humayun-glitch/Corvus/stargazers"><img src="https://img.shields.io/github/stars/Humayun-glitch/Corvus?style=flat-square" alt="Stars" /></a>
   <a href="https://github.com/Humayun-glitch/Corvus/network/members"><img src="https://img.shields.io/github/forks/Humayun-glitch/Corvus?style=flat-square" alt="Forks" /></a>
   <a href="https://github.com/Humayun-glitch/Corvus/issues"><img src="https://img.shields.io/github/issues/Humayun-glitch/Corvus?style=flat-square" alt="Issues" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="License" /></a>
   <a href="https://github.com/Humayun-glitch/Corvus/pulls"><img src="https://img.shields.io/github/issues-pr/Humayun-glitch/Corvus?style=flat-square" alt="PRs" /></a>
 </p>
 
@@ -32,10 +31,10 @@
 
 ## Why Corvus?
 
-Discord is great, but it's closed-source, collects extensive user data, and locks communities into a single platform. Corvus is built from the ground up to be:
+Discord is great, but it collects extensive user data and locks communities into a single platform. Corvus is built from the ground up to be:
 
 - **Privacy-first** &mdash; no tracking, no data mining, self-hostable
-- **Open-source** &mdash; AGPL-3.0 licensed, community-driven development
+- **No lock-in** &mdash; own your data and run the entire stack on your own infrastructure
 - **Lightweight** &mdash; ~10 MB desktop app (vs 300+ MB for Electron-based alternatives)
 - **Modern stack** &mdash; built with the latest web technologies for performance and developer experience
 
@@ -294,9 +293,9 @@ Have an idea? [Open a feature request](https://github.com/Humayun-glitch/Corvus/
 
 ## License
 
-This project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
-
-This means you can freely use, modify, and distribute this software, but any modified versions that are made available over a network **must also be open-sourced** under the same license. This protects the community while allowing commercial use.
+Corvus is **not open source**. &copy; 2026 Corvus &mdash; all rights reserved.
+Please don't redistribute, rehost, or publish modified versions without
+permission. Formal licensing terms are being finalized.
 
 ---
 

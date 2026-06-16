@@ -1,5 +1,6 @@
 export { Nav } from "./Nav";
 export { Hero } from "./Hero";
+export { Waitlist } from "./Waitlist";
 export { StatsBar } from "./StatsBar";
 export { AudienceSection } from "./AudienceSection";
 export { Features } from "./Features";

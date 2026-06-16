@@ -525,3 +525,20 @@ model ChannelPermissionOverride {
   @@unique([channelId, roleId])
   @@map("channel_permission_overrides")
 }
+
+// ─── Pre-launch waiting list ─────────────────────────────────────
+// Captures interested users before the product is generally available.
+// Public, unauthenticated signups (see src/routes/waitlist.ts). No relation
+// to User — these people don't have accounts yet.
+
+model WaitlistEntry {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  // Where the signup came from (e.g. "landing-hero"); useful for attribution.
+  source    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("waitlist_entries")
+}

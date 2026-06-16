@@ -20,6 +20,7 @@ import attachmentRoutes from "./routes/attachments.js";
 import roles from "./routes/roles.js";
 import channelPermissions from "./routes/channel-permissions.js";
 import workspace from "./routes/workspace.js";
+import waitlist from "./routes/waitlist.js";
 import { buildOpenApiSummary, renderApiDocs } from "./docs.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -120,6 +121,7 @@ app.get("/openapi.json", (c) => {
 });
 
 app.route("/auth", auth);
+app.route("/", waitlist); // routes are /waitlist and /waitlist/count (public)
 app.route("/", attachmentRoutes); // routes are /attachments and /uploads/*
 app.route("/servers", servers);
 app.route("/", channels); // routes are /servers/:serverId/channels and /channels/:id

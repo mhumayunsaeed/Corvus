@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Nav,
-  Hero,
+  Waitlist,
   StatsBar,
   AudienceSection,
   Features,
@@ -35,7 +35,7 @@ export default function LandingPage() {
     >
       <Nav />
       <main>
-        <Hero />
+        <Waitlist />
         <StatsBar />
         <AudienceSection />
         <Features />

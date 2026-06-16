@@ -72,12 +72,12 @@ export function Nav() {
           >
             Sign in
           </Link>
-          <Link
-            href="/register"
+          <a
+            href="/#waitlist"
             className="rounded-md bg-accent-violet px-4 py-2 text-[13px] font-medium text-on-accent transition-colors hover:bg-accent-violet-bright"
           >
-            Get started →
-          </Link>
+            Join waitlist →
+          </a>
         </div>
 
         {/* Mobile toggle */}
@@ -133,12 +133,13 @@ export function Nav() {
             >
               Sign in
             </Link>
-            <Link
-              href="/register"
+            <a
+              href="/#waitlist"
+              onClick={() => setOpen(false)}
               className="rounded-md bg-accent-violet px-4 py-2.5 text-center text-[14px] font-medium text-on-accent"
             >
-              Get started →
-            </Link>
+              Join waitlist →
+            </a>
           </div>
         </div>
       )}
