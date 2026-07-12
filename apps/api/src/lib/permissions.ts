@@ -78,7 +78,11 @@ export function computePermissions(
 
     // Start with @everyone role
     const everyoneRole = allRoles.find((r) => r.isDefault);
-    let permissions = everyoneRole ? everyoneRole.permissions : DEFAULT_MEMBER_PERMISSIONS;
+    let permissions = everyoneRole
+        ? everyoneRole.permissions
+        : allRoles.length === 0
+          ? DEFAULT_MEMBER_PERMISSIONS
+          : 0;
 
     // OR in permissions from assigned roles
     for (const roleId of memberRoleIds) {
@@ -121,4 +125,64 @@ export function computePermissions(
 /** Check if a permission bitfield includes a specific permission */
 export function hasPermission(permissions: number, permission: number): boolean {
     return (permissions & permission) === permission;
+}
+
+/** Data required by routes after resolving a user's effective channel permissions. */
+export interface ChannelAccess {
+    channel: { id: string; serverId: string; type: string };
+    membership: { id: string; role: string };
+    permissions: number;
+}
+
+/**
+ * Resolve membership, assigned roles and channel overrides in one place so every
+ * channel-facing route applies the same authorization rules.
+ */
+export async function getChannelAccess(
+    prisma: typeof import("./prisma.js").prisma,
+    channelId: string,
+    userId: string
+): Promise<ChannelAccess | null> {
+    const channel = await prisma.channel.findUnique({
+        where: { id: channelId },
+        select: {
+            id: true,
+            serverId: true,
+            type: true,
+            server: { select: { ownerId: true } },
+            permissionOverrides: { select: { roleId: true, allow: true, deny: true } },
+        },
+    });
+    if (!channel) return null;
+
+    const membership = await prisma.serverMember.findUnique({
+        where: { serverId_userId: { serverId: channel.serverId, userId } },
+        select: {
+            id: true,
+            role: true,
+            assignedRoles: { select: { roleId: true } },
+        },
+    });
+    if (!membership) return null;
+
+    // Preserve the legacy owner/admin role semantics while role assignments are
+    // migrated to the bitfield model.
+    const isPrivileged =
+        channel.server.ownerId === userId || ["owner", "admin"].includes(membership.role);
+    if (isPrivileged) {
+        return { channel, membership, permissions: ADMIN_PERMISSIONS };
+    }
+
+    const roles = await prisma.role.findMany({
+        where: { serverId: channel.serverId },
+        select: { id: true, permissions: true, isDefault: true },
+    });
+    const permissions = computePermissions(
+        false,
+        membership.assignedRoles.map((assignment) => assignment.roleId),
+        roles,
+        channel.permissionOverrides
+    );
+
+    return { channel, membership, permissions };
 }

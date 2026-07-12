@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
 import { CHANNEL_TYPES, ensureChannelModuleState } from "../lib/module-state.js";
+import { getChannelAccess, hasPermission, Permissions } from "../lib/permissions.js";
 
 const channels = new Hono<AuthEnv>();
 
@@ -99,7 +100,16 @@ channels.get("/servers/:serverId/channels", async (c) => {
         orderBy: [{ category: "asc" }, { position: "asc" }],
     });
 
-    return c.json({ channels: channelList });
+    const visible = await Promise.all(
+        channelList.map(async (channel) => {
+            const access = await getChannelAccess(prisma, channel.id, userId);
+            return access && hasPermission(access.permissions, Permissions.VIEW_CHANNEL)
+                ? channel
+                : null;
+        })
+    );
+
+    return c.json({ channels: visible.filter((channel) => channel !== null) });
 });
 
 // ─── PATCH /channels/:id — Update channel ───────────────────────
@@ -116,8 +126,8 @@ channels.patch("/channels/:id", async (c) => {
         return c.json({ error: "Channel not found." }, 404);
     }
 
-    const membership = await verifyMembership(channel.serverId, userId);
-    if (!membership || !["owner", "admin"].includes(membership.role)) {
+    const access = await getChannelAccess(prisma, channelId, userId);
+    if (!access || !hasPermission(access.permissions, Permissions.MANAGE_CHANNELS)) {
         return c.json({ error: "You do not have permission to update this channel." }, 403);
     }
 
@@ -156,8 +166,8 @@ channels.delete("/channels/:id", async (c) => {
         return c.json({ error: "Channel not found." }, 404);
     }
 
-    const membership = await verifyMembership(channel.serverId, userId);
-    if (!membership || !["owner", "admin"].includes(membership.role)) {
+    const access = await getChannelAccess(prisma, channelId, userId);
+    if (!access || !hasPermission(access.permissions, Permissions.MANAGE_CHANNELS)) {
         return c.json({ error: "You do not have permission to delete this channel." }, 403);
     }
 
@@ -180,9 +190,9 @@ channels.post("/channels/:id/read", async (c) => {
         return c.json({ error: "Channel not found." }, 404);
     }
 
-    const membership = await verifyMembership(channel.serverId, userId);
-    if (!membership) {
-        return c.json({ error: "You are not a member of this server." }, 403);
+    const access = await getChannelAccess(prisma, channelId, userId);
+    if (!access || !hasPermission(access.permissions, Permissions.VIEW_CHANNEL)) {
+        return c.json({ error: "You cannot access this channel." }, 403);
     }
 
     await prisma.channelRead.upsert({

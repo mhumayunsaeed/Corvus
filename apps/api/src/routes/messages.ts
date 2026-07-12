@@ -5,6 +5,7 @@ import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
 import { broadcastToChannel } from "../services/realtime.js";
 import { extractUrls, unfurlUrl } from "../lib/unfurl.js";
 import { executeSlashCommand } from "../lib/slash-commands.js";
+import { getChannelAccess, hasPermission, Permissions } from "../lib/permissions.js";
 
 const messages = new Hono<AuthEnv>();
 
@@ -28,18 +29,9 @@ const unfurlQuerySchema = z.object({
 
 // ─── Helper: verify channel membership ──────────────────────────
 
-async function verifyChannelAccess(channelId: string, userId: string) {
-    const channel = await prisma.channel.findUnique({
-        where: { id: channelId },
-    });
-    if (!channel) return null;
-
-    const membership = await prisma.serverMember.findUnique({
-        where: { serverId_userId: { serverId: channel.serverId, userId } },
-    });
-    if (!membership) return null;
-
-    return { channel, membership };
+async function verifyChannelAccess(channelId: string, userId: string, permission: number) {
+    const access = await getChannelAccess(prisma, channelId, userId);
+    return access && hasPermission(access.permissions, permission) ? access : null;
 }
 
 messages.get("/unfurl", async (c) => {
@@ -74,7 +66,7 @@ messages.get("/channels/:channelId/messages", async (c) => {
     const userId = c.get("userId");
     const channelId = c.req.param("channelId");
 
-    const access = await verifyChannelAccess(channelId, userId);
+    const access = await verifyChannelAccess(channelId, userId, Permissions.VIEW_CHANNEL);
     if (!access) {
         return c.json({ error: "Channel not found or you are not a member." }, 404);
     }
@@ -185,7 +177,7 @@ messages.get("/channels/:channelId/messages/search", async (c) => {
     const userId = c.get("userId");
     const channelId = c.req.param("channelId");
 
-    const access = await verifyChannelAccess(channelId, userId);
+    const access = await verifyChannelAccess(channelId, userId, Permissions.VIEW_CHANNEL);
     if (!access) {
         return c.json({ error: "Channel not found or you are not a member." }, 404);
     }
@@ -248,7 +240,7 @@ messages.get("/channels/:channelId/pins", async (c) => {
     const userId = c.get("userId");
     const channelId = c.req.param("channelId");
 
-    const access = await verifyChannelAccess(channelId, userId);
+    const access = await verifyChannelAccess(channelId, userId, Permissions.VIEW_CHANNEL);
     if (!access) {
         return c.json({ error: "Channel not found or you are not a member." }, 404);
     }
@@ -289,7 +281,7 @@ messages.post("/channels/:channelId/messages/:messageId/pin", async (c) => {
     const channelId = c.req.param("channelId");
     const messageId = c.req.param("messageId");
 
-    const access = await verifyChannelAccess(channelId, userId);
+    const access = await verifyChannelAccess(channelId, userId, Permissions.MANAGE_MESSAGES);
     if (!access) {
         return c.json({ error: "Channel not found or you are not a member." }, 404);
     }
@@ -326,7 +318,7 @@ messages.delete("/channels/:channelId/messages/:messageId/pin", async (c) => {
     const channelId = c.req.param("channelId");
     const messageId = c.req.param("messageId");
 
-    const access = await verifyChannelAccess(channelId, userId);
+    const access = await verifyChannelAccess(channelId, userId, Permissions.MANAGE_MESSAGES);
     if (!access) {
         return c.json({ error: "Channel not found or you are not a member." }, 404);
     }
@@ -353,7 +345,7 @@ messages.post("/channels/:channelId/messages", async (c) => {
     const username = c.get("username");
     const channelId = c.req.param("channelId");
 
-    const access = await verifyChannelAccess(channelId, userId);
+    const access = await verifyChannelAccess(channelId, userId, Permissions.SEND_MESSAGES);
     if (!access) {
         return c.json({ error: "Channel not found or you are not a member." }, 404);
     }
@@ -366,6 +358,15 @@ messages.post("/channels/:channelId/messages", async (c) => {
     }
 
     const { content, type, replyToId } = result.data;
+    if (replyToId) {
+        const replyTarget = await prisma.message.findUnique({
+            where: { id: replyToId },
+            select: { channelId: true },
+        });
+        if (!replyTarget || replyTarget.channelId !== channelId) {
+            return c.json({ error: "Reply target was not found in this channel." }, 400);
+        }
+    }
     let resolvedContent = content;
     let resolvedType: "default" | "reply" | "system" = replyToId ? "reply" : type;
 
@@ -501,6 +502,9 @@ messages.patch("/messages/:id", async (c) => {
         return c.json({ error: "You can only edit your own messages." }, 403);
     }
 
+    const access = await verifyChannelAccess(message.channelId, userId, Permissions.SEND_MESSAGES);
+    if (!access) return c.json({ error: "You cannot access this channel." }, 403);
+
     const body = await c.req.json();
     const result = updateMessageSchema.safeParse(body);
 
@@ -557,18 +561,17 @@ messages.delete("/messages/:id", async (c) => {
 
     // Allow author or admin/owner to delete
     if (message.authorId !== userId) {
-        const membership = await prisma.serverMember.findUnique({
-            where: {
-                serverId_userId: {
-                    serverId: message.channel.serverId,
-                    userId,
-                },
-            },
-        });
-
-        if (!membership || !["owner", "admin"].includes(membership.role)) {
+        const access = await verifyChannelAccess(
+            message.channelId,
+            userId,
+            Permissions.MANAGE_MESSAGES
+        );
+        if (!access) {
             return c.json({ error: "You do not have permission to delete this message." }, 403);
         }
+    } else {
+        const access = await verifyChannelAccess(message.channelId, userId, Permissions.VIEW_CHANNEL);
+        if (!access) return c.json({ error: "You cannot access this channel." }, 403);
     }
 
     await prisma.message.delete({ where: { id: messageId } });
@@ -590,7 +593,7 @@ messages.post("/messages/:id/reactions", async (c) => {
     const body = await c.req.json();
     const emoji = body.emoji;
 
-    if (!emoji || typeof emoji !== "string") {
+    if (!emoji || typeof emoji !== "string" || emoji.length > 32) {
         return c.json({ error: "Emoji is required." }, 400);
     }
 
@@ -603,7 +606,7 @@ messages.post("/messages/:id/reactions", async (c) => {
     }
 
     // Verify access
-    const access = await verifyChannelAccess(message.channelId, userId);
+    const access = await verifyChannelAccess(message.channelId, userId, Permissions.USE_REACTIONS);
     if (!access) {
         return c.json({ error: "You are not a member of this channel's server." }, 403);
     }
@@ -651,16 +654,18 @@ messages.delete("/messages/:id/reactions/:emoji", async (c) => {
         where: { id: messageId },
     });
 
+    if (!message) return c.json({ error: "Message not found." }, 404);
+    const access = await verifyChannelAccess(message.channelId, userId, Permissions.USE_REACTIONS);
+    if (!access) return c.json({ error: "You cannot react in this channel." }, 403);
+
     await prisma.reaction.delete({
         where: { id: reaction.id },
     });
 
-    if (message) {
-        broadcastToChannel(message.channelId, {
-            type: "reaction_remove",
-            data: { messageId, userId, emoji, channelId: message.channelId },
-        });
-    }
+    broadcastToChannel(message.channelId, {
+        type: "reaction_remove",
+        data: { messageId, userId, emoji, channelId: message.channelId },
+    });
 
     return c.json({ message: "Reaction removed." });
 });

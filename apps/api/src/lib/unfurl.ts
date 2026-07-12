@@ -1,5 +1,5 @@
 import { parse } from "node-html-parser";
-import { resolve as dnsResolve } from "node:dns/promises";
+import { lookup as dnsLookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
 const URL_REGEX = /https?:\/\/[^\s<>[\]()]+/gi;
@@ -32,9 +32,10 @@ async function isUrlSafe(url: string): Promise<boolean> {
         // Check if hostname is a direct IP
         if (isIP(hostname)) return !isPrivateIP(hostname);
 
-        // Resolve hostname and check all IPs
-        const addresses = await dnsResolve(hostname);
-        return addresses.every((addr) => !isPrivateIP(addr));
+        // Resolve every A and AAAA result. Checking only IPv4 leaves IPv6 and
+        // IPv4-mapped IPv6 routes open to internal-network access.
+        const addresses = await dnsLookup(hostname, { all: true, verbatim: true });
+        return addresses.length > 0 && addresses.every(({ address }) => !isPrivateIP(address));
     } catch {
         return false;
     }
@@ -156,17 +157,32 @@ export async function unfurlUrl(url: string): Promise<EmbedMetadata | null> {
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3000);
+        let currentUrl = url;
+        let res: Response | null = null;
 
-        const res = await fetch(url, {
-            signal: controller.signal,
-            headers: {
-                "User-Agent": "CorvusBot/1.0 (+https://corvus.app)",
-                Accept: "text/html,application/xhtml+xml",
-            },
-            redirect: "follow",
-        });
+        try {
+            for (let redirects = 0; redirects <= 5; redirects++) {
+                if (!(await isUrlSafe(currentUrl))) return null;
 
-        clearTimeout(timeout);
+                res = await fetch(currentUrl, {
+                    signal: controller.signal,
+                    headers: {
+                        "User-Agent": "CorvusBot/1.0 (+https://corvus.app)",
+                        Accept: "text/html,application/xhtml+xml",
+                    },
+                    redirect: "manual",
+                });
+
+                if (![301, 302, 303, 307, 308].includes(res.status)) break;
+                const location = res.headers.get("location");
+                if (!location || redirects === 5) return null;
+                currentUrl = new URL(location, currentUrl).href;
+            }
+        } finally {
+            clearTimeout(timeout);
+        }
+
+        if (!res) return null;
 
         if (!res.ok) {
             cache.set(url, { data: null, expiresAt: Date.now() + CACHE_TTL });
@@ -204,7 +220,7 @@ export async function unfurlUrl(url: string): Promise<EmbedMetadata | null> {
             getMeta("description") ||
             getMeta("twitter:description") ||
             null;
-        const imageUrl = resolveUrl(url, ogImage || getMeta("twitter:image"));
+        const imageUrl = resolveUrl(currentUrl, ogImage || getMeta("twitter:image"));
 
         // Favicon
         const faviconLink =
@@ -212,13 +228,13 @@ export async function unfurlUrl(url: string): Promise<EmbedMetadata | null> {
             root.querySelector('link[rel="shortcut icon"]') ||
             root.querySelector('link[rel="apple-touch-icon"]');
         const faviconHref = faviconLink?.getAttribute("href");
-        const faviconUrl = resolveUrl(url, faviconHref) || `${new URL(url).origin}/favicon.ico`;
+        const faviconUrl = resolveUrl(currentUrl, faviconHref) || `${new URL(currentUrl).origin}/favicon.ico`;
 
         // Site name fallback to hostname
-        const siteName = ogSiteName || new URL(url).hostname.replace(/^www\./, "");
+        const siteName = ogSiteName || new URL(currentUrl).hostname.replace(/^www\./, "");
 
         const result: EmbedMetadata = {
-            url,
+            url: currentUrl,
             siteName,
             title: title?.slice(0, 256) || null,
             description: description?.slice(0, 300) || null,

@@ -39,7 +39,6 @@ const blockSchema = z.object({
 
 const publicUserSelect = {
     id: true,
-    email: true,
     username: true,
     displayName: true,
     avatarUrl: true,
@@ -147,7 +146,6 @@ friends.get("/friends/search", async (c) => {
             OR: [
                 { username: { contains: query, mode: "insensitive" } },
                 { displayName: { contains: query, mode: "insensitive" } },
-                { email: { contains: query, mode: "insensitive" } },
             ],
         },
         select: publicUserSelect,

@@ -87,3 +87,13 @@ export async function verifySupabaseToken(token: string): Promise<VerifiedSupaba
         emailVerified: Boolean(user.email_confirmed_at),
     };
 }
+
+/** Require a fresh password sign-in before a destructive account action. */
+export async function reauthenticateSupabaseUser(email: string, password: string): Promise<void> {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user || data.user.email?.toLowerCase() !== email.toLowerCase()) {
+        throw new Error("Incorrect password.");
+    }
+    await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+}

@@ -162,20 +162,35 @@ invites.post("/invites/:code/join", async (c) => {
         return c.json({ error: "You are already a member of this server.", server: invite.server }, 409);
     }
 
-    // Join server and increment uses
-    await prisma.$transaction([
-        prisma.serverMember.create({
+    // Claim a limited invite and create membership atomically. The conditional
+    // update prevents concurrent requests from exceeding maxUses.
+    const joined = await prisma.$transaction(async (tx) => {
+        if (invite.maxUses !== null) {
+            const claimed = await tx.invite.updateMany({
+                where: { id: invite.id, uses: { lt: invite.maxUses } },
+                data: { uses: { increment: 1 } },
+            });
+            if (claimed.count === 0) return false;
+        } else {
+            await tx.invite.update({
+                where: { id: invite.id },
+                data: { uses: { increment: 1 } },
+            });
+        }
+
+        await tx.serverMember.create({
             data: {
                 serverId: invite.serverId,
                 userId,
                 role: "member",
             },
-        }),
-        prisma.invite.update({
-            where: { id: invite.id },
-            data: { uses: { increment: 1 } },
-        }),
-    ]);
+        });
+        return true;
+    });
+
+    if (!joined) {
+        return c.json({ error: "This invite has reached its maximum uses." }, 410);
+    }
 
     return c.json({ message: "Joined server.", server: invite.server });
 });

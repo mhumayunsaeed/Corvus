@@ -20,7 +20,7 @@ export async function signToken(payload: TokenPayload): Promise<string> {
 }
 
 export async function verifyToken(token: string): Promise<TokenPayload> {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, secret, { algorithms: ["HS256"] });
     return payload as unknown as TokenPayload;
 }
 

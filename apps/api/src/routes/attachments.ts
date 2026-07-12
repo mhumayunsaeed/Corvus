@@ -15,38 +15,12 @@ const IMAGE_MAX_BYTES = Number(process.env.IMAGE_UPLOAD_MAX_BYTES || 5 * 1024 * 
 
 type AttachmentKind = "image" | "video" | "document";
 
-const DOCUMENT_MIME_TYPES = new Set([
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-powerpoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "text/plain",
-    "application/zip",
-    "application/x-zip-compressed",
-]);
-
-const DOCUMENT_EXTENSIONS = new Set([
-    ".pdf",
-    ".doc",
-    ".docx",
-    ".xls",
-    ".xlsx",
-    ".ppt",
-    ".pptx",
-    ".txt",
-    ".zip",
-]);
-
 const EXT_TO_MIME: Record<string, string> = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".png": "image/png",
     ".gif": "image/gif",
     ".webp": "image/webp",
-    ".svg": "image/svg+xml",
     ".mp4": "video/mp4",
     ".webm": "video/webm",
     ".mov": "video/quicktime",
@@ -62,35 +36,40 @@ const EXT_TO_MIME: Record<string, string> = {
     ".zip": "application/zip",
 };
 
-function inferAttachmentKind(mimeType: string, fileName: string): AttachmentKind | null {
-    const normalizedMime = (mimeType || "").toLowerCase();
-    const ext = path.extname(fileName || "").toLowerCase();
-
-    if (normalizedMime.startsWith("image/")) return "image";
-    if (normalizedMime.startsWith("video/")) return "video";
-    if (DOCUMENT_MIME_TYPES.has(normalizedMime) || DOCUMENT_EXTENSIONS.has(ext)) return "document";
-
-    return null;
-}
-
 function sanitizeExt(fileName: string): string {
     const ext = path.extname(fileName || "").toLowerCase();
     const clean = ext.replace(/[^a-z0-9.]/g, "");
     return clean.length > 0 && clean.length <= 10 ? clean : "";
 }
 
-function extFromMime(mimeType: string): string {
-    const normalized = (mimeType || "").toLowerCase();
-    for (const [ext, mime] of Object.entries(EXT_TO_MIME)) {
-        if (mime === normalized) return ext;
-    }
-    return "";
-}
-
 function sanitizeName(fileName: string): string {
     const base = path.basename(fileName || "attachment");
     const withoutControl = base.replace(/[^\x20-\x7E]/g, "");
     return withoutControl.slice(0, 120) || "attachment";
+}
+
+function startsWith(bytes: Buffer, signature: number[], offset = 0): boolean {
+    return signature.every((value, index) => bytes[offset + index] === value);
+}
+
+function sniffFile(bytes: Buffer, fileName: string): { mimeType: string; ext: string; kind: AttachmentKind } | null {
+    const requestedExt = sanitizeExt(fileName);
+    if (startsWith(bytes, [0xff, 0xd8, 0xff])) return { mimeType: "image/jpeg", ext: ".jpg", kind: "image" };
+    if (startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return { mimeType: "image/png", ext: ".png", kind: "image" };
+    if (bytes.subarray(0, 6).toString("ascii") === "GIF87a" || bytes.subarray(0, 6).toString("ascii") === "GIF89a") return { mimeType: "image/gif", ext: ".gif", kind: "image" };
+    if (bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP") return { mimeType: "image/webp", ext: ".webp", kind: "image" };
+    if (bytes.subarray(0, 5).toString("ascii") === "%PDF-") return { mimeType: "application/pdf", ext: ".pdf", kind: "document" };
+    if (startsWith(bytes, [0x50, 0x4b, 0x03, 0x04])) {
+        const officeMime = EXT_TO_MIME[requestedExt];
+        if ([".docx", ".xlsx", ".pptx"].includes(requestedExt) && officeMime) {
+            return { mimeType: officeMime, ext: requestedExt, kind: "document" };
+        }
+        return { mimeType: "application/zip", ext: ".zip", kind: "document" };
+    }
+    if (startsWith(bytes, [0x1a, 0x45, 0xdf, 0xa3])) return { mimeType: "video/webm", ext: ".webm", kind: "video" };
+    if (bytes.subarray(4, 8).toString("ascii") === "ftyp") return { mimeType: "video/mp4", ext: ".mp4", kind: "video" };
+    if (requestedExt === ".txt" && !bytes.includes(0)) return { mimeType: "text/plain", ext: ".txt", kind: "document" };
+    return null;
 }
 
 interface UploadedFile {
@@ -124,11 +103,6 @@ attachments.post("/attachments", authMiddleware, async (c) => {
         return c.json({ error: "File is required." }, 400);
     }
 
-    const kind = inferAttachmentKind(uploadedFile.type || "", uploadedFile.name || "");
-    if (!kind) {
-        return c.json({ error: "Unsupported file type. Allowed: images, videos, and common documents." }, 400);
-    }
-
     if (uploadedFile.size <= 0) {
         return c.json({ error: "File cannot be empty." }, 400);
     }
@@ -143,10 +117,13 @@ attachments.post("/attachments", authMiddleware, async (c) => {
         );
     }
 
-    const originalName = sanitizeName(uploadedFile.name || "attachment");
-    const ext = sanitizeExt(originalName) || extFromMime(uploadedFile.type || "");
-    const mimeType = uploadedFile.type || EXT_TO_MIME[ext] || "application/octet-stream";
     const bytes = Buffer.from(await uploadedFile.arrayBuffer());
+    const originalName = sanitizeName(uploadedFile.name || "attachment");
+    const detected = sniffFile(bytes, originalName);
+    if (!detected) {
+        return c.json({ error: "File contents do not match a supported file type." }, 400);
+    }
+    const { ext, mimeType, kind } = detected;
 
     const url = await uploadObject({
         bucket: STORAGE_BUCKETS.attachments,
@@ -180,10 +157,6 @@ async function handleImageUpload(c: Context<AuthEnv>, bucket: StorageBucket) {
         return c.json({ error: "File is required." }, 400);
     }
 
-    if (!(uploadedFile.type || "").toLowerCase().startsWith("image/")) {
-        return c.json({ error: "File must be an image." }, 400);
-    }
-
     if (uploadedFile.size <= 0) {
         return c.json({ error: "File cannot be empty." }, 400);
     }
@@ -195,14 +168,17 @@ async function handleImageUpload(c: Context<AuthEnv>, bucket: StorageBucket) {
         );
     }
 
-    const ext = sanitizeExt(uploadedFile.name || "") || extFromMime(uploadedFile.type) || ".png";
     const bytes = Buffer.from(await uploadedFile.arrayBuffer());
+    const detected = sniffFile(bytes, uploadedFile.name || "");
+    if (!detected || detected.kind !== "image") {
+        return c.json({ error: "File contents must be a supported raster image." }, 400);
+    }
 
     const url = await uploadObject({
         bucket,
-        key: generateObjectKey(ext),
+        key: generateObjectKey(detected.ext),
         data: bytes,
-        contentType: uploadedFile.type || "image/png",
+        contentType: detected.mimeType,
     });
 
     return c.json({ url }, 201);
