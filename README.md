@@ -46,11 +46,10 @@ Discord is great, but it collects extensive user data and locks communities into
 - **Servers & channels** with roles, permissions, and invite system
 - **Stage channels** with speaker/audience model and raise-hand queue
 - **Stickers & file attachments** (images, videos, documents)
-- **Desktop app** via Tauri v2 &mdash; native tray, notifications, auto-updater, ~10 MB installer
+- **Desktop app** via Tauri v2 &mdash; native tray and notifications
 - **Web app** via Next.js &mdash; works in any modern browser
 - **Friend system** with search, requests, blocking
 - **Noise suppression & echo cancellation** for crystal-clear voice
-- **Push-to-talk** global shortcut on desktop (works even when app is unfocused)
 
 ## Screenshots
 <img width="1919" height="869" alt="image" src="https://github.com/user-attachments/assets/1d8fc732-ed71-4cbb-9a8d-ef27ca4f409c" />
@@ -89,7 +88,7 @@ Discord is great, but it collects extensive user data and locks communities into
 |-------|-----------|
 | **Frontend** | Next.js 15, React 19, Tailwind CSS, Zustand, LiveKit Client |
 | **Backend** | Hono (serverless on Vercel), Prisma 6, Supabase (PostgreSQL, Auth, Storage, Realtime) |
-| **Desktop** | Tauri 2 (Rust), custom window chrome, system tray, auto-updater |
+| **Desktop** | Tauri 2 (Rust), custom window chrome, system tray |
 | **Auth** | Supabase Auth (email/password + Google OAuth); API issues short-lived app JWTs (JOSE) |
 | **Voice/Video** | LiveKit SFU (WebRTC) |
 | **Monorepo** | pnpm workspaces, Turborepo |
@@ -151,19 +150,16 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
 ### 3. Set up the database
 
-Either apply the SQL migration (tables + indexes + storage buckets in one file)…
-
-```bash
-supabase db push     # applies supabase/migrations/*.sql
-# (or paste supabase/migrations/20260605000000_init.sql into the Supabase SQL editor)
-```
-
-…or use Prisma directly:
+Create the application schema from the committed Prisma schema:
 
 ```bash
 pnpm --filter @corvus/api db:generate
 pnpm --filter @corvus/api db:push
 ```
+
+Then apply [`supabase/realtime-policies.sql`](supabase/realtime-policies.sql) in
+the Supabase SQL editor. Production broadcasts use private topics by default;
+set `REALTIME_PRIVATE_CHANNELS=false` only for local troubleshooting.
 
 ### 3b. Set up Supabase Storage buckets
 
@@ -295,9 +291,9 @@ Have an idea? [Open a feature request](https://github.com/Humayun-glitch/Corvus/
 
 ## License
 
-Corvus is **not open source**. &copy; 2026 Corvus &mdash; all rights reserved.
-Please don't redistribute, rehost, or publish modified versions without
-permission. Formal licensing terms are being finalized.
+Corvus is free software licensed under the
+[GNU Affero General Public License v3.0](LICENSE). You may use, modify, and
+redistribute it under the terms of that license.
 
 ---
 

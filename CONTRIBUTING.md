@@ -115,22 +115,20 @@ Look for issues labeled **[`good first issue`](https://github.com/Humayun-glitch
 ```
 corvus/
 ├── apps/
-│   ├── web/          # Next.js 15 frontend (React 19, Tailwind, Zustand)
-│   ├── api/          # Hono API server (Prisma, WebSocket, JWT auth)
+│   ├── web/          # Next.js 16 frontend (React 19, Tailwind, Zustand)
+│   ├── api/          # Hono API server (Prisma, Supabase Realtime, JWT auth)
 │   └── desktop/      # Tauri v2 desktop shell (Rust)
 ├── packages/
 │   ├── ui/           # Shared React components (Button, Modal, etc.)
-│   ├── config/       # Shared TypeScript, Tailwind, ESLint configs
-│   ├── db/           # Database package
-│   └── trpc/         # tRPC definitions
+│   └── config/       # Shared TypeScript, Tailwind, ESLint configs
 ```
 
 ### Key Technologies
 
 | Area | Stack |
 |------|-------|
-| Frontend | Next.js 15, React 19, Tailwind CSS 3.4, Zustand |
-| Backend | Hono, Prisma 6, PostgreSQL, WebSocket (`ws`) |
+| Frontend | Next.js 16, React 19, Tailwind CSS 3.4, Zustand |
+| Backend | Hono, Prisma 6, PostgreSQL, Supabase Realtime |
 | Desktop | Tauri 2, Rust |
 | Auth | JWT (JOSE), Argon2 |
 | Voice | LiveKit (WebRTC SFU) |
