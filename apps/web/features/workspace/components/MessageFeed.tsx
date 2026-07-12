@@ -24,11 +24,19 @@ import { Avatar } from "@/shared/components/ui";
 import type { Attachment, ChatMessage, LinkEmbed } from "./types";
 import { ClipEmbed } from "./ClipRecorder";
 import { GitHubEvent } from "./GitHubView";
+import { ConfirmModal } from "@/shared/components/ui/Modal";
 
 const GROUP_WINDOW_MS = 7 * 60 * 1000;
 
 export function timeShort(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+function timeLabel(iso: string) {
+  const date = new Date(iso);
+  const prefix = date.toDateString() === new Date().toDateString()
+    ? "Today"
+    : date.toLocaleDateString([], { month: "short", day: "numeric", year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+  return `${prefix} at ${timeShort(iso)}`;
 }
 function dayKey(iso: string) {
   return new Date(iso).toDateString();
@@ -133,6 +141,7 @@ function MessageRow({
   const [reactOpen, setReactOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [draft, setDraft] = useState(message.text);
 
   return (
@@ -142,6 +151,18 @@ function MessageRow({
         reactOpen && "bg-hover-row"
       )}
     >
+      <ConfirmModal
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={() => {
+          onDelete?.(message.id);
+          setConfirmDelete(false);
+        }}
+        title="Delete message?"
+        body="This will permanently remove the message for everyone."
+        confirmLabel="Delete message"
+        destructive
+      />
       {/* Reply reference — a quiet line that connects to the original. */}
       {message.replyTo && (
         <div className="mb-0.5 flex items-center gap-1.5 pl-11">
@@ -173,7 +194,7 @@ function MessageRow({
               )}
               <span className="text-[14px] font-medium text-text-primary">{message.author.name}</span>
               <span className="font-mono text-[11px] tracking-[0.02em] text-text-muted">
-                Today at {timeShort(message.at)}
+                {timeLabel(message.at)}
               </span>
             </div>
           )}
@@ -245,7 +266,7 @@ function MessageRow({
                   type="button"
                   aria-label="Add reaction"
                   onClick={() => setReactOpen((v) => !v)}
-                  className="flex h-[22px] items-center rounded-full border border-border bg-surface-raised px-2 text-text-faint opacity-0 transition-all hover:border-border-active hover:text-text-primary group-hover:opacity-100"
+                  className="flex h-[22px] items-center rounded-full border border-border bg-surface-raised px-2 text-text-faint opacity-0 transition-all hover:border-border-active hover:text-text-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
                 >
                   <SmilePlus size={12} />
                 </button>
@@ -258,7 +279,7 @@ function MessageRow({
       {/* Hover toolbar */}
       <div
         className={cn(
-          "absolute -top-3 right-4 items-center gap-0.5 rounded-sm border border-border bg-surface-overlay p-0.5 group-hover:flex",
+          "absolute -top-3 right-4 items-center gap-0.5 rounded-sm border border-border bg-surface-overlay p-0.5 group-hover:flex group-focus-within:flex",
           menuOpen ? "flex" : "hidden"
         )}
       >
@@ -279,6 +300,7 @@ function MessageRow({
       {/* More menu */}
       {menuOpen && (
         <div
+          role="menu"
           className="absolute right-4 top-4 z-30 min-w-[200px] rounded-[10px] border border-border bg-surface-overlay p-1"
           style={{ boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}
         >
@@ -317,7 +339,7 @@ function MessageRow({
               label="Delete message"
               danger
               onClick={() => {
-                onDelete(message.id);
+                setConfirmDelete(true);
                 setMenuOpen(false);
               }}
             />
@@ -328,6 +350,7 @@ function MessageRow({
       {/* Quick reaction menu */}
       {reactOpen && (
         <div
+          role="menu"
           className="absolute -top-3 right-4 z-30 flex translate-y-[-100%] items-center gap-0.5 rounded-[10px] border border-border bg-surface-overlay p-1"
           style={{ boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}
         >
@@ -335,6 +358,7 @@ function MessageRow({
             <button
               key={e}
               type="button"
+              role="menuitem"
               onClick={() => {
                 onReact?.(message.id, e);
                 setReactOpen(false);
@@ -531,6 +555,7 @@ function MenuItem({
   return (
     <button
       type="button"
+      role="menuitem"
       onClick={onClick}
       className={cn(
         "flex h-9 w-full items-center gap-2.5 rounded-sm px-2.5 text-left transition-colors hover:bg-hover-row",

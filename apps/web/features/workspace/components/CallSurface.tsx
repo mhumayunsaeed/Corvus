@@ -58,7 +58,7 @@ function mediaToast(title: string, body: string) {
  * getDisplayMedia streams that the tiles and stage render live. Everything is
  * released when the surface unmounts.
  */
-export function useCallControls(initial?: Partial<CallControlsState>) {
+export function useCallControls(initial?: Partial<CallControlsState>, mediaEnabled = true) {
   const [state, setState] = useState<CallControlsState>(() => {
     const s = {
       muted: false,
@@ -86,6 +86,7 @@ export function useCallControls(initial?: Partial<CallControlsState>) {
   // Join (and re-join on suppression change): acquire the microphone through
   // the noise-suppression engine. Best effort — UI still works without it.
   useEffect(() => {
+    if (!mediaEnabled) return;
     let cancelled = false;
     acquireMic(nsLevel)
       .then((session) => {
@@ -103,7 +104,7 @@ export function useCallControls(initial?: Partial<CallControlsState>) {
       micRef.current?.dispose();
       micRef.current = null;
     };
-  }, [nsLevel]);
+  }, [nsLevel, mediaEnabled]);
 
   // If the camera turns on at join (video call), acquire immediately.
   const wantsInitialCamera = useRef(Boolean(initial?.camera));
@@ -267,15 +268,10 @@ export function ParticipantTile({
 /* ── Connection pill ────────────────────────────────────────────────── */
 
 export function ConnectionPill() {
-  const [ms, setMs] = useState(23);
-  useEffect(() => {
-    const t = setInterval(() => setMs(18 + Math.round(Math.random() * 14)), 3000);
-    return () => clearInterval(t);
-  }, []);
   return (
     <span className="flex items-center gap-1.5 rounded-[4px] border border-border px-2 py-0.5 font-mono text-[11px] text-text-muted">
       <span className="h-1.5 w-1.5 rounded-full bg-status-online" />
-      {ms}ms
+      local media
     </span>
   );
 }

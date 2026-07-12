@@ -20,6 +20,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ label, error, hint, adornment, labelAction, className, id, ...props }, ref) => {
     const generated = useId();
     const inputId = id ?? generated;
+    const messageId = `${inputId}-message`;
 
     return (
       <div className="w-full">
@@ -38,9 +39,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative">
           <input
+            {...props}
             id={inputId}
             ref={ref}
             aria-invalid={error ? true : undefined}
+            aria-describedby={error || hint ? messageId : props["aria-describedby"]}
             className={cn(
               "h-10 w-full rounded-md border bg-surface-raised px-3 text-[14px] text-text-primary",
               "placeholder:text-text-muted",
@@ -53,16 +56,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               adornment && "pr-10",
               className
             )}
-            {...props}
           />
           {adornment && (
             <div className="absolute right-3 top-1/2 -translate-y-1/2">{adornment}</div>
           )}
         </div>
         {error ? (
-          <p className="mt-1.5 text-[12px] text-danger">{error}</p>
+          <p id={messageId} className="mt-1.5 text-[12px] text-danger">{error}</p>
         ) : hint ? (
-          <p className="mt-1.5 text-[12px] text-text-muted">{hint}</p>
+          <p id={messageId} className="mt-1.5 text-[12px] text-text-muted">{hint}</p>
         ) : null}
       </div>
     );

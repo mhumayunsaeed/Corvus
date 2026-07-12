@@ -13,10 +13,14 @@ import {
   fetchServers,
   fetchWorkspaceModules,
   fetchFriendDashboard,
+  markChannelReadApi,
+  markDMReadApi,
+  type MessageData,
 } from "@/shared/lib/api";
 import { getSupabaseClient, isSupabaseConfigured } from "@/shared/supabase/client";
 import { AppShell } from "./AppShell";
 import { useShellData } from "./useShellData";
+import { useToastStore } from "@/shared/stores/toast-store";
 
 /** Readable URL segment from a display name — "voice-lounge", "design-crew". */
 function slugify(name: string) {
@@ -77,6 +81,12 @@ export function RoutedAppShell({ isDemo = false }: { isDemo?: boolean }) {
   const setFriends = useAppStore((s) => s.setFriends);
   const channelsByServer = useAppStore((s) => s.channelsByServer);
   const setMessages = useChatStore((s) => s.setMessages);
+  const addMessage = useChatStore((s) => s.addMessage);
+  const updateMessage = useChatStore((s) => s.updateMessage);
+  const deleteMessage = useChatStore((s) => s.deleteMessage);
+  const addReaction = useChatStore((s) => s.addReaction);
+  const removeReaction = useChatStore((s) => s.removeReaction);
+  const setLoading = useChatStore((s) => s.setLoading);
   const messages = useChatStore((s) => s.messages);
 
   const spaceIdFromUrl = spaceFromUrl
@@ -94,6 +104,8 @@ export function RoutedAppShell({ isDemo = false }: { isDemo?: boolean }) {
     ? (data.dmConversations?.find((c) => slugify(c.name) === dmFromUrl || c.id === dmFromUrl)?.id ??
       dmFromUrl)
     : undefined;
+  const activeChannelMessageCount = channelIdFromUrl ? messages[channelIdFromUrl]?.length : undefined;
+  const activeDmMessageCount = dmIdFromUrl ? messages[dmIdFromUrl]?.length : undefined;
 
   // Load servers once when authenticated.
   useEffect(() => {
@@ -218,29 +230,85 @@ export function RoutedAppShell({ isDemo = false }: { isDemo?: boolean }) {
     if (!isAuthenticated || !channelIdFromUrl) return;
     if (messages[channelIdFromUrl]) return;
     let cancelled = false;
+    setLoading(channelIdFromUrl, true);
     fetchMessages(channelIdFromUrl)
       .then((r) => {
         if (!cancelled) setMessages(channelIdFromUrl, r.messages, r.nextCursor, r.hasMore);
       })
-      .catch(() => {});
+      .catch((error) => useToastStore.getState().addToast({
+        title: "Messages failed to load",
+        body: error instanceof Error ? error.message : "Try opening the channel again.",
+        variant: "error",
+      }))
+      .finally(() => setLoading(channelIdFromUrl, false));
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, channelIdFromUrl, messages, setMessages]);
+  }, [isAuthenticated, channelIdFromUrl, messages, setMessages, setLoading]);
 
   useEffect(() => {
     if (!isAuthenticated || !dmIdFromUrl) return;
     if (messages[dmIdFromUrl]) return;
     let cancelled = false;
+    setLoading(dmIdFromUrl, true);
     fetchDMMessages(dmIdFromUrl)
       .then((r) => {
         if (!cancelled) setMessages(dmIdFromUrl, r.messages as never, r.nextCursor, r.hasMore);
       })
-      .catch(() => {});
+      .catch((error) => useToastStore.getState().addToast({
+        title: "Messages failed to load",
+        body: error instanceof Error ? error.message : "Try opening the conversation again.",
+        variant: "error",
+      }))
+      .finally(() => setLoading(dmIdFromUrl, false));
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, dmIdFromUrl, messages, setMessages]);
+  }, [isAuthenticated, dmIdFromUrl, messages, setMessages, setLoading]);
+
+  // Subscribe only to the open conversation and apply server broadcasts to the
+  // canonical chat store. Cleanup on navigation prevents duplicate handlers.
+  useEffect(() => {
+    if (!isAuthenticated || !isSupabaseConfigured() || (!channelIdFromUrl && !dmIdFromUrl) || !user) return;
+    const targetId = channelIdFromUrl ?? dmIdFromUrl!;
+    const isDm = Boolean(dmIdFromUrl);
+    const realtime = getSupabaseClient().channel(`${isDm ? "dm" : "channel"}:${targetId}`);
+
+    realtime.on("broadcast", { event: "*" }, ({ event, payload }) => {
+      const data = payload as Record<string, unknown>;
+      if (event === "new_message") addMessage(targetId, data as unknown as MessageData);
+      if (event === "new_dm_message") {
+        const message = data.message as MessageData | undefined;
+        if (message) addMessage(targetId, message);
+      }
+      if (event === "message_update" || event === "dm_message_update") {
+        const id = data.id as string | undefined;
+        if (id) updateMessage(targetId, id, data as Partial<MessageData>);
+      }
+      if (event === "message_delete" || event === "dm_message_delete") {
+        const id = data.id as string | undefined;
+        if (id) deleteMessage(targetId, id);
+      }
+      if (event === "reaction_add" || event === "dm_reaction_add") {
+        addReaction(targetId, data.messageId as string, data.emoji as string, data.userId as string, user.id);
+      }
+      if (event === "reaction_remove" || event === "dm_reaction_remove") {
+        removeReaction(targetId, data.messageId as string, data.emoji as string, data.userId as string, user.id);
+      }
+    }).subscribe();
+
+    return () => { void getSupabaseClient().removeChannel(realtime); };
+  }, [isAuthenticated, channelIdFromUrl, dmIdFromUrl, user, addMessage, updateMessage, deleteMessage, addReaction, removeReaction]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !channelIdFromUrl) return;
+    void markChannelReadApi(channelIdFromUrl).catch(() => {});
+  }, [isAuthenticated, channelIdFromUrl, activeChannelMessageCount]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !dmIdFromUrl) return;
+    void markDMReadApi(dmIdFromUrl).catch(() => {});
+  }, [isAuthenticated, dmIdFromUrl, activeDmMessageCount]);
 
   return (
     <AppShell

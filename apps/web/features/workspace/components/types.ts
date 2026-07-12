@@ -82,6 +82,8 @@ export interface Attachment {
   url?: string;
   /** Human-formatted size, e.g. "2.4 MB". */
   size?: string;
+  /** Original browser file, retained only until the live upload completes. */
+  file?: File;
 }
 
 export interface LinkEmbed {

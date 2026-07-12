@@ -63,7 +63,11 @@ export function Composer({
 
   const send = () => {
     if (!canSend) return;
-    onSend?.(value.trim(), pending.length ? pending : undefined);
+    const staged = pending.length ? pending : undefined;
+    onSend?.(value.trim(), staged);
+    staged?.forEach((attachment) => {
+      if (attachment.url?.startsWith("blob:")) URL.revokeObjectURL(attachment.url);
+    });
     setValue("");
     setPending([]);
     onCancelReply?.();
@@ -77,6 +81,7 @@ export function Composer({
       name: f.name,
       size: formatSize(f.size),
       url: URL.createObjectURL(f),
+      file: f,
     }));
     setPending((p) => [...p, ...next]);
   };
@@ -130,8 +135,12 @@ export function Composer({
                 <button
                   type="button"
                   aria-label={`Remove ${att.name}`}
-                  onClick={() => setPending((p) => p.filter((_, j) => j !== i))}
-                  className="absolute right-1 top-1 hidden h-5 w-5 items-center justify-center rounded-sm bg-black/60 text-white group-hover/att:flex"
+                  onClick={() => setPending((p) => {
+                    const removed = p[i];
+                    if (removed?.url?.startsWith("blob:")) URL.revokeObjectURL(removed.url);
+                    return p.filter((_, j) => j !== i);
+                  })}
+                  className="absolute right-1 top-1 hidden h-5 w-5 items-center justify-center rounded-sm bg-black/60 text-white group-hover/att:flex focus:flex group-focus-within/att:flex"
                 >
                   <X size={11} />
                 </button>
@@ -194,6 +203,14 @@ export function Composer({
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             onKeyDown={(e) => {
+              if (e.key === "Enter" && mentionMatch && members?.length) {
+                e.preventDefault();
+                const match = members.find((member) =>
+                  member.name.toLowerCase().includes(mentionMatch[1].toLowerCase())
+                );
+                if (match) setValue((v) => v.replace(/@\w*$/, `@${match.name} `));
+                return;
+              }
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 send();

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ChannelGlyph } from "@/shared/components/ui";
 import type { VoiceParticipant } from "./types";
 import {
@@ -20,12 +21,34 @@ export function VoiceView({
   channelName,
   participants,
   onLeave,
+  previewEnabled = false,
 }: {
   channelName: string;
   participants: VoiceParticipant[];
   onLeave?: () => void;
+  previewEnabled?: boolean;
 }) {
-  const { state, toggle, camStream, screenStream } = useCallControls();
+  const [joined, setJoined] = useState(false);
+  const { state, toggle, camStream, screenStream } = useCallControls(undefined, joined);
+
+  if (!joined) {
+    return (
+      <section className="flex h-full min-w-0 flex-1 flex-col items-center justify-center bg-background px-6 text-center">
+        <ChannelGlyph type="voice" size={28} />
+        <h1 className="mt-4 text-lg font-semibold text-text-primary">{channelName}</h1>
+        <p className="mt-2 max-w-md text-sm text-text-muted">
+          {previewEnabled
+            ? "Join the local media preview. Your microphone is requested only after you choose Join."
+            : "Voice transport is not configured for this client yet. No microphone access has been requested."}
+        </p>
+        {previewEnabled && (
+          <button type="button" onClick={() => setJoined(true)} className="mt-5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-on-accent">
+            Join voice preview
+          </button>
+        )}
+      </section>
+    );
+  }
 
   // The local user is always in the room — their tile carries the live camera.
   const everyone: VoiceParticipant[] = [
@@ -95,7 +118,7 @@ export function VoiceView({
       </div>
 
       <div className="flex h-16 shrink-0 items-center justify-center gap-2 border-t border-border bg-surface-raised px-4">
-        <CallControls state={state} onToggle={toggle} onLeave={onLeave} />
+        <CallControls state={state} onToggle={toggle} onLeave={() => { setJoined(false); onLeave?.(); }} />
       </div>
     </section>
   );

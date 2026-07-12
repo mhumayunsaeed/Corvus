@@ -59,7 +59,20 @@ import {
   removeFriend as removeFriendApi,
   fetchFriendDashboard,
   searchFriendUsers as searchFriendUsersApi,
+  editMessage as editChannelMessageApi,
+  deleteMessageApi,
+  editDMMessage,
+  deleteDMMessage,
+  addDMReaction,
+  removeDMReaction,
+  pinDMMessage,
+  unpinDMMessage,
+  uploadAttachment,
+  fetchMessages,
+  fetchDMMessages,
 } from "@/shared/lib/api";
+import type { MessageData } from "@/shared/lib/api";
+import { encodeAttachmentContent, type SharedAttachment } from "@/shared/lib/attachments";
 import { notifyEvent, ringIncoming } from "@/shared/lib/notify";
 import type {
   BoardData,
@@ -463,7 +476,9 @@ export function AppShell({
   // Merge base messages with every local layer: echoes, reactions, pins,
   // edits, deletions. One pipeline for channels, DMs, and group DMs.
   const messagesFor = (id: string): ChatMessage[] =>
-    [...(data.messagesByChannel[id] ?? []), ...(localEcho[id] ?? [])]
+    [...new Map(
+      [...(data.messagesByChannel[id] ?? []), ...(localEcho[id] ?? [])].map((message) => [message.id, message])
+    ).values()]
       .filter((m) => !deletedIds.has(m.id))
       .map((m) => {
         let out = m;
@@ -487,19 +502,30 @@ export function AppShell({
         return { ...out, reactions: merged.length ? merged : undefined };
       });
 
-  const togglePin = (targetId: string) => (msgId: string) => {
+  const togglePin = (targetId: string) => async (msgId: string) => {
     const msg = messagesFor(targetId).find((m) => m.id === msgId);
     const next = !(msg?.pinned ?? false);
     const isDmTarget = data.dmConversations?.some((c) => c.id === targetId);
-    if (isLive && !isDmTarget) {
-      const request = next ? pinChannelMessage(targetId, msgId) : unpinChannelMessage(targetId, msgId);
-      request.catch((err) => {
+    if (isLive) {
+      const request = isDmTarget
+        ? next ? pinDMMessage(targetId, msgId) : unpinDMMessage(targetId, msgId)
+        : next ? pinChannelMessage(targetId, msgId) : unpinChannelMessage(targetId, msgId);
+      try {
+        await request;
+        setPinOv((ov) => ({ ...ov, [msgId]: next }));
+        useToastStore.getState().addToast({
+          title: next ? "Message pinned" : "Message unpinned",
+          body: msg?.text ? msg.text.slice(0, 80) : "Open the pin panel from the header.",
+          variant: "success",
+        });
+      } catch (err) {
         useToastStore.getState().addToast({
           title: "Pin failed",
           body: err instanceof Error ? err.message : "Could not update the pin in Supabase.",
           variant: "error",
         });
-      });
+      }
+      return;
     }
     setPinOv((ov) => ({ ...ov, [msgId]: next }));
     useToastStore.getState().addToast({
@@ -509,27 +535,68 @@ export function AppShell({
     });
   };
 
-  const editMessage = (msgId: string, text: string) =>
-    setEditOv((ov) => ({ ...ov, [msgId]: text }));
+  const editMessage = (targetId: string) => async (msgId: string, text: string) => {
+    if (!isLive) {
+      setEditOv((ov) => ({ ...ov, [msgId]: text }));
+      return;
+    }
+    const isDmTarget = data.dmConversations?.some((c) => c.id === targetId);
+    try {
+      const response = isDmTarget
+        ? await editDMMessage(targetId, msgId, text)
+        : await editChannelMessageApi(msgId, text);
+      chatStore.updateMessage(targetId, msgId, response.message as unknown as MessageData);
+    } catch (err) {
+      useToastStore.getState().addToast({
+        title: "Edit failed",
+        body: err instanceof Error ? err.message : "Could not edit this message.",
+        variant: "error",
+      });
+    }
+  };
 
-  const deleteMessage = (msgId: string) =>
-    setDeletedIds((ids) => new Set(ids).add(msgId));
+  const deleteMessage = (targetId: string) => async (msgId: string) => {
+    if (!isLive) {
+      setDeletedIds((ids) => new Set(ids).add(msgId));
+      return;
+    }
+    const isDmTarget = data.dmConversations?.some((c) => c.id === targetId);
+    try {
+      if (isDmTarget) await deleteDMMessage(targetId, msgId);
+      else await deleteMessageApi(msgId);
+      chatStore.deleteMessage(targetId, msgId);
+    } catch (err) {
+      useToastStore.getState().addToast({
+        title: "Delete failed",
+        body: err instanceof Error ? err.message : "Could not delete this message.",
+        variant: "error",
+      });
+    }
+  };
 
   const toggleReaction = (targetId: string) => (msgId: string, emoji: string) => {
     const msg = messagesFor(targetId).find((m) => m.id === msgId);
     const current = msg?.reactions?.find((r) => r.emoji === emoji);
     const reactedNow = current?.reacted ?? false;
     const isDmTarget = data.dmConversations?.some((c) => c.id === targetId);
-    if (isLive && !isDmTarget && authUser) {
-      const request = reactedNow
-        ? removeChannelReactionApi(msgId, emoji)
-        : addChannelReactionApi(msgId, emoji);
+    if (isLive && authUser) {
+      const request = isDmTarget
+        ? reactedNow
+          ? removeDMReaction(targetId, msgId, emoji)
+          : addDMReaction(targetId, msgId, emoji)
+        : reactedNow
+          ? removeChannelReactionApi(msgId, emoji)
+          : addChannelReactionApi(msgId, emoji);
       request
         .then(() => {
           if (reactedNow) chatStore.removeReaction(targetId, msgId, emoji, authUser.id, authUser.id);
           else chatStore.addReaction(targetId, msgId, emoji, authUser.id, authUser.id);
         })
-        .catch(() => {});
+        .catch((err) => useToastStore.getState().addToast({
+          title: "Reaction failed",
+          body: err instanceof Error ? err.message : "Could not update this reaction.",
+          variant: "error",
+        }));
       return;
     }
     setReactionOv((ov) => {
@@ -548,20 +615,43 @@ export function AppShell({
     replyTo?: ChatMessage["replyTo"]
   ) => {
     const isDmTarget = data.dmConversations?.some((c) => c.id === targetId);
-    if (isLive && !isDmTarget) {
-      sendChannelMessageApi(targetId, { content: text, replyToId: replyTo?.id })
-        .then((r) => chatStore.addMessage(targetId, r.message))
-        .catch((err) => {
+    if (isLive) {
+      void (async () => {
+        try {
+          const contents: string[] = text ? [text] : [];
+          for (const attachment of attachments ?? []) {
+            let uploaded: SharedAttachment;
+            if (attachment.file) {
+              uploaded = (await uploadAttachment(attachment.file)).attachment;
+            } else if (attachment.url) {
+              uploaded = {
+                url: attachment.url,
+                name: attachment.name,
+                size: 0,
+                mimeType: attachment.kind === "gif" ? "image/gif" : "application/octet-stream",
+                kind: attachment.kind === "video" ? "video" : "image",
+              };
+            } else {
+              continue;
+            }
+            contents.push(encodeAttachmentContent(uploaded));
+          }
+
+          for (const [index, content] of contents.entries()) {
+            const response = isDmTarget
+              ? await sendDMMessage(targetId, content, index === 0 ? replyTo?.id : undefined)
+              : await sendChannelMessageApi(targetId, { content, replyToId: index === 0 ? replyTo?.id : undefined });
+            chatStore.addMessage(targetId, response.message as unknown as MessageData);
+          }
+        } catch (err) {
           useToastStore.getState().addToast({
             title: "Message failed",
             body: err instanceof Error ? err.message : "Could not save the message in Supabase.",
             variant: "error",
           });
-        });
+        }
+      })();
       return;
-    }
-    if (isLive && isDmTarget) {
-      sendDMMessage(targetId, text, replyTo?.id).catch(() => {});
     }
     const msg: ChatMessage = {
       id: `local${Date.now()}`,
@@ -578,6 +668,31 @@ export function AppShell({
   const dmConversation = data.dmConversations?.find((c) => c.id === activeDmId);
   const dmMessages = activeDmId ? messagesFor(activeDmId) : [];
   const threadParent = channelMessages.find((m) => m.id === threadParentId) ?? null;
+
+  const loadOlder = (targetId: string) => async () => {
+    if (!isLive || chatStore.loadingChannels.has(targetId) || !chatStore.hasMore[targetId]) return;
+    chatStore.setLoading(targetId, true);
+    const isDmTarget = data.dmConversations?.some((c) => c.id === targetId);
+    try {
+      const response = isDmTarget
+        ? await fetchDMMessages(targetId, chatStore.cursors[targetId] ?? undefined)
+        : await fetchMessages(targetId, chatStore.cursors[targetId] ?? undefined);
+      chatStore.prependMessages(
+        targetId,
+        response.messages as unknown as MessageData[],
+        response.nextCursor,
+        response.hasMore
+      );
+    } catch (err) {
+      useToastStore.getState().addToast({
+        title: "Older messages failed to load",
+        body: err instanceof Error ? err.message : "Scroll up to try again.",
+        variant: "error",
+      });
+    } finally {
+      chatStore.setLoading(targetId, false);
+    }
+  };
 
   // Stop recording → a clip message lands in the current channel.
   const finishClip = (duration: string) => {
@@ -623,11 +738,19 @@ export function AppShell({
   // Start an outgoing DM call — group DMs ring every member (the demo seam
   // for the realtime call stack).
   const startCallForConversation = useCallback((conversation: DMSummary, video?: boolean) => {
+    if (isLive) {
+      useToastStore.getState().addToast({
+        title: "Calls are not available yet",
+        body: "This client has no configured realtime media transport, so no microphone was opened.",
+        variant: "info",
+      });
+      return;
+    }
     const peers: CallPeer[] = conversation.group?.length
       ? conversation.group.map((g) => ({ id: g.id, name: g.name, avatar: g.avatar }))
       : [{ id: conversation.peerId ?? conversation.id, name: conversation.name, avatar: conversation.avatar }];
     setCall({ conversationId: conversation.id, peers, video, name: conversation.name });
-  }, []);
+  }, [isLive]);
 
   const startCall = (video?: boolean) => {
     if (!dmConversation) return;
@@ -1158,6 +1281,7 @@ export function AppShell({
             )}
             <MessageArea
               channelName={dmConversation.name}
+              feedId={dmConversation.id}
               channelType="text"
               messages={dmMessages}
               members={dmConversation.group?.map((g) => ({ id: g.id, name: g.name, avatar: g.avatar }))}
@@ -1173,8 +1297,11 @@ export function AppShell({
               onReact={toggleReaction(dmConversation.id)}
               meId={data.me.id}
               onPin={togglePin(dmConversation.id)}
-              onEdit={editMessage}
-              onDelete={deleteMessage}
+              onEdit={editMessage(dmConversation.id)}
+              onDelete={deleteMessage(dmConversation.id)}
+              loading={chatStore.loadingChannels.has(dmConversation.id)}
+              hasMore={chatStore.hasMore[dmConversation.id]}
+              onLoadOlder={loadOlder(dmConversation.id)}
             />
           </div>
         )
@@ -1187,6 +1314,7 @@ export function AppShell({
         return (
           <VoiceView
             channelName={activeChannel.name}
+            previewEnabled={!isLive}
             participants={
               data.voiceByChannel?.[activeChannel.id] ??
               (activeChannel.participants ?? []).map((p) => ({ id: p.id, name: p.name, avatar: p.avatar }))
@@ -1239,7 +1367,7 @@ export function AppShell({
         );
       }
       case "canvas":
-        return <CanvasView channelName={activeChannel.name} storageKey={activeChannel.id} />;
+        return <CanvasView key={activeChannel.id} channelName={activeChannel.name} storageKey={activeChannel.id} />;
       case "incident": {
         const incident = data.incidentsByChannel?.[activeChannel.id];
         const channelId = activeChannel.id;
@@ -1258,6 +1386,7 @@ export function AppShell({
         return (
           <MessageArea
             channelName={activeChannel.name}
+            feedId={activeChannel.id}
             channelType={activeChannel.type}
             topic={activeChannel.type === "text" ? "Keep it constructive." : undefined}
             messages={channelMessages}
@@ -1271,8 +1400,11 @@ export function AppShell({
             onReact={toggleReaction(activeChannel.id)}
             meId={data.me.id}
             onPin={togglePin(activeChannel.id)}
-            onEdit={editMessage}
-            onDelete={deleteMessage}
+            onEdit={editMessage(activeChannel.id)}
+            onDelete={deleteMessage(activeChannel.id)}
+            loading={chatStore.loadingChannels.has(activeChannel.id)}
+            hasMore={chatStore.hasMore[activeChannel.id]}
+            onLoadOlder={loadOlder(activeChannel.id)}
           />
         );
     }
