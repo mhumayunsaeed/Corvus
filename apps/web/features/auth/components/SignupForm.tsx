@@ -71,7 +71,7 @@ export function SignupForm() {
       if (result.confirmEmail) {
         router.push(`/confirm-email?email=${encodeURIComponent(email.trim())}`);
       } else {
-        router.push("/onboarding");
+        router.push("/spaces");
       }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Registration failed. Please try again.");

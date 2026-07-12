@@ -28,7 +28,7 @@ export function Avatar({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-center overflow-hidden bg-surface-overlay font-semibold text-text-primary",
+        "relative flex shrink-0 items-center justify-center overflow-hidden bg-surface-overlay font-semibold text-text-primary",
         className
       )}
       style={{
@@ -38,10 +38,14 @@ export function Avatar({
         fontSize: Math.round(size * 0.42),
       }}
     >
-      {src ? (
-        <img src={src} alt={name ?? ""} className="h-full w-full object-cover" />
-      ) : (
-        <span aria-hidden>{initial}</span>
+      <span aria-hidden>{initial}</span>
+      {src && (
+        <img
+          src={src}
+          alt={name ?? ""}
+          onError={(event) => { event.currentTarget.style.display = "none"; }}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
       )}
     </div>
   );

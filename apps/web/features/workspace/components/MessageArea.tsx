@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Users, Search, Pin, Phone, Video, AtSign } from "lucide-react";
 import { ChannelGlyph, type ChannelType } from "@/shared/components/ui";
 import type { Attachment, ChatMessage, MemberRef } from "./types";
@@ -26,6 +26,10 @@ export function MessageArea({
   onPin,
   onEdit,
   onDelete,
+  feedId,
+  loading,
+  hasMore,
+  onLoadOlder,
 }: {
   channelName: string;
   channelType: ChannelType;
@@ -46,9 +50,55 @@ export function MessageArea({
   onPin?: (messageId: string) => void;
   onEdit?: (messageId: string, text: string) => void;
   onDelete?: (messageId: string) => void;
+  feedId?: string;
+  loading?: boolean;
+  hasMore?: boolean;
+  onLoadOlder?: () => Promise<void>;
 }) {
   const [replyToId, setReplyToId] = useState<string | null>(null);
   const replyTo = messages.find((m) => m.id === replyToId) ?? null;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const nearBottom = useRef(true);
+  const prependHeight = useRef<number | null>(null);
+  const loadRequested = useRef(false);
+  const [showNewMessages, setShowNewMessages] = useState(false);
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    element.scrollTop = element.scrollHeight;
+    nearBottom.current = true;
+    setShowNewMessages(false);
+  }, [feedId]);
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    if (prependHeight.current !== null) {
+      element.scrollTop += element.scrollHeight - prependHeight.current;
+      prependHeight.current = null;
+      loadRequested.current = false;
+    } else if (nearBottom.current) {
+      element.scrollTop = element.scrollHeight;
+    } else {
+      setShowNewMessages(true);
+    }
+  }, [messages.length]);
+
+  const handleScroll = () => {
+    const element = scrollRef.current;
+    if (!element) return;
+    nearBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 120;
+    if (nearBottom.current) setShowNewMessages(false);
+    if (element.scrollTop < 80 && hasMore && onLoadOlder && !loading && !loadRequested.current) {
+      loadRequested.current = true;
+      prependHeight.current = element.scrollHeight;
+      void onLoadOlder().finally(() => window.setTimeout(() => {
+        if (prependHeight.current !== null) prependHeight.current = null;
+        loadRequested.current = false;
+      }, 0));
+    }
+  };
 
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-background">
@@ -81,8 +131,17 @@ export function MessageArea({
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col overflow-y-auto py-4">
-        {messages.length === 0 ? (
+      <div ref={scrollRef} onScroll={handleScroll} className="relative flex flex-1 flex-col overflow-y-auto py-4">
+        {loading && messages.length === 0 ? (
+          <div aria-label="Loading messages" className="space-y-5 px-4 py-6">
+            {[0, 1, 2, 3].map((item) => (
+              <div key={item} className="flex animate-pulse gap-3">
+                <div className="h-9 w-9 rounded-md bg-surface-overlay" />
+                <div className="flex-1 space-y-2"><div className="h-3 w-28 rounded bg-surface-overlay" /><div className="h-3 w-2/3 rounded bg-surface-overlay" /></div>
+              </div>
+            ))}
+          </div>
+        ) : messages.length === 0 ? (
           <WelcomeState channelName={channelName} channelType={channelType} dm={Boolean(dm)} />
         ) : (
           <MessageFeed
@@ -95,6 +154,20 @@ export function MessageArea({
             onEdit={onEdit}
             onDelete={onDelete}
           />
+        )}
+        {showNewMessages && (
+          <button
+            type="button"
+            onClick={() => {
+              const element = scrollRef.current;
+              if (element) element.scrollTop = element.scrollHeight;
+              nearBottom.current = true;
+              setShowNewMessages(false);
+            }}
+            className="sticky bottom-2 mx-auto rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-on-accent shadow-e2"
+          >
+            New messages
+          </button>
         )}
       </div>
 

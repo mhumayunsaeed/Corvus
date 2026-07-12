@@ -8,6 +8,15 @@ function trimMessages(messages: MessageData[]) {
     return messages.slice(-MAX_MESSAGES_PER_CHANNEL);
 }
 
+function dedupeMessages(messages: MessageData[]) {
+    const seen = new Set<string>();
+    return messages.filter((message) => {
+        if (seen.has(message.id)) return false;
+        seen.add(message.id);
+        return true;
+    });
+}
+
 interface TypingUser {
     userId: string;
     username: string;
@@ -48,7 +57,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     setMessages: (channelId, messages, cursor, hasMore) =>
         set((state) => ({
-            messages: { ...state.messages, [channelId]: trimMessages(messages) },
+            messages: { ...state.messages, [channelId]: trimMessages(dedupeMessages(messages)) },
             cursors: { ...state.cursors, [channelId]: cursor },
             hasMore: { ...state.hasMore, [channelId]: hasMore },
         })),
@@ -57,10 +66,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set((state) => ({
             messages: {
                 ...state.messages,
-                [channelId]: trimMessages([
+                [channelId]: dedupeMessages([
                     ...messages,
                     ...(state.messages[channelId] || []),
-                ]),
+                ]).slice(0, MAX_MESSAGES_PER_CHANNEL),
             },
             cursors: { ...state.cursors, [channelId]: cursor },
             hasMore: { ...state.hasMore, [channelId]: hasMore },

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { cn } from "@corvus/ui";
 import { X, Trash2 } from "lucide-react";
 import { Avatar, ChannelGlyph, Input } from "@/shared/components/ui";
+import { ConfirmModal } from "@/shared/components/ui/Modal";
 import { AutomationsSettings, WebhooksSettings } from "./AutomationsSettings";
 import {
   MyAccountSettings,
@@ -57,7 +58,7 @@ export function SettingsView({
   const [active, setActive] = useState("My Account");
 
   return (
-    <div className="absolute inset-0 z-40 flex bg-background">
+    <div role="dialog" aria-modal="true" aria-label="Settings" className="absolute inset-0 z-40 flex bg-background">
       {/* Nav */}
       <nav className="flex w-[240px] shrink-0 flex-col overflow-y-auto border-r border-border bg-surface-raised py-4">
         {SECTIONS.map((section) => (
@@ -216,8 +217,21 @@ function ChannelsSettings({
   onDeleteChannel?: (channelId: string) => void;
   onAddChannel?: (sectionId: string) => void;
 }) {
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   return (
     <div className="mt-6 flex flex-col gap-6">
+      <ConfirmModal
+        open={Boolean(pendingDelete)}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (pendingDelete) onDeleteChannel?.(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+        title={`Delete #${pendingDelete?.name ?? "channel"}?`}
+        body="All messages and channel data will be permanently deleted."
+        confirmLabel="Delete channel"
+        destructive
+      />
       {sections.map((section) => (
         <div key={section.id}>
           <div className="flex items-center justify-between">
@@ -249,8 +263,8 @@ function ChannelsSettings({
                   <button
                     type="button"
                     aria-label={`Delete ${ch.name}`}
-                    onClick={() => onDeleteChannel(ch.id)}
-                    className="hidden h-7 w-7 items-center justify-center rounded-sm text-danger transition-colors hover:bg-danger/10 group-hover:flex"
+                    onClick={() => setPendingDelete({ id: ch.id, name: ch.name })}
+                    className="hidden h-7 w-7 items-center justify-center rounded-sm text-danger transition-colors hover:bg-danger/10 group-hover:flex group-focus-within:flex focus:flex"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -323,8 +337,21 @@ function MembersSettings({
   members: MemberRef[];
   onRemove?: (memberId: string) => void;
 }) {
+  const [pendingRemove, setPendingRemove] = useState<MemberRef | null>(null);
   return (
     <div className="mt-6">
+      <ConfirmModal
+        open={Boolean(pendingRemove)}
+        onClose={() => setPendingRemove(null)}
+        onConfirm={() => {
+          if (pendingRemove) onRemove?.(pendingRemove.id);
+          setPendingRemove(null);
+        }}
+        title={`Remove ${pendingRemove?.name ?? "member"}?`}
+        body="They will lose access to this space until invited again."
+        confirmLabel="Remove member"
+        destructive
+      />
       <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted">
         Members — {members.length}
       </p>
@@ -344,8 +371,8 @@ function MembersSettings({
             </span>
             <button
               type="button"
-              onClick={() => onRemove?.(m.id)}
-              className="hidden h-7 rounded-sm px-2 text-[12px] text-danger transition-colors hover:bg-danger/10 group-hover:block"
+              onClick={() => setPendingRemove(m)}
+              className="hidden h-7 rounded-sm px-2 text-[12px] text-danger transition-colors hover:bg-danger/10 group-hover:block group-focus-within:block focus:block"
             >
               Remove
             </button>
@@ -408,4 +435,3 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     </div>
   );
 }
-

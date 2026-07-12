@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
 import { generateVoiceToken, getLiveKitUrl } from "../lib/livekit.js";
 import { broadcastToChannel } from "../services/realtime.js";
+import { getChannelAccess, hasPermission, Permissions } from "../lib/permissions.js";
 
 const voice = new Hono<AuthEnv>();
 
@@ -54,14 +55,10 @@ voice.post("/channels/:channelId/voice/join", async (c) => {
         return c.json({ error: "Voice channel not found." }, 404);
     }
 
-    const membership = await prisma.serverMember.findUnique({
-        where: { serverId_userId: { serverId: channel.serverId, userId } },
-    });
-
-    if (!membership) {
-        return c.json({ error: "You are not a member of this server." }, 403);
+    const access = await getChannelAccess(prisma, channelId, userId);
+    if (!access || !hasPermission(access.permissions, Permissions.CONNECT_VOICE)) {
+        return c.json({ error: "You do not have permission to join this voice channel." }, 403);
     }
-
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { displayName: true, avatarUrl: true },
@@ -86,7 +83,9 @@ voice.post("/channels/:channelId/voice/join", async (c) => {
 
     const roomName = `channel_${channelId}`;
     const isStage = channel.type === "stage";
-    const canPublish = isStage ? ["owner", "admin"].includes(membership.role) : true;
+    const canPublish = isStage
+        ? hasPermission(access.permissions, Permissions.STAGE_MODERATOR)
+        : hasPermission(access.permissions, Permissions.SPEAK);
 
     const token = await generateVoiceToken(roomName, userId, displayName, {
         canPublish,
@@ -129,6 +128,11 @@ voice.post("/channels/:channelId/voice/leave", async (c) => {
     const userId = c.get("userId");
     const channelId = c.req.param("channelId");
 
+    const access = await getChannelAccess(prisma, channelId, userId);
+    if (!access || !hasPermission(access.permissions, Permissions.VIEW_CHANNEL)) {
+        return c.json({ error: "Voice channel not found or inaccessible." }, 404);
+    }
+
     await prisma.voiceParticipant.deleteMany({ where: { channelId, userId } });
 
     broadcastToChannel(channelId, {
@@ -142,7 +146,12 @@ voice.post("/channels/:channelId/voice/leave", async (c) => {
 // ─── GET /channels/:channelId/voice/participants ─────────────────
 
 voice.get("/channels/:channelId/voice/participants", async (c) => {
+    const userId = c.get("userId");
     const channelId = c.req.param("channelId");
+    const access = await getChannelAccess(prisma, channelId, userId);
+    if (!access || !hasPermission(access.permissions, Permissions.VIEW_CHANNEL)) {
+        return c.json({ error: "Voice channel not found or inaccessible." }, 404);
+    }
     return c.json({ participants: await listParticipants(channelId) });
 });
 

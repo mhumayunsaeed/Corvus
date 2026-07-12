@@ -1,6 +1,4 @@
-import dotenv from "dotenv";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import "./env.js";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -22,15 +20,7 @@ import channelPermissions from "./routes/channel-permissions.js";
 import workspace from "./routes/workspace.js";
 import waitlist from "./routes/waitlist.js";
 import { buildOpenApiSummary, renderApiDocs } from "./docs.js";
-
-const currentDir = dirname(fileURLToPath(import.meta.url));
-const envDir = resolve(currentDir, "..");
-export const isProduction = process.env.NODE_ENV === "production";
-
-// Load API env files from apps/api regardless of process cwd. On serverless
-// platforms (Vercel) these files won't exist and env comes from the platform.
-dotenv.config({ path: resolve(envDir, ".env"), override: !isProduction });
-dotenv.config({ path: resolve(envDir, ".env.local"), override: !isProduction });
+import { isProduction } from "./env.js";
 
 const app = new Hono();
 

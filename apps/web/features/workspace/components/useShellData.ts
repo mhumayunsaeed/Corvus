@@ -15,6 +15,7 @@ import type { ChannelType } from "@/shared/components/ui";
 import type { AppShellData } from "./AppShell";
 import type { ChatMessage, DMSummary, MemberRef, Presence, FriendEntry } from "./types";
 import { SAMPLE_DATA } from "./sample-data";
+import { formatAttachmentSize, parseAttachmentContent } from "@/shared/lib/attachments";
 
 /**
  * Layer locally-created workspace entities (spaces, channels, group DMs,
@@ -132,6 +133,7 @@ function toPresence(status: string | undefined): Presence {
 }
 
 function toMessage(m: MessageData): ChatMessage {
+  const attachment = parseAttachmentContent(m.content);
   return {
     id: m.id,
     author: {
@@ -141,7 +143,31 @@ function toMessage(m: MessageData): ChatMessage {
       presence: toPresence(m.author.status),
     },
     at: m.createdAt,
-    text: m.content,
+    text: attachment ? "" : m.content,
+    edited: Boolean(m.editedAt),
+    replyTo: m.replyTo
+      ? {
+          id: m.replyTo.id,
+          authorName: m.replyTo.author.displayName || m.replyTo.author.username,
+          text: m.replyTo.content,
+        }
+      : undefined,
+    attachments: attachment
+      ? [{
+          kind: attachment.kind === "document" ? "file" : attachment.kind,
+          name: attachment.name,
+          url: attachment.url,
+          size: formatAttachmentSize(attachment.size),
+        }]
+      : undefined,
+    embed: m.embeds?.[0]?.title
+      ? {
+          url: m.embeds[0].url,
+          domain: m.embeds[0].siteName || new URL(m.embeds[0].url).hostname,
+          title: m.embeds[0].title,
+          description: m.embeds[0].description || undefined,
+        }
+      : undefined,
     reactions: m.reactions?.map((r) => ({ emoji: r.emoji, count: r.count, reacted: r.reacted })),
   };
 }

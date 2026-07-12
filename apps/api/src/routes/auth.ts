@@ -1,11 +1,10 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import { verify } from "@node-rs/argon2";
 import type { Prisma } from "../generated/prisma/index.js";
 import { prisma } from "../lib/prisma.js";
 import { userRepository } from "../repositories/userRepository.js";
 import { signToken, verifyToken } from "../lib/jwt.js";
-import { verifySupabaseToken } from "../lib/supabase.js";
+import { reauthenticateSupabaseUser, verifySupabaseToken } from "../lib/supabase.js";
 
 const auth = new Hono();
 
@@ -320,26 +319,19 @@ auth.delete("/account", async (c) => {
             return c.json({ error: "User not found." }, 404);
         }
 
-        if (user.passwordHash) {
-            const valid = await verify(user.passwordHash, password);
-            if (!valid) {
-                return c.json({ error: "Incorrect password." }, 401);
-            }
+        try {
+            await reauthenticateSupabaseUser(user.email, password);
+        } catch {
+            return c.json({ error: "Incorrect password." }, 401);
         }
 
         // Cascade delete handles most relations. Transfer server ownership or delete owned servers.
-        const ownedServers = await prisma.server.findMany({
-            where: { ownerId: user.id },
-            select: { id: true },
-        });
-
-        if (ownedServers.length > 0) {
-            await prisma.server.deleteMany({
+        await prisma.$transaction(async (tx) => {
+            await tx.server.deleteMany({
                 where: { ownerId: user.id },
             });
-        }
-
-        await userRepository.deleteById(user.id);
+            await tx.user.delete({ where: { id: user.id } });
+        });
 
         return c.json({ message: "Account deleted successfully." });
     } catch {

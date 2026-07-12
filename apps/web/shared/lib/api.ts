@@ -34,7 +34,12 @@ export async function api<T>(
     }
 
     let res!: Response;
-    const maxRetries = options.maxRetries !== undefined ? options.maxRetries : 2;
+    const method = (options.method || "GET").toUpperCase();
+    const maxRetries = options.maxRetries !== undefined
+        ? options.maxRetries
+        : method === "GET" || method === "HEAD"
+          ? 2
+          : 0;
     const timeoutMs = options.timeoutMs !== undefined ? options.timeoutMs : 15000;
     const outerSignal = options.signal;
 
@@ -42,11 +47,12 @@ export async function api<T>(
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+        const abortRequest = () => controller.abort(outerSignal?.reason);
         if (outerSignal) {
             if (outerSignal.aborted) {
-                controller.abort();
+                abortRequest();
             } else {
-                outerSignal.addEventListener("abort", () => controller.abort());
+                outerSignal.addEventListener("abort", abortRequest, { once: true });
             }
         }
 
@@ -57,9 +63,17 @@ export async function api<T>(
                 signal: controller.signal,
             });
             clearTimeout(timeoutId);
+            outerSignal?.removeEventListener("abort", abortRequest);
             break;
         } catch (err) {
             clearTimeout(timeoutId);
+            outerSignal?.removeEventListener("abort", abortRequest);
+
+            if (outerSignal?.aborted) {
+                throw outerSignal.reason instanceof Error
+                    ? outerSignal.reason
+                    : new DOMException("The request was aborted.", "AbortError");
+            }
 
             if (attempt < maxRetries) {
                 await new Promise((r) => setTimeout(r, 750 * (attempt + 1)));

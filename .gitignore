@@ -41,8 +41,9 @@ apps/api/uploads/
 # Supabase local migrations
 supabase/migrations/
 
-# Supabase local SQL/policies
+# Supabase local scratch SQL; the canonical Realtime policy is versioned.
 supabase/*.sql
+!supabase/realtime-policies.sql
 
 # Local refactor notes
 REFACTOR_SUMMARY.md

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
 import { broadcastToChannel } from "../services/realtime.js";
+import { getChannelAccess, hasPermission, Permissions } from "../lib/permissions.js";
 
 const stage = new Hono<AuthEnv>();
 
@@ -21,6 +22,10 @@ stage.post("/channels/:channelId/stage/request-speak", async (c) => {
     const channel = await prisma.channel.findUnique({ where: { id: channelId } });
     if (!channel || channel.type !== "stage") {
         return c.json({ error: "Stage channel not found." }, 404);
+    }
+    const access = await getChannelAccess(prisma, channelId, userId);
+    if (!access || !hasPermission(access.permissions, Permissions.CONNECT_VOICE)) {
+        return c.json({ error: "You do not have permission to access this stage." }, 403);
     }
 
     // Track raised hand (no-op if already a speaker)
@@ -69,13 +74,15 @@ stage.post("/channels/:channelId/stage/grant-speak", async (c) => {
         return c.json({ error: "Stage channel not found." }, 404);
     }
 
-    const membership = await prisma.serverMember.findUnique({
-        where: { serverId_userId: { serverId: channel.serverId, userId } },
-    });
-
-    if (!membership || !["owner", "admin"].includes(membership.role)) {
+    const access = await getChannelAccess(prisma, channelId, userId);
+    if (!access || !hasPermission(access.permissions, Permissions.STAGE_MODERATOR)) {
         return c.json({ error: "Only moderators can grant speak permission." }, 403);
     }
+
+    const targetMember = await prisma.serverMember.findUnique({
+        where: { serverId_userId: { serverId: channel.serverId, userId: targetUserId } },
+    });
+    if (!targetMember) return c.json({ error: "Target user is not a server member." }, 404);
 
     // Grant speaker status (clears the raised-hand state via the role update)
     await prisma.stageParticipant.upsert({
@@ -111,11 +118,8 @@ stage.post("/channels/:channelId/stage/revoke-speak", async (c) => {
         return c.json({ error: "Stage channel not found." }, 404);
     }
 
-    const membership = await prisma.serverMember.findUnique({
-        where: { serverId_userId: { serverId: channel.serverId, userId } },
-    });
-
-    if (!membership || !["owner", "admin"].includes(membership.role)) {
+    const access = await getChannelAccess(prisma, channelId, userId);
+    if (!access || !hasPermission(access.permissions, Permissions.STAGE_MODERATOR)) {
         return c.json({ error: "Only moderators can revoke speak permission." }, 403);
     }
 
@@ -135,7 +139,13 @@ stage.post("/channels/:channelId/stage/revoke-speak", async (c) => {
 // ─── GET /channels/:channelId/stage/state ────────────────────────
 
 stage.get("/channels/:channelId/stage/state", async (c) => {
+    const userId = c.get("userId");
     const channelId = c.req.param("channelId");
+
+    const access = await getChannelAccess(prisma, channelId, userId);
+    if (!access || access.channel.type !== "stage" || !hasPermission(access.permissions, Permissions.VIEW_CHANNEL)) {
+        return c.json({ error: "Stage channel not found or inaccessible." }, 404);
+    }
 
     const rows = await prisma.stageParticipant.findMany({
         where: { channelId },

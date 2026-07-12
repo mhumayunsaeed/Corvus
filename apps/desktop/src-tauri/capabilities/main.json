@@ -21,15 +21,6 @@
         "core:window:allow-set-focus",
         "core:window:allow-is-visible",
         "core:window:allow-unminimize",
-        "notification:default",
-        "global-shortcut:default",
-        "store:default",
-        "sql:default",
-        "updater:default",
-        "os:default",
-        "fs:default",
-        "dialog:default",
-        "deep-link:default",
-        "process:default"
+        "notification:default"
     ]
 }

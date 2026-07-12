@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState, useRef } from "react";
+import { type ReactNode, useState, useRef, useId } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../lib/utils";
 
@@ -19,6 +19,7 @@ export function Tooltip({
 }: TooltipProps) {
   const [visible, setVisible] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const tooltipId = useId();
 
   const show = () => {
     timeoutRef.current = setTimeout(() => setVisible(true), 300);
@@ -40,13 +41,18 @@ export function Tooltip({
       className="relative inline-flex"
       onMouseEnter={show}
       onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+      aria-describedby={visible ? tooltipId : undefined}
     >
       {children}
       <AnimatePresence>
         {visible && (
           <motion.div
+            id={tooltipId}
+            role="tooltip"
             className={cn(
-              "absolute z-50 whitespace-nowrap rounded-sm bg-black px-2 py-1 text-micro text-text-primary shadow-lg pointer-events-none",
+              "pointer-events-none absolute z-50 whitespace-nowrap rounded-sm border border-border bg-surface-overlay px-2 py-1 text-micro text-text-primary shadow-e2",
               positionClasses[side],
               className
             )}

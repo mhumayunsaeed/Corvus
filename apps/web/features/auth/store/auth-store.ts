@@ -62,7 +62,12 @@ async function api<T>(
     options: CustomRequestInit = {}
 ): Promise<T> {
     const baseUrl = ensureApiUrl();
-    const maxRetries = options.maxRetries !== undefined ? options.maxRetries : 2;
+    const method = (options.method || "GET").toUpperCase();
+    const maxRetries = options.maxRetries !== undefined
+        ? options.maxRetries
+        : method === "GET" || method === "HEAD"
+          ? 2
+          : 0;
     const timeoutMs = options.timeoutMs !== undefined ? options.timeoutMs : 15000;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -71,11 +76,11 @@ async function api<T>(
 
         try {
             const res = await fetch(`${baseUrl}${path}`, {
+                ...options,
                 headers: {
                     "Content-Type": "application/json",
                     ...options.headers,
                 },
-                ...options,
                 signal: controller.signal,
             });
 

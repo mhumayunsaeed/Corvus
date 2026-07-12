@@ -29,7 +29,9 @@ interface BroadcastMessage {
 // Broadcast channel privacy. Public is functional out-of-the-box (topics use
 // unguessable cuids). Set REALTIME_PRIVATE_CHANNELS=true once the Realtime
 // Authorization RLS policies (see supabase/realtime-policies.sql) are applied.
-const USE_PRIVATE_CHANNELS = process.env.REALTIME_PRIVATE_CHANNELS === "true";
+const USE_PRIVATE_CHANNELS =
+    process.env.REALTIME_PRIVATE_CHANNELS === "true" ||
+    (process.env.NODE_ENV === "production" && process.env.REALTIME_PRIVATE_CHANNELS !== "false");
 
 function getConfig(): { url: string; serviceRoleKey: string } | null {
     const url = process.env.SUPABASE_URL;
