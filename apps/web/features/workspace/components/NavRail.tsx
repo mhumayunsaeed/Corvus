@@ -42,7 +42,7 @@ export function NavRail({
   return (
     <nav
       aria-label="Spaces"
-      className="flex h-full w-14 shrink-0 flex-col items-center border-r border-border bg-background py-3"
+      className="fixed inset-x-0 bottom-0 z-40 flex h-14 shrink-0 flex-row items-center bg-bg-deep px-2 shadow-[0_-1px_rgb(var(--c-border-subtle))] md:static md:h-full md:w-14 md:flex-col md:py-3 md:shadow-[inset_-1px_0_rgb(var(--c-border-subtle))]"
     >
       <ItemLink
         href={homeHref}
@@ -50,18 +50,18 @@ export function NavRail({
         label="Home"
         active={homeActive}
         className={cn(
-          "mb-1 flex h-10 w-10 items-center justify-center border",
-          "transition-[border-radius,background-color,border-color,color] duration-200",
+          "relative mb-0 flex h-10 w-10 items-center justify-center md:mb-1",
+          "transition-[border-radius,background-color,color] duration-200",
           homeActive
-            ? "rounded-[14px] border-accent bg-accent-soft text-text-primary"
-            : "rounded-[10px] border-border bg-surface-raised text-text-secondary hover:rounded-[12px] hover:bg-surface-overlay hover:text-text-primary"
+            ? "rounded-[10px] bg-accent-soft text-accent after:absolute after:bottom-[-7px] after:h-0.5 after:w-5 after:rounded-full after:bg-accent md:after:bottom-auto md:after:left-[-7px] md:after:h-5 md:after:w-0.5"
+            : "rounded-[10px] text-text-secondary hover:bg-surface-raised hover:text-text-primary"
         )}
       >
         <Home size={17} />
       </ItemLink>
-      <div className="mb-2 h-px w-8 shrink-0 bg-border" />
+      <div className="mx-2 h-8 w-px shrink-0 bg-border-subtle md:mx-0 md:mb-2 md:h-px md:w-8" />
 
-      <div className="flex flex-1 flex-col items-center gap-1 overflow-y-auto scrollbar-none">
+      <div className="flex flex-1 flex-row items-center gap-1 overflow-x-auto scrollbar-none md:flex-col md:overflow-x-hidden md:overflow-y-auto">
         {spaces.map((space) => {
           const active = space.id === activeSpaceId && !dmsActive && !homeActive;
           return (
@@ -73,11 +73,11 @@ export function NavRail({
               current={active}
               active={active}
               className={cn(
-                "relative flex h-10 w-10 items-center justify-center border text-[14px] font-medium text-text-primary",
-                "transition-[border-radius,background-color,border-color] duration-200",
+                "relative flex h-10 w-10 shrink-0 items-center justify-center text-[14px] font-medium text-text-primary",
+                "transition-[border-radius,background-color] duration-200",
                 active
-                  ? "rounded-[14px] border-accent bg-accent-soft"
-                  : "rounded-[10px] border-border bg-surface-raised hover:rounded-[12px] hover:bg-surface-overlay"
+                  ? "rounded-[10px] bg-accent-soft after:absolute after:bottom-[-7px] after:h-0.5 after:w-5 after:rounded-full after:bg-accent md:after:bottom-auto md:after:left-[-7px] md:after:h-5 md:after:w-0.5"
+                  : "rounded-[10px] bg-surface-raised hover:bg-surface-overlay"
               )}
             >
               {space.icon ? (
@@ -93,7 +93,7 @@ export function NavRail({
         })}
       </div>
 
-      <div className="mt-2 flex flex-col items-center gap-3 pt-2">
+      <div className="ml-2 flex flex-row items-center gap-1 md:ml-0 md:mt-2 md:flex-col md:gap-2 md:pt-2">
         <RailIcon label="Direct messages" active={dmsActive} unread={dmsUnread} href={dmsHref} onClick={onOpenDMs}>
           <MessageSquare size={20} />
         </RailIcon>

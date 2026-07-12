@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { userRepository } from "../repositories/userRepository.js";
 import { signToken, verifyToken } from "../lib/jwt.js";
 import { reauthenticateSupabaseUser, verifySupabaseToken } from "../lib/supabase.js";
+import { broadcastToUsers } from "../services/realtime.js";
 
 const auth = new Hono();
 
@@ -418,9 +419,23 @@ auth.patch("/profile", async (c) => {
 
         const user = await userRepository.update(payload.userId, updateData);
 
-        // Presence (online/offline + status) is now propagated client-side via
-        // Supabase Realtime Presence; the persisted status above is the source
-        // of truth the client re-broadcasts when it changes.
+        if (result.data.status !== undefined) {
+            const friendships = await prisma.friend.findMany({
+                where: { OR: [{ userId: payload.userId }, { friendId: payload.userId }] },
+                select: { userId: true, friendId: true },
+            });
+            const friendIds = new Set(
+                friendships.map((friendship) =>
+                    friendship.userId === payload.userId
+                        ? friendship.friendId
+                        : friendship.userId
+                )
+            );
+            await broadcastToUsers(friendIds, {
+                type: "presence_update",
+                data: { userId: payload.userId, status: user.status },
+            });
+        }
 
         return c.json({
             user: serializeUser(user),

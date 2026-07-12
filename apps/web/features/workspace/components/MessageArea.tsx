@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Users, Search, Pin, Phone, Video, AtSign } from "lucide-react";
 import { ChannelGlyph, type ChannelType } from "@/shared/components/ui";
+import { EmptyState, WorkspaceHeader } from "@corvus/ui";
 import type { Attachment, ChatMessage, MemberRef } from "./types";
 import { Composer } from "./Composer";
 import { MessageFeed } from "./MessageFeed";
@@ -102,20 +103,15 @@ export function MessageArea({
 
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-background">
-      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
-        {dm ? (
+      <WorkspaceHeader
+        icon={dm ? (
           <AtSign aria-hidden size={16} className="shrink-0 text-text-muted" />
         ) : (
           <ChannelGlyph type={channelType} size={16} />
         )}
-        <h1 className="text-[15px] font-semibold text-text-primary">{channelName}</h1>
-        {topic && (
-          <>
-            <span className="h-4 w-px bg-border" />
-            <p className="truncate text-[13px] text-text-muted">{topic}</p>
-          </>
-        )}
-        <div className="ml-auto flex items-center gap-1 text-text-faint">
+        title={channelName}
+        description={topic}
+        actions={<>
           {dm && (
             <>
               <HeaderIcon label="Start voice call" onClick={dm.onVoiceCall}><Phone size={17} /></HeaderIcon>
@@ -128,8 +124,8 @@ export function MessageArea({
             <HeaderIcon label="Members" onClick={onToggleMembers}><Users size={18} /></HeaderIcon>
           )}
           <HeaderIcon label="Search" onClick={onOpenSearch}><Search size={18} /></HeaderIcon>
-        </div>
-      </header>
+        </>}
+      />
 
       <div ref={scrollRef} onScroll={handleScroll} className="relative flex flex-1 flex-col overflow-y-auto py-4">
         {loading && messages.length === 0 ? (
@@ -202,24 +198,17 @@ function WelcomeState({
   dm?: boolean;
 }) {
   return (
-    <div className="mt-auto px-4 pb-2 pt-12">
-      <div className="flex h-16 w-16 items-center justify-center rounded-[18px] border border-border bg-surface-raised">
+    <EmptyState className="mt-auto pb-4" icon={
+      <>
         {dm ? (
           <AtSign aria-hidden size={26} className="text-text-muted" />
         ) : (
           <ChannelGlyph type={channelType} size={26} />
         )}
-      </div>
-      <h2 className="mt-4 text-[22px] font-semibold text-text-primary">
-        {dm ? channelName : `Welcome to #${channelName}`}
-      </h2>
-      <p className="mt-1.5 max-w-[520px] text-[14px] leading-relaxed text-text-secondary">
-        {dm
+      </>
+    } title={dm ? channelName : `Welcome to #${channelName}`} description={dm
           ? `This is the beginning of your direct message history with ${channelName}.`
-          : `This is the very start of #${channelName}. Say something to get the conversation going.`}
-      </p>
-      <div className="mt-6 h-px bg-border" />
-    </div>
+          : `This is the very start of #${channelName}. Say something to get the conversation going.`} />
   );
 }
 

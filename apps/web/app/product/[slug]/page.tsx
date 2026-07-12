@@ -6,7 +6,7 @@ const PAGES: Record<string, MarketingPageContent> = {
     eyebrow: "Product · Messaging",
     title: "Messaging that keeps up with your team.",
     lede:
-      "Real-time channels, threads, and direct messages with sub-100ms delivery — organized by space, searchable forever, and encrypted end to end.",
+      "Real-time channels, threads, and direct messages organized by space, with reactions, search, attachments, pins and presence.",
     blocks: [
       { kind: "h2", text: "Channels that stay readable" },
       {
@@ -20,20 +20,20 @@ const PAGES: Record<string, MarketingPageContent> = {
           "Threads keep deep dives out of the main feed without hiding them.",
           "Reactions, mentions, and pins work the way you expect.",
           "Markdown everywhere: code blocks, inline code, quotes, and links.",
-          "Edit and delete propagate instantly to every connected client.",
+          "Edit and delete events are synchronized through the current realtime layer.",
         ],
       },
-      { kind: "h2", text: "Fast by architecture, not by accident" },
+      { kind: "h2", text: "Realtime by design" },
       {
         kind: "p",
         text:
-          "Every message travels over a persistent WebSocket with server fan-out measured in single-digit milliseconds. The UI renders optimistically and reconciles when the server acknowledges, so the app feels local even on a slow connection. Reconnects use capped exponential backoff with jitter — flaky networks don't cause message storms.",
+          "Messaging uses Supabase Realtime Broadcast and Presence. The interface renders new messages optimistically and reconciles them with server state while presence keeps the channel aware of who is connected.",
       },
-      { kind: "h2", text: "Private by default" },
+      { kind: "h2", text: "Encryption status" },
       {
         kind: "p",
         text:
-          "Direct messages and private channels are end-to-end encrypted. On a self-hosted instance, message history lives on your hardware and nowhere else. There is no analytics pipeline reading your conversations.",
+          "End-to-end encryption for direct messages is planned roadmap work and is not presented as available today. Current deployments should use the security controls provided by Supabase and their chosen infrastructure.",
       },
       {
         kind: "note",
@@ -46,13 +46,13 @@ const PAGES: Record<string, MarketingPageContent> = {
     eyebrow: "Product · Voice & Video",
     title: "Voice rooms, video calls, and stages.",
     lede:
-      "Drop-in voice channels, 1:1 and group calls, screen sharing, and moderated stage events — WebRTC-native, with no third-party media servers required.",
+      "Drop-in voice channels, calls, screen sharing, and stage surfaces, with media infrastructure powered by LiveKit.",
     blocks: [
       { kind: "h2", text: "Voice channels" },
       {
         kind: "p",
         text:
-          "Join a voice channel with one click and see who's talking at a glance — a calm speaking ring around the avatar, mute and deafen states inline, and latency shown in plain numbers. Voice participants appear in the sidebar so the rest of the team knows where the conversation is.",
+          "Join a voice channel with one click and see who's talking at a glance — a calm speaking ring around the avatar, mute and deafen states inline, with clear connection state. Voice participants appear in the sidebar so the rest of the team knows where the conversation is.",
       },
       { kind: "h2", text: "Calls and screen sharing" },
       {
@@ -61,7 +61,7 @@ const PAGES: Record<string, MarketingPageContent> = {
           "1:1 and group calls from any DM, with ringtones you can actually stand.",
           "Screen share with a presenter label and a proper stage view — content fits, never crops.",
           "Camera tiles glow softly when someone speaks, so you always know who has the floor.",
-          "Quality adapts to bandwidth automatically; calls survive network handoffs.",
+          "Media behaviour depends on the configured LiveKit deployment and client network.",
         ],
       },
       { kind: "h2", text: "Stages for announcements" },
@@ -88,7 +88,7 @@ const PAGES: Record<string, MarketingPageContent> = {
       {
         kind: "p",
         text:
-          "A board is a channel type. It lives in your space's sidebar next to the conversation about it, and opening it is instant — no context switch, no second login, no sync delay between your chat tool and your project tool, because they are the same tool.",
+          "A board is a channel type. It lives in your space's sidebar next to the conversation about it, and it remains close to the conversation that gives it context.",
       },
       {
         kind: "ul",
@@ -193,7 +193,7 @@ const PAGES: Record<string, MarketingPageContent> = {
       {
         kind: "note",
         text:
-          "Setup is one OAuth flow from Space Settings → Integrations → GitHub. Repositories are selected per space, and access can be revoked instantly.",
+          "The current demo includes a GitHub work surface. Production integration setup is still evolving and should be verified against repository releases.",
       },
     ],
   },

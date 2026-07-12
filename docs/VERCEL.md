@@ -42,6 +42,10 @@ LIVEKIT_API_SECRET=
 REALTIME_PRIVATE_CHANNELS=false
 ```
 
+Realtime Broadcast is public by default. After applying
+`supabase/realtime-policies.sql`, set `REALTIME_PRIVATE_CHANNELS=true` on the API
+and `NEXT_PUBLIC_REALTIME_PRIVATE_CHANNELS=true` on the web project together.
+
 Use the pooled Supabase connection string for `DATABASE_URL`; Vercel functions are serverless and can open many short-lived database connections.
 
 ## First Deploy Checklist
@@ -49,7 +53,6 @@ Use the pooled Supabase connection string for `DATABASE_URL`; Vercel functions a
 1. Apply the database schema from `supabase/migrations/20260605000000_init.sql` or run `pnpm --filter @corvus/api db:push` locally against the production database.
 2. Run `pnpm --filter @corvus/api setup:storage` once with production Supabase credentials.
 3. Add the web callback URLs in Supabase Auth:
-   - `https://your-web-project.vercel.app/auth/callback`
-   - `https://your-web-project.vercel.app/reset-password`
+    - `https://your-web-project.vercel.app/auth/callback`
+    - `https://your-web-project.vercel.app/reset-password`
 4. Deploy the API project first, then set `NEXT_PUBLIC_API_URL` on the web project to the API deployment URL and deploy the web project.
-

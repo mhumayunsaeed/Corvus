@@ -131,8 +131,8 @@ export function SignupForm() {
         />
         <span>
           I agree to the{" "}
-          <a href="#" className="text-accent hover:opacity-80">Terms of Service</a> and{" "}
-          <a href="#" className="text-accent hover:opacity-80">Privacy Policy</a>.
+          <a href="/legal/terms" className="text-accent hover:opacity-80">Terms of Service</a> and{" "}
+          <a href="/legal/privacy" className="text-accent hover:opacity-80">Privacy Policy</a>.
         </span>
       </label>
 

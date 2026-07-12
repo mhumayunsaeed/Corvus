@@ -1,88 +1,112 @@
-const targets = [
-  {
-    label: "VPS (recommended)",
-    body: "Any Linux VPS with 1 vCPU / 1 GB RAM. Hetzner, DigitalOcean, Fly.io all work.",
-  },
-  {
-    label: "Bare metal",
-    body: "Tested on Ubuntu 22.04 and Debian 12. ARM64 + x86. Raspberry Pi 4+.",
-  },
-  {
-    label: "Kubernetes",
-    body: "Helm chart available. values.yaml documented.",
-  },
-];
+import {
+    ArrowRight,
+    Code2,
+    Database,
+    GitBranch,
+    Monitor,
+    Radio,
+    Server,
+    Video,
+} from "lucide-react";
 
-const C = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-text-muted">{children}</span>
-);
+const repo = "https://github.com/Humayun-glitch/Corvus";
 
-/**
- * Self-hosting section — sits directly before the final CTA. One command,
- * three deployment targets. Same type-only column treatment as the
- * Audience section; code block matches the Developer section.
- */
 export function SelfHostSection() {
-  return (
-    <section id="self-host" className="border-t border-border px-6 py-24 sm:py-28">
-      <div className="mx-auto max-w-6xl">
-        <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-accent-violet">
-          Self-host in five minutes
-        </p>
-        <h2 className="mt-4 text-[28px] font-medium leading-[1.2] tracking-[-0.02em] text-text-primary">
-          One command. Your server. Your data.
-        </h2>
-
-        {/* Code block — same styling as the Developer section */}
-        <div className="mt-8 overflow-x-auto rounded-[10px] border border-border bg-surface-raised p-6">
-          <pre className="font-mono text-[13px] leading-[1.7] text-text-primary/85">
-            <code>
-              curl -fsSL https://downloads.corvus.app/install.sh | sh{"\n"}
-              cd corvus-deploy{"\n"}
-              cp .env.example .env    <C>{"# set your domain + SMTP"}</C>
-              {"\n"}
-              docker-compose up -d
-            </code>
-          </pre>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-6">
-          <a
-            href="#"
-            className="text-[14px] font-medium text-accent-violet transition-colors hover:text-accent-violet-bright"
-          >
-            Full deployment guide →
-          </a>
-          <a
-            href="#"
-            className="text-[14px] font-medium text-accent-violet transition-colors hover:text-accent-violet-bright"
-          >
-            System requirements →
-          </a>
-        </div>
-
-        {/* Deployment targets — same column style as the Audience section */}
-        <div className="mt-14 grid grid-cols-1 sm:grid-cols-3">
-          {targets.map((t, i) => (
-            <div
-              key={t.label}
-              className={[
-                "border-t border-border pt-4",
-                "sm:px-10 sm:first:pl-0 sm:last:pr-0",
-                i < targets.length - 1 ? "sm:border-r" : "",
-                i > 0 ? "mt-10 sm:mt-0" : "",
-              ].join(" ")}
-            >
-              <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-accent">
-                {t.label}
-              </p>
-              <p className="mt-4 max-w-[28ch] text-[15px] leading-[1.65] text-text-secondary">
-                {t.body}
-              </p>
+    return (
+        <section
+            id="self-hosting"
+            className="border-y border-border-subtle bg-bg-deep px-5 py-24 sm:px-8 sm:py-32"
+        >
+            <div className="mx-auto grid max-w-[1280px] gap-16 lg:grid-cols-[0.85fr_1.15fr]">
+                <div>
+                    <p className="text-sm font-medium text-accent">
+                        Open source and under your control
+                    </p>
+                    <h2 className="mt-4 text-[clamp(34px,5vw,52px)] font-semibold leading-[1.08] tracking-[-0.04em]">
+                        Run the workspace. Keep the context.
+                    </h2>
+                    <p className="mt-5 max-w-[58ch] text-[15px] leading-7 text-text-secondary">
+                        Inspect the code, adapt the product and choose the infrastructure around
+                        your team. Corvus is open source under AGPL-3.0 and its desktop application
+                        uses Tauri rather than Electron.
+                    </p>
+                    <div className="mt-8 rounded-lg border-l-2 border-warning bg-warning/10 p-4">
+                        <p className="text-[11px] font-semibold text-warning">
+                            DEPLOYMENT STATUS · IN PROGRESS
+                        </p>
+                        <p className="mt-2 text-[13px] leading-6 text-text-secondary">
+                            Self-hosting is under active development. The repository and local setup
+                            are available today; complete deployment documentation and Docker
+                            Compose setup are roadmap work.
+                        </p>
+                    </div>
+                    <div className="mt-7 flex flex-wrap gap-5 text-[13px] font-medium">
+                        <a
+                            href={repo}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 text-text-primary hover:text-accent"
+                        >
+                            <GitBranch size={15} />
+                            Browse repository
+                        </a>
+                        <a
+                            href={`${repo}/blob/main/CONTRIBUTING.md`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary"
+                        >
+                            Contributing guide <ArrowRight size={14} />
+                        </a>
+                    </div>
+                </div>
+                <div className="relative rounded-xl bg-surface p-5 shadow-e3 sm:p-7">
+                    <p className="mb-6 font-mono text-[10px] tracking-[0.08em] text-text-muted">
+                        CURRENT ARCHITECTURE
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                        <Node icon={Monitor} title="Clients" detail="Next.js web · Tauri desktop" />
+                        <ArrowRight
+                            className="mx-auto rotate-90 text-text-faint sm:rotate-0"
+                            size={17}
+                        />
+                        <Node icon={Server} title="Web & API" detail="Next.js · Hono" />
+                        <span className="hidden sm:block" />
+                        <span className="mx-auto h-6 w-px bg-border sm:h-8" />
+                        <span className="hidden sm:block" />
+                        <Node icon={Database} title="Supabase" detail="Postgres · Auth · Storage" />
+                        <span className="mx-auto hidden h-px w-8 bg-border sm:block" />
+                        <Node icon={Radio} title="Realtime" detail="Broadcast · Presence" />
+                    </div>
+                    <div className="mt-3 flex items-center gap-3 rounded-lg bg-live-soft p-4 text-live">
+                        <Video size={17} />
+                        <div>
+                            <p className="text-[11px] font-semibold">LiveKit media server</p>
+                            <p className="mt-0.5 text-[10px] opacity-75">
+                                Voice, video and screen sharing
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
-          ))}
+        </section>
+    );
+}
+
+function Node({
+    icon: Icon,
+    title,
+    detail,
+}: {
+    icon: typeof Code2;
+    title: string;
+    detail: string;
+}) {
+    return (
+        <div className="rounded-lg bg-surface-raised p-4">
+            <Icon size={17} className="text-accent" />
+            <p className="mt-5 text-[12px] font-semibold">{title}</p>
+            <p className="mt-1 text-[10px] leading-4 text-text-muted">{detail}</p>
         </div>
-      </div>
-    </section>
-  );
+    );
 }

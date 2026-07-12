@@ -17,8 +17,8 @@ export default function AdminUpdates() {
       <div className="mt-6 max-w-[60ch] text-[14px] leading-[1.65] text-text-secondary">
         <p>
           v1.3.0 adds kanban board automation rules, a docs editor slash menu, incident
-          channel timelines, and faster cold starts on ARM64. Upgrading is zero-downtime;
-          the data volume is backed up automatically before migration.
+          channel timelines and workspace search improvements. Review release notes and
+          back up your configured data services before updating.
         </p>
       </div>
 

@@ -1,37 +1,33 @@
-const stats = [
-  { value: "< 100ms", label: "Latency" },
-  { value: "99.99%", label: "Uptime" },
-  { value: "~10 MB", label: "Desktop" },
-  { value: "E2E Encrypted", label: "by default" },
-  { value: "Self-hostable", label: "private cloud" },
+import { Database, GitBranch, Monitor, Radio, Video } from "lucide-react";
+
+const facts = [
+    { icon: GitBranch, title: "AGPL-3.0", detail: "Open codebase" },
+    { icon: Monitor, title: "Tauri 2", detail: "Desktop application" },
+    { icon: Radio, title: "Supabase Realtime", detail: "Broadcast & presence" },
+    { icon: Video, title: "LiveKit", detail: "Voice & video" },
+    { icon: Database, title: "Next.js + Hono", detail: "Web & API" },
 ];
 
 export function StatsBar() {
-  return (
-    <section className="px-6">
-      <div className="mx-auto max-w-6xl border-y border-border">
-        <dl className="grid grid-cols-2 md:grid-cols-5">
-          {stats.map((stat, i) => (
-            <div
-              key={stat.label}
-              className={[
-                "px-6 py-8 text-center md:text-left",
-                i < stats.length - 1 ? "md:border-r md:border-border" : "",
-                i % 2 === 0 && i < stats.length - 1 ? "border-r border-border md:border-r" : "",
-                i < stats.length - 2 ? "border-b border-border md:border-b-0" : "",
-                i === stats.length - 1 ? "col-span-2 md:col-span-1" : "",
-              ].join(" ")}
-            >
-              <dt className="text-[24px] font-semibold leading-none tracking-[-0.01em] text-text-primary">
-                {stat.value}
-              </dt>
-              <dd className="mt-2 text-[12px] tracking-[0.04em] text-text-muted">
-                {stat.label}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-    </section>
-  );
+    return (
+        <section
+            aria-label="Corvus technology"
+            className="border-y border-border-subtle bg-surface/40 px-5 sm:px-8"
+        >
+            <dl className="mx-auto grid max-w-[1280px] grid-cols-2 lg:grid-cols-5">
+                {facts.map(({ icon: Icon, title, detail }, i) => (
+                    <div
+                        key={title}
+                        className={`flex min-h-20 items-center gap-3 py-4 ${i % 2 ? "pl-4" : "pr-4"} lg:px-5 lg:first:pl-0 lg:last:pr-0`}
+                    >
+                        <Icon size={16} className="shrink-0 text-accent" />
+                        <div>
+                            <dt className="text-[11px] font-semibold text-text-primary">{title}</dt>
+                            <dd className="mt-0.5 text-[10px] text-text-muted">{detail}</dd>
+                        </div>
+                    </div>
+                ))}
+            </dl>
+        </section>
+    );
 }

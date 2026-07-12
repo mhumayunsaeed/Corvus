@@ -64,7 +64,7 @@ async function finalizeRoomIfEmpty(conversationId: string, endedBy: string) {
         },
     });
 
-    broadcastToUsers(participantUserIds, {
+    await broadcastToUsers(participantUserIds, {
         type: "call_ended",
         data: { conversationId, endedBy },
     });
@@ -80,7 +80,7 @@ async function finalizeRoomIfEmpty(conversationId: string, endedBy: string) {
         author: dmMessage.author,
     };
 
-    broadcastToDMConversation(conversationId, {
+    await broadcastToDMConversation(conversationId, {
         type: "new_dm_message",
         data: {
             conversationId,
@@ -95,6 +95,7 @@ calls.post("/dms/:conversationId/call/start", async (c) => {
     const userId = c.get("userId");
     const username = c.get("username");
     const conversationId = c.req.param("conversationId");
+    const body: { video?: boolean } = await c.req.json<{ video?: boolean }>().catch(() => ({}));
 
     if (!(await assertConversationParticipant(conversationId, userId))) {
         return c.json({ error: "You are not a participant in this conversation." }, 403);
@@ -129,11 +130,9 @@ calls.post("/dms/:conversationId/call/start", async (c) => {
         canSubscribe: true,
     });
 
-    const targetUserIds = participants
-        .map((p) => p.userId)
-        .filter((id) => id !== userId);
+    const targetUserIds = participants.map((p) => p.userId).filter((id) => id !== userId);
 
-    broadcastToUsers(targetUserIds, {
+    await broadcastToUsers(targetUserIds, {
         type: "incoming_call",
         data: {
             conversationId,
@@ -141,6 +140,7 @@ calls.post("/dms/:conversationId/call/start", async (c) => {
             callerId: userId,
             callerName: displayName,
             callerAvatar: user?.avatarUrl || null,
+            video: Boolean(body.video),
         },
     });
 
@@ -224,11 +224,9 @@ calls.post("/dms/:conversationId/call/decline", async (c) => {
         }),
     ]);
 
-    const targetUserIds = participants
-        .map((p) => p.userId)
-        .filter((id) => id !== userId);
+    const targetUserIds = participants.map((p) => p.userId).filter((id) => id !== userId);
 
-    broadcastToUsers(targetUserIds, {
+    await broadcastToUsers(targetUserIds, {
         type: "call_declined",
         data: {
             conversationId,

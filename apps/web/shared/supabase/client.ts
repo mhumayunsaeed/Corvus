@@ -20,7 +20,7 @@ export function isSupabaseConfigured(): boolean {
 export function getSupabaseClient(): SupabaseClient {
     if (!isSupabaseConfigured()) {
         throw new Error(
-            "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are not configured."
+            "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are not configured.",
         );
     }
 
@@ -38,3 +38,22 @@ export function getSupabaseClient(): SupabaseClient {
 
     return cachedClient;
 }
+
+/**
+ * Attach the current Supabase access token to Realtime before subscribing.
+ * This is required when an operator enables private Broadcast topics.
+ */
+export async function authorizeRealtimeClient(): Promise<SupabaseClient> {
+    const client = getSupabaseClient();
+    const { data } = await client.auth.getSession();
+    if (data.session?.access_token) {
+        await client.realtime.setAuth(data.session.access_token);
+    }
+    return client;
+}
+
+/** Must mirror REALTIME_PRIVATE_CHANNELS on the API deployment. */
+export const realtimeChannelOptions =
+    process.env.NEXT_PUBLIC_REALTIME_PRIVATE_CHANNELS === "true"
+        ? { config: { private: true } }
+        : undefined;

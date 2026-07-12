@@ -32,9 +32,9 @@
   --text-secondary: rgb(var(--c-text-secondary));
   --text-tertiary: rgb(var(--c-text-muted));
   --text-disabled: rgb(var(--c-text-faint));
-  --accent: rgb(var(--c-accent-violet));
-  --accent-subtle: rgb(var(--c-accent-violet) / 0.12);
-  --accent-muted: rgb(var(--c-accent-violet) / 0.5);
+  --accent: rgb(var(--c-accent-brand));
+  --accent-subtle: rgb(var(--c-accent-brand) / 0.12);
+  --accent-muted: rgb(var(--c-accent-brand) / 0.5);
   --on-accent: rgb(var(--c-text-on-accent));
   --status-online: rgb(var(--c-status-online));
   --status-idle: rgb(var(--c-status-idle));
@@ -243,6 +243,30 @@
   );
   pointer-events: none;
   z-index: -1;
+}
+
+/* One restrained signal grid and one amber light source for marketing. */
+.landing-signal-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.34;
+  background-image:
+    linear-gradient(rgb(var(--c-border-subtle) / 0.55) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--c-border-subtle) / 0.55) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+  pointer-events: none;
+}
+
+.landing-amber-light {
+  position: absolute;
+  width: min(720px, 90vw);
+  height: min(720px, 90vw);
+  right: -18%;
+  top: -28%;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgb(var(--c-accent-brand) / 0.13), transparent 68%);
+  pointer-events: none;
 }
 
 /* Pulsing dots — button loading state & typing indicator. Width stays locked. */

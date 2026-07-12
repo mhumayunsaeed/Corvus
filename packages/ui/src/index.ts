@@ -24,6 +24,11 @@ export {
   type IconButtonProps,
   iconButtonVariants,
 } from "./components/icon-button";
+export { WorkspaceHeader, type WorkspaceHeaderProps } from "./components/workspace-header";
+export { SectionHeader } from "./components/section-header";
+export { EmptyState } from "./components/empty-state";
+export { StatusBadge } from "./components/status-badge";
+export { SegmentedControl, SegmentedControlItem } from "./components/segmented-control";
 
 // Radix-based primitives
 export {

@@ -74,7 +74,7 @@ voice.post("/channels/:channelId/voice/join", async (c) => {
     if (existing.length > 0) {
         await prisma.voiceParticipant.deleteMany({ where: { userId, NOT: { channelId } } });
         for (const row of existing) {
-            broadcastToChannel(row.channelId, {
+            await broadcastToChannel(row.channelId, {
                 type: "voice_participant_leave",
                 data: { channelId: row.channelId, userId },
             });
@@ -105,7 +105,7 @@ voice.post("/channels/:channelId/voice/join", async (c) => {
         update: { username, displayName, avatarUrl: participant.avatarUrl },
     });
 
-    broadcastToChannel(channelId, {
+    await broadcastToChannel(channelId, {
         type: "voice_participant_join",
         data: { channelId, participant },
     });
@@ -135,7 +135,7 @@ voice.post("/channels/:channelId/voice/leave", async (c) => {
 
     await prisma.voiceParticipant.deleteMany({ where: { channelId, userId } });
 
-    broadcastToChannel(channelId, {
+    await broadcastToChannel(channelId, {
         type: "voice_participant_leave",
         data: { channelId, userId },
     });

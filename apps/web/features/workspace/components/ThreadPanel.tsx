@@ -19,7 +19,7 @@ export function ThreadPanel({
   onClose: () => void;
 }) {
   return (
-    <section className="flex h-full w-[320px] shrink-0 flex-col border-l border-border bg-background">
+    <section className="absolute inset-0 z-30 flex h-full w-full shrink-0 flex-col bg-background shadow-e3 lg:static lg:w-[320px] lg:shadow-[inset_1px_0_rgb(var(--c-border-subtle))]">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="min-w-0">
           <div className="text-[14px] font-semibold text-text-primary">Thread</div>

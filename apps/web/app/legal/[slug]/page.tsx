@@ -72,7 +72,7 @@ const PAGES: Record<string, MarketingPageContent> = {
       {
         kind: "ul",
         items: [
-          "Direct messages and private channels are end-to-end encrypted — we cannot read them.",
+          "End-to-end encryption for direct messages is planned and is not available in the current implementation.",
           "We don't sell data, run ads, or share content with third parties.",
           "Self-hosted instances send us nothing except an optional update check.",
           "You can export or delete your data at any time.",
@@ -84,7 +84,7 @@ const PAGES: Record<string, MarketingPageContent> = {
         head: ["Data", "Why"],
         rows: [
           ["Account info (email, username)", "Sign-in, recovery, and notifications you ask for."],
-          ["Content you create", "Delivering it to the people you share it with. E2E-encrypted where applicable."],
+          ["Content you create", "Stored and delivered by the configured application services."],
           ["Connection metadata (IP, device)", "Security, abuse prevention, and session management."],
           ["Aggregate usage metrics", "Capacity planning. Never tied to message content."],
         ],
@@ -125,15 +125,15 @@ const PAGES: Record<string, MarketingPageContent> = {
       {
         kind: "p",
         text:
-          "Corvus is source-available. You receive a perpetual, royalty-free license to run Corvus on your own infrastructure for any number of users, to read its source, and to modify it for your own deployment. Free forever for self-hosting — no per-seat fees, no feature gates.",
+          "Corvus is open-source software licensed under AGPL-3.0. Your rights and obligations are defined by the license text included in the repository.",
       },
       { kind: "h2", text: "What you may do" },
       {
         kind: "ul",
         items: [
-          "Deploy on any hardware you control — VPS, bare metal, Kubernetes, a Raspberry Pi.",
+          "Run and modify the software subject to the AGPL-3.0 license and the requirements of its current service dependencies.",
           "Modify the software and run your modified version internally.",
-          "Build on the API and SDK, and distribute the integrations you build under any license you like.",
+          "Inspect and modify the source under the terms of AGPL-3.0.",
           "Use Corvus commercially inside your organization or community.",
         ],
       },
@@ -141,7 +141,7 @@ const PAGES: Record<string, MarketingPageContent> = {
       {
         kind: "ul",
         items: [
-          "Resell Corvus, or offer it to third parties as a hosted service, without a commercial agreement.",
+          "Use or distribute Corvus in ways that do not comply with AGPL-3.0.",
           "Remove license notices or misrepresent the software's origin.",
           "Use the Corvus name or logo to imply endorsement of a modified distribution.",
         ],
@@ -171,24 +171,24 @@ const PAGES: Record<string, MarketingPageContent> = {
       {
         kind: "ul",
         items: [
-          "End-to-end encryption for DMs and private channels — keys never leave your devices.",
-          "TLS 1.3 for every connection; HSTS everywhere on the hosted service.",
-          "Encryption at rest for databases, attachments, and backups.",
-          "Per-space API keys with scoped permissions and instant revocation.",
-          "Signed webhooks (HMAC-SHA256) and timestamped delivery verification.",
+          "End-to-end encryption for direct messages is roadmap work, not a current capability.",
+          "Transport security depends on the configured hosting and Supabase services.",
+          "Data-at-rest controls depend on the configured database and storage providers.",
+          "Authentication and permissions are implemented in the API and should be reviewed before production deployment.",
+          "Webhook security and delivery guarantees are not documented as production-ready.",
         ],
       },
       { kind: "h2", text: "Operations" },
       {
         kind: "p",
         text:
-          "Production access requires hardware-key MFA and is logged. Dependencies are scanned continuously and patched on a defined SLA: critical within 24 hours, high within 7 days. Self-hosted releases get the same fixes on the same schedule, announced in the changelog and the admin panel's update feed.",
+          "No public uptime, patch-time or operational-security SLA is claimed by the current project documentation.",
       },
       { kind: "h2", text: "Your responsibilities, self-hosted" },
       {
         kind: "p",
         text:
-          "On your own instance, you own the perimeter: keep the host patched, restrict the admin panel, set strong SMTP credentials, and take the automatic backups somewhere off the box. The deployment guide's hardening section covers all of it.",
+          "On your own instance, you own the perimeter: keep the host patched, restrict the admin panel, set strong SMTP credentials, and configure and test backups for the services you operate. The deployment guide's hardening section covers all of it.",
       },
       { kind: "h2", text: "Reporting a vulnerability" },
       {

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
-import { broadcastToDMConversation } from "../services/realtime.js";
+import { broadcastToDMConversation, broadcastToUsers } from "../services/realtime.js";
 import { executeSlashCommand } from "../lib/slash-commands.js";
 
 const dms = new Hono<AuthEnv>();
@@ -22,10 +22,9 @@ dms.use("*", async (c, next) => {
     if (!hasDMModels) {
         return c.json(
             {
-                error:
-                    "DM system is not initialized. Run Prisma generate and sync your database schema.",
+                error: "DM system is not initialized. Run Prisma generate and sync your database schema.",
             },
-            503
+            503,
         );
     }
 
@@ -89,7 +88,7 @@ function sanitizeReactionEntries(input: unknown): DMReactionEntry[] {
         if (!Array.isArray(candidate.userIds)) continue;
 
         const uniqueUserIds = Array.from(
-            new Set(candidate.userIds.filter((id): id is string => typeof id === "string"))
+            new Set(candidate.userIds.filter((id): id is string => typeof id === "string")),
         );
         if (uniqueUserIds.length === 0) continue;
 
@@ -117,7 +116,7 @@ function buildDMReactions(metadata: string | null | undefined, currentUserId: st
 
 function writeDMReactionsMetadata(
     metadata: string | null | undefined,
-    reactions: DMReactionEntry[]
+    reactions: DMReactionEntry[],
 ): string | null {
     const parsed = parseDMMetadata(metadata);
     const next = { ...parsed } as DMMetadata;
@@ -167,17 +166,16 @@ function mapConversation(conversation: any) {
             avatarUrl: p.user.avatarUrl,
             status: p.user.status,
         })),
-        lastMessage:
-            conversation.messages?.[0]
-                ? {
-                    id: conversation.messages[0].id,
-                    content: conversation.messages[0].content,
-                    type: conversation.messages[0].type,
-                    metadata: conversation.messages[0].metadata,
-                    createdAt: conversation.messages[0].createdAt,
-                    author: conversation.messages[0].author,
-                }
-                : null,
+        lastMessage: conversation.messages?.[0]
+            ? {
+                  id: conversation.messages[0].id,
+                  content: conversation.messages[0].content,
+                  type: conversation.messages[0].type,
+                  metadata: conversation.messages[0].metadata,
+                  createdAt: conversation.messages[0].createdAt,
+                  author: conversation.messages[0].author,
+              }
+            : null,
     };
 }
 
@@ -250,7 +248,7 @@ dms.post("/dms", async (c) => {
     }
 
     const dedupedParticipantIds = [...new Set(parsed.data.participantIds)].filter(
-        (id) => id !== userId
+        (id) => id !== userId,
     );
 
     if (dedupedParticipantIds.length === 0) {
@@ -403,9 +401,9 @@ dms.get("/dms/:id/messages", async (c) => {
         take: limit,
         ...(cursor
             ? {
-                cursor: { id: cursor },
-                skip: 1,
-            }
+                  cursor: { id: cursor },
+                  skip: 1,
+              }
             : {}),
         orderBy: { createdAt: "desc" },
         include: {
@@ -539,7 +537,7 @@ dms.post("/dms/:id/messages", async (c) => {
         replyTo: message.replyTo || null,
     };
 
-    broadcastToDMConversation(conversationId, {
+    await broadcastToDMConversation(conversationId, {
         type: "new_dm_message",
         data: {
             conversationId,
@@ -548,11 +546,25 @@ dms.post("/dms/:id/messages", async (c) => {
         },
     });
 
+    await broadcastToUsers(
+        (conversation?.participants ?? [])
+            .map((participant: { userId: string }) => participant.userId)
+            .filter((participantId: string) => participantId !== userId),
+        {
+            type: "new_dm_message",
+            data: {
+                conversationId,
+                message: messagePayload,
+                conversation: conversation ? mapConversation(conversation) : null,
+            },
+        },
+    );
+
     return c.json(
         {
             message: messagePayload,
         },
-        201
+        201,
     );
 });
 
@@ -606,7 +618,7 @@ dms.patch("/dms/:conversationId/messages/:messageId", async (c) => {
         },
     });
 
-    broadcastToDMConversation(conversationId, {
+    await broadcastToDMConversation(conversationId, {
         type: "dm_message_update",
         data: {
             id: updated.id,
@@ -662,9 +674,7 @@ dms.post("/dms/:conversationId/messages/:messageId/reactions", async (c) => {
         return c.json({ error: "Message not found." }, 404);
     }
 
-    const existingReactions = sanitizeReactionEntries(
-        parseDMMetadata(message.metadata).reactions
-    );
+    const existingReactions = sanitizeReactionEntries(parseDMMetadata(message.metadata).reactions);
 
     const current = existingReactions.find((reaction) => reaction.emoji === emoji);
     if (current && current.userIds.includes(userId)) {
@@ -673,10 +683,10 @@ dms.post("/dms/:conversationId/messages/:messageId/reactions", async (c) => {
 
     const nextReactions = current
         ? existingReactions.map((reaction) =>
-            reaction.emoji === emoji
-                ? { ...reaction, userIds: Array.from(new Set([...reaction.userIds, userId])) }
-                : reaction
-        )
+              reaction.emoji === emoji
+                  ? { ...reaction, userIds: Array.from(new Set([...reaction.userIds, userId])) }
+                  : reaction,
+          )
         : [...existingReactions, { emoji, userIds: [userId] }];
 
     const metadata = writeDMReactionsMetadata(message.metadata, nextReactions);
@@ -685,7 +695,7 @@ dms.post("/dms/:conversationId/messages/:messageId/reactions", async (c) => {
         data: { metadata },
     });
 
-    broadcastToDMConversation(conversationId, {
+    await broadcastToDMConversation(conversationId, {
         type: "dm_reaction_add",
         data: { conversationId, messageId, userId, emoji },
     });
@@ -712,9 +722,7 @@ dms.delete("/dms/:conversationId/messages/:messageId/reactions/:emoji", async (c
         return c.json({ error: "Message not found." }, 404);
     }
 
-    const existingReactions = sanitizeReactionEntries(
-        parseDMMetadata(message.metadata).reactions
-    );
+    const existingReactions = sanitizeReactionEntries(parseDMMetadata(message.metadata).reactions);
     const target = existingReactions.find((reaction) => reaction.emoji === emoji);
     if (!target || !target.userIds.includes(userId)) {
         return c.json({ error: "Reaction not found." }, 404);
@@ -724,7 +732,7 @@ dms.delete("/dms/:conversationId/messages/:messageId/reactions/:emoji", async (c
         .map((reaction) =>
             reaction.emoji === emoji
                 ? { ...reaction, userIds: reaction.userIds.filter((id) => id !== userId) }
-                : reaction
+                : reaction,
         )
         .filter((reaction) => reaction.userIds.length > 0);
 
@@ -734,7 +742,7 @@ dms.delete("/dms/:conversationId/messages/:messageId/reactions/:emoji", async (c
         data: { metadata },
     });
 
-    broadcastToDMConversation(conversationId, {
+    await broadcastToDMConversation(conversationId, {
         type: "dm_reaction_remove",
         data: { conversationId, messageId, userId, emoji },
     });
@@ -770,7 +778,7 @@ dms.delete("/dms/:conversationId/messages/:messageId", async (c) => {
 
     await db.dMMessage.delete({ where: { id: messageId } });
 
-    broadcastToDMConversation(conversationId, {
+    await broadcastToDMConversation(conversationId, {
         type: "dm_message_delete",
         data: { id: messageId, conversationId },
     });
@@ -855,7 +863,7 @@ dms.post("/dms/:conversationId/messages/:messageId/pin", async (c) => {
         return c.json({ error: "Message is already pinned." }, 409);
     }
 
-    broadcastToDMConversation(conversationId, {
+    await broadcastToDMConversation(conversationId, {
         type: "dm_message_pin",
         data: {
             conversationId,
@@ -895,7 +903,7 @@ dms.delete("/dms/:conversationId/messages/:messageId/pin", async (c) => {
         return c.json({ error: "Message is not pinned." }, 404);
     }
 
-    broadcastToDMConversation(conversationId, {
+    await broadcastToDMConversation(conversationId, {
         type: "dm_message_unpin",
         data: { conversationId, messageId },
     });

@@ -26,7 +26,10 @@
      Token keeps the historical `accent-violet` name so the 200+ existing
      class usages flip hue centrally; new code should prefer the neutral
      `accent` alias (see tailwind.config.ts). */
-  --c-accent-violet: 232 163 61; /* #E8A33D amber */
+  --c-accent-brand: 232 163 61; /* #E8A33D Corvus amber */
+  --c-accent-brand-hover: 242 181 87; /* #F2B557 */
+  --c-accent-brand-pressed: 201 134 43; /* #C9862B */
+  --c-accent-violet: 232 163 61; /* deprecated compatibility alias */
   --c-accent-violet-bright: 242 181 87; /* #F2B557 */
   --c-accent-violet-dim: 201 134 43; /* #C9862B */
   --c-accent-teal: 45 212 191; /* #2DD4BF — secondary */
@@ -95,7 +98,10 @@
   --c-surface-input: 255 255 255; /* #FFFFFF field bg */
 
   /* ── Brand accent — Amber (darkened for AA on light) ──── */
-  --c-accent-violet: 180 116 18; /* #B47412 */
+  --c-accent-brand: 180 116 18; /* #B47412 AA on light */
+  --c-accent-brand-hover: 209 138 32; /* #D18A20 */
+  --c-accent-brand-pressed: 148 95 12; /* #945F0C */
+  --c-accent-violet: 180 116 18; /* deprecated compatibility alias */
   --c-accent-violet-bright: 209 138 32; /* #D18A20 */
   --c-accent-violet-dim: 148 95 12; /* #945F0C */
   --c-accent-teal: 15 184 174; /* #0FB8AE */

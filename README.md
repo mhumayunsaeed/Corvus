@@ -52,10 +52,11 @@ Discord is great, but it collects extensive user data and locks communities into
 - **Noise suppression & echo cancellation** for crystal-clear voice
 
 ## Screenshots
+
 <img width="1919" height="869" alt="image" src="https://github.com/user-attachments/assets/1d8fc732-ed71-4cbb-9a8d-ef27ca4f409c" />
 
 <p align="center">
-  
+
 
 </p>
 
@@ -78,20 +79,20 @@ Discord is great, but it collects extensive user data and locks communities into
 <!-- ![Direct Messages](screenshots/dms.png) -->
 <!-- ![Server Settings](screenshots/settings.png) -->
 
-*More screenshots coming soon as features are added. Want to help? Take screenshots and open a PR!*
+_More screenshots coming soon as features are added. Want to help? Take screenshots and open a PR!_
 
 </details>
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | Next.js 15, React 19, Tailwind CSS, Zustand, LiveKit Client |
-| **Backend** | Hono (serverless on Vercel), Prisma 6, Supabase (PostgreSQL, Auth, Storage, Realtime) |
-| **Desktop** | Tauri 2 (Rust), custom window chrome, system tray |
-| **Auth** | Supabase Auth (email/password + Google OAuth); API issues short-lived app JWTs (JOSE) |
-| **Voice/Video** | LiveKit SFU (WebRTC) |
-| **Monorepo** | pnpm workspaces, Turborepo |
+| Layer           | Technology                                                                            |
+| --------------- | ------------------------------------------------------------------------------------- |
+| **Frontend**    | Next.js 15, React 19, Tailwind CSS, Zustand, LiveKit Client                           |
+| **Backend**     | Hono (serverless on Vercel), Prisma 6, Supabase (PostgreSQL, Auth, Storage, Realtime) |
+| **Desktop**     | Tauri 2 (Rust), custom window chrome, system tray                                     |
+| **Auth**        | Supabase Auth (email/password + Google OAuth); API issues short-lived app JWTs (JOSE) |
+| **Voice/Video** | LiveKit SFU (WebRTC)                                                                  |
+| **Monorepo**    | pnpm workspaces, Turborepo                                                            |
 
 ## Getting Started
 
@@ -116,6 +117,7 @@ pnpm install
 Create `.env` files for the API and web apps:
 
 **`apps/api/.env`** (see [`apps/api/.env.example`](apps/api/.env.example) for the full list)
+
 ```env
 PORT=3001
 # Supabase Postgres — pooled (6543) for the app, direct (5432) for migrations
@@ -137,6 +139,7 @@ LIVEKIT_API_SECRET=your-livekit-secret
 ```
 
 **`apps/web/.env.local`**
+
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3001
 NEXT_PUBLIC_WS_URL=ws://localhost:3001/ws
@@ -157,9 +160,11 @@ pnpm --filter @corvus/api db:generate
 pnpm --filter @corvus/api db:push
 ```
 
-Then apply [`supabase/realtime-policies.sql`](supabase/realtime-policies.sql) in
-the Supabase SQL editor. Production broadcasts use private topics by default;
-set `REALTIME_PRIVATE_CHANNELS=false` only for local troubleshooting.
+Broadcast topics are public by default so realtime works before optional RLS is
+installed. To use private topics, apply
+[`supabase/realtime-policies.sql`](supabase/realtime-policies.sql), set
+`REALTIME_PRIVATE_CHANNELS=true` on the API, and set
+`NEXT_PUBLIC_REALTIME_PRIVATE_CHANNELS=true` on the web application.
 
 ### 3b. Set up Supabase Storage buckets
 
@@ -169,13 +174,13 @@ Creates all required buckets (idempotent — safe to re-run on every deploy):
 pnpm --filter @corvus/api setup:storage
 ```
 
-| Bucket | Visibility | Used for |
-|--------|-----------|----------|
-| `avatars` | public | User profile pictures |
-| `server-icons` | public | Server icons |
-| `attachments` | public | Message attachments (images, video, documents) |
-| `stickers` | public | Custom stickers |
-| `releases` | public | Desktop installers served by the download button |
+| Bucket         | Visibility | Used for                                         |
+| -------------- | ---------- | ------------------------------------------------ |
+| `avatars`      | public     | User profile pictures                            |
+| `server-icons` | public     | Server icons                                     |
+| `attachments`  | public     | Message attachments (images, video, documents)   |
+| `stickers`     | public     | Custom stickers                                  |
+| `releases`     | public     | Desktop installers served by the download button |
 
 Upload an installer for the download button to serve:
 

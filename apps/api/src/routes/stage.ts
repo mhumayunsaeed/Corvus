@@ -41,7 +41,7 @@ stage.post("/channels/:channelId/stage/request-speak", async (c) => {
         select: { displayName: true, avatarUrl: true },
     });
 
-    broadcastToChannel(channelId, {
+    await broadcastToChannel(channelId, {
         type: "stage_speak_request",
         data: {
             channelId,
@@ -91,7 +91,7 @@ stage.post("/channels/:channelId/stage/grant-speak", async (c) => {
         update: { role: "speaker" },
     });
 
-    broadcastToChannel(channelId, {
+    await broadcastToChannel(channelId, {
         type: "stage_speaker_added",
         data: { channelId, userId: targetUserId },
     });
@@ -128,7 +128,7 @@ stage.post("/channels/:channelId/stage/revoke-speak", async (c) => {
         where: { channelId, userId: targetUserId, role: "speaker" },
     });
 
-    broadcastToChannel(channelId, {
+    await broadcastToChannel(channelId, {
         type: "stage_speaker_removed",
         data: { channelId, userId: targetUserId },
     });

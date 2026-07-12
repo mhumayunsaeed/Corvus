@@ -44,11 +44,11 @@ const config: Config = {
         "accent-warm": ch("accent-warm"),
 
         // Brand-neutral accent aliases
-        accent: ch("accent-violet"),
-        "accent-hover": ch("accent-violet-bright"),
-        "accent-pressed": ch("accent-violet-dim"),
-        "accent-soft": "rgb(var(--c-accent-violet) / 0.14)",
-        "accent-muted": "rgb(var(--c-accent-violet) / 0.5)",
+        accent: ch("accent-brand"),
+        "accent-hover": ch("accent-brand-hover"),
+        "accent-pressed": ch("accent-brand-pressed"),
+        "accent-soft": "rgb(var(--c-accent-brand) / 0.14)",
+        "accent-muted": "rgb(var(--c-accent-brand) / 0.5)",
         "accent-contrast": ch("text-on-accent"),
         "on-accent": ch("text-on-accent"),
         live: ch("live"),

@@ -50,7 +50,7 @@ export function SpacePanel({
   onSetStatus?: (presence: Presence, text?: string) => void;
 }) {
   return (
-    <aside className="flex h-full w-[260px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface-raised">
+    <aside className="hidden h-full w-[248px] shrink-0 flex-col overflow-hidden bg-channel-sidebar shadow-[inset_-1px_0_rgb(var(--c-border-subtle))] md:flex">
       {/* Header */}
       <button
         type="button"

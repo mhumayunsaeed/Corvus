@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, type AuthEnv } from "../middleware/auth.js";
-import { broadcastToChannel } from "../services/realtime.js";
+import { broadcastToChannel, broadcastToUsers } from "../services/realtime.js";
 import { extractUrls, unfurlUrl } from "../lib/unfurl.js";
 import { executeSlashCommand } from "../lib/slash-commands.js";
 import { getChannelAccess, hasPermission, Permissions } from "../lib/permissions.js";
@@ -290,7 +290,7 @@ messages.post("/channels/:channelId/messages/:messageId/pin", async (c) => {
     if (!pinModel) {
         return c.json(
             { error: "Pinned messages aren't enabled yet — run the latest database migration." },
-            503
+            503,
         );
     }
 
@@ -305,7 +305,7 @@ messages.post("/channels/:channelId/messages/:messageId/pin", async (c) => {
         return c.json({ error: "Message is already pinned." }, 409);
     }
 
-    broadcastToChannel(channelId, {
+    await broadcastToChannel(channelId, {
         type: "channel_message_pin",
         data: { channelId, messageId, pinnedById: userId },
     });
@@ -330,7 +330,7 @@ messages.delete("/channels/:channelId/messages/:messageId/pin", async (c) => {
 
     await pinModel.deleteMany({ where: { channelId, messageId } });
 
-    broadcastToChannel(channelId, {
+    await broadcastToChannel(channelId, {
         type: "channel_message_unpin",
         data: { channelId, messageId },
     });
@@ -429,7 +429,29 @@ messages.post("/channels/:channelId/messages", async (c) => {
     };
 
     // Broadcast to WebSocket subscribers
-    broadcastToChannel(channelId, {
+    await broadcastToChannel(channelId, {
+        type: "new_message",
+        data: messageData,
+    });
+
+    // A user-level copy keeps every member informed even when this channel is
+    // not currently open (or its space has not been loaded in this client).
+    const recipients = await prisma.serverMember.findMany({
+        where: { serverId: access.channel.serverId, userId: { not: userId } },
+        select: { userId: true },
+    });
+    const visibleRecipientIds = (
+        await Promise.all(
+            recipients.map(async (member) => {
+                const recipientAccess = await getChannelAccess(prisma, channelId, member.userId);
+                return recipientAccess &&
+                    hasPermission(recipientAccess.permissions, Permissions.VIEW_CHANNEL)
+                    ? member.userId
+                    : null;
+            }),
+        )
+    ).filter((recipientId): recipientId is string => Boolean(recipientId));
+    await broadcastToUsers(visibleRecipientIds, {
         type: "new_message",
         data: messageData,
     });
@@ -448,7 +470,7 @@ messages.post("/channels/:channelId/messages", async (c) => {
 async function processMessageEmbeds(messageId: string, channelId: string, urls: string[]) {
     const results = await Promise.all(urls.map(unfurlUrl));
     const validEmbeds = results.filter(
-        (r): r is NonNullable<typeof r> => r !== null && (!!r.title || !!r.description)
+        (r): r is NonNullable<typeof r> => r !== null && (!!r.title || !!r.description),
     );
 
     if (validEmbeds.length === 0) return;
@@ -478,7 +500,7 @@ async function processMessageEmbeds(messageId: string, channelId: string, urls: 
         },
     });
 
-    broadcastToChannel(channelId, {
+    await broadcastToChannel(channelId, {
         type: "message_embeds_ready",
         data: { messageId, channelId, embeds },
     });
@@ -531,7 +553,7 @@ messages.patch("/messages/:id", async (c) => {
         },
     });
 
-    broadcastToChannel(message.channelId, {
+    await broadcastToChannel(message.channelId, {
         type: "message_update",
         data: {
             id: updated.id,
@@ -564,19 +586,23 @@ messages.delete("/messages/:id", async (c) => {
         const access = await verifyChannelAccess(
             message.channelId,
             userId,
-            Permissions.MANAGE_MESSAGES
+            Permissions.MANAGE_MESSAGES,
         );
         if (!access) {
             return c.json({ error: "You do not have permission to delete this message." }, 403);
         }
     } else {
-        const access = await verifyChannelAccess(message.channelId, userId, Permissions.VIEW_CHANNEL);
+        const access = await verifyChannelAccess(
+            message.channelId,
+            userId,
+            Permissions.VIEW_CHANNEL,
+        );
         if (!access) return c.json({ error: "You cannot access this channel." }, 403);
     }
 
     await prisma.message.delete({ where: { id: messageId } });
 
-    broadcastToChannel(message.channelId, {
+    await broadcastToChannel(message.channelId, {
         type: "message_delete",
         data: { id: messageId, channelId: message.channelId },
     });
@@ -625,7 +651,7 @@ messages.post("/messages/:id/reactions", async (c) => {
         return c.json({ message: "Already reacted." });
     }
 
-    broadcastToChannel(message.channelId, {
+    await broadcastToChannel(message.channelId, {
         type: "reaction_add",
         data: { messageId, userId, emoji, channelId: message.channelId },
     });
@@ -662,7 +688,7 @@ messages.delete("/messages/:id/reactions/:emoji", async (c) => {
         where: { id: reaction.id },
     });
 
-    broadcastToChannel(message.channelId, {
+    await broadcastToChannel(message.channelId, {
         type: "reaction_remove",
         data: { messageId, userId, emoji, channelId: message.channelId },
     });

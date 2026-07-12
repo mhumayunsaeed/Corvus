@@ -18,15 +18,12 @@ export interface CustomRequestInit extends RequestInit {
     maxRetries?: number;
 }
 
-export async function api<T>(
-    path: string,
-    options: CustomRequestInit = {}
-): Promise<T> {
+export async function api<T>(path: string, options: CustomRequestInit = {}): Promise<T> {
     const baseUrl = ensureApiUrl();
     const token = getToken();
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        ...(options.headers as Record<string, string> || {}),
+        ...((options.headers as Record<string, string>) || {}),
     };
 
     if (token) {
@@ -35,11 +32,12 @@ export async function api<T>(
 
     let res!: Response;
     const method = (options.method || "GET").toUpperCase();
-    const maxRetries = options.maxRetries !== undefined
-        ? options.maxRetries
-        : method === "GET" || method === "HEAD"
-          ? 2
-          : 0;
+    const maxRetries =
+        options.maxRetries !== undefined
+            ? options.maxRetries
+            : method === "GET" || method === "HEAD"
+              ? 2
+              : 0;
     const timeoutMs = options.timeoutMs !== undefined ? options.timeoutMs : 15000;
     const outerSignal = options.signal;
 
@@ -83,13 +81,13 @@ export async function api<T>(
             if (err instanceof Error && err.name === "AbortError") {
                 throw new Error(
                     `Request to ${baseUrl}${path} timed out. ` +
-                    "Please check your connection and try again."
+                        "Please check your connection and try again.",
                 );
             }
 
             throw new Error(
                 `Failed to reach API at ${baseUrl}. ` +
-                "The server may be waking up — please try again in a moment."
+                    "The server may be waking up — please try again in a moment.",
             );
         }
     }
@@ -110,14 +108,9 @@ export async function api<T>(
 
     if (!res.ok) {
         const errObj = data as { error?: string; message?: string; details?: string } | null;
-        const baseMessage =
-            errObj?.error ||
-            errObj?.message ||
-            `Request failed (${res.status})`;
+        const baseMessage = errObj?.error || errObj?.message || `Request failed (${res.status})`;
 
-        throw new Error(
-            errObj?.details ? `${baseMessage}: ${errObj.details}` : baseMessage
-        );
+        throw new Error(errObj?.details ? `${baseMessage}: ${errObj.details}` : baseMessage);
     }
 
     return (data ?? ({} as T)) as T;
@@ -378,10 +371,16 @@ export function createServer(data: {
 }
 
 export function fetchServer(id: string) {
-    return api<{ server: ServerData & { channels: ChannelData[] }; unreadCounts?: Record<string, number> }>(`/servers/${id}`);
+    return api<{
+        server: ServerData & { channels: ChannelData[] };
+        unreadCounts?: Record<string, number>;
+    }>(`/servers/${id}`);
 }
 
-export function updateServer(id: string, data: { name?: string; iconUrl?: string | null; description?: string | null }) {
+export function updateServer(
+    id: string,
+    data: { name?: string; iconUrl?: string | null; description?: string | null },
+) {
     return api<{ server: ServerData }>(`/servers/${id}`, {
         method: "PATCH",
         body: JSON.stringify(data),
@@ -398,14 +397,20 @@ export function fetchChannels(serverId: string) {
     return api<{ channels: ChannelData[] }>(`/servers/${serverId}/channels`);
 }
 
-export function createChannel(serverId: string, data: { name: string; type?: string; category?: string; topic?: string }) {
+export function createChannel(
+    serverId: string,
+    data: { name: string; type?: string; category?: string; topic?: string },
+) {
     return api<{ channel: ChannelData }>(`/servers/${serverId}/channels`, {
         method: "POST",
         body: JSON.stringify(data),
     });
 }
 
-export function updateChannel(id: string, data: { name?: string; topic?: string | null; category?: string; position?: number }) {
+export function updateChannel(
+    id: string,
+    data: { name?: string; topic?: string | null; category?: string; position?: number },
+) {
     return api<{ channel: ChannelData }>(`/channels/${id}`, {
         method: "PATCH",
         body: JSON.stringify(data),
@@ -448,7 +453,10 @@ export function saveCanvasState(channelId: string, data: unknown) {
     });
 }
 
-export function saveGitHubState(channelId: string, data: { config?: unknown; pullRequests?: unknown }) {
+export function saveGitHubState(
+    channelId: string,
+    data: { config?: unknown; pullRequests?: unknown },
+) {
     return api<{ config: unknown; pullRequests: unknown }>(`/channels/${channelId}/github`, {
         method: "PUT",
         body: JSON.stringify(data),
@@ -482,7 +490,7 @@ export function saveServerSettings(serverId: string, settings: Record<string, un
 export function fetchMessages(channelId: string, cursor?: string) {
     const params = cursor ? `?cursor=${cursor}&limit=50` : "?limit=50";
     return api<{ messages: MessageData[]; nextCursor: string | null; hasMore: boolean }>(
-        `/channels/${channelId}/messages${params}`
+        `/channels/${channelId}/messages${params}`,
     );
 }
 
@@ -503,7 +511,7 @@ export interface ChannelSearchResult {
 
 export function searchChannelMessages(channelId: string, query: string) {
     return api<{ results: ChannelSearchResult[] }>(
-        `/channels/${channelId}/messages/search?q=${encodeURIComponent(query)}`
+        `/channels/${channelId}/messages/search?q=${encodeURIComponent(query)}`,
     );
 }
 
@@ -527,17 +535,15 @@ export function fetchChannelPins(channelId: string) {
 }
 
 export function pinChannelMessage(channelId: string, messageId: string) {
-    return api<{ message: string }>(
-        `/channels/${channelId}/messages/${messageId}/pin`,
-        { method: "POST" }
-    );
+    return api<{ message: string }>(`/channels/${channelId}/messages/${messageId}/pin`, {
+        method: "POST",
+    });
 }
 
 export function unpinChannelMessage(channelId: string, messageId: string) {
-    return api<{ message: string }>(
-        `/channels/${channelId}/messages/${messageId}/pin`,
-        { method: "DELETE" }
-    );
+    return api<{ message: string }>(`/channels/${channelId}/messages/${messageId}/pin`, {
+        method: "DELETE",
+    });
 }
 
 export function editMessage(id: string, content: string) {
@@ -552,9 +558,7 @@ export function deleteMessageApi(id: string) {
 }
 
 export function fetchLinkPreview(url: string) {
-    return api<{ embed: UnfurledEmbedData | null }>(
-        `/unfurl?url=${encodeURIComponent(url)}`
-    );
+    return api<{ embed: UnfurledEmbedData | null }>(`/unfurl?url=${encodeURIComponent(url)}`);
 }
 
 // ─── Reaction API ───────────────────────────────────────────────
@@ -567,14 +571,20 @@ export function addReaction(messageId: string, emoji: string) {
 }
 
 export function removeReaction(messageId: string, emoji: string) {
-    return api<{ message: string }>(`/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
-        method: "DELETE",
-    });
+    return api<{ message: string }>(
+        `/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+        {
+            method: "DELETE",
+        },
+    );
 }
 
 // ─── Invite API ─────────────────────────────────────────────────
 
-export function createInvite(serverId: string, data?: { maxUses?: number; expiresInHours?: number }) {
+export function createInvite(
+    serverId: string,
+    data?: { maxUses?: number; expiresInHours?: number },
+) {
     return api<{ invite: InviteData }>(`/servers/${serverId}/invites`, {
         method: "POST",
         body: JSON.stringify(data || {}),
@@ -592,7 +602,7 @@ export function revokeInvite(id: string) {
 export function joinInvite(code: string) {
     return api<{ message: string; server: { id: string; name: string; iconUrl: string | null } }>(
         `/invites/${code}/join`,
-        { method: "POST" }
+        { method: "POST" },
     );
 }
 
@@ -643,7 +653,7 @@ export function fetchFriendDashboard() {
 
 export function searchFriendUsers(query: string) {
     return api<{ users: FriendSearchResult[] }>(
-        `/friends/search?query=${encodeURIComponent(query)}`
+        `/friends/search?query=${encodeURIComponent(query)}`,
     );
 }
 
@@ -660,12 +670,9 @@ export function sendFriendRequest(target: string) {
 }
 
 export function acceptFriendRequest(requestId: string) {
-    return api<{ message: string; user: FriendUserData }>(
-        `/friends/requests/${requestId}/accept`,
-        {
-            method: "POST",
-        }
-    );
+    return api<{ message: string; user: FriendUserData }>(`/friends/requests/${requestId}/accept`, {
+        method: "POST",
+    });
 }
 
 export function declineFriendRequest(requestId: string) {
@@ -702,7 +709,9 @@ export function unblockUser(userId: string) {
 // ─── DM API ───────────────────────────────────────────────────────────────────
 
 export function fetchDMConversations() {
-    return api<{ conversations: DMConversationData[]; dmUnreadCounts?: Record<string, number> }>("/dms");
+    return api<{ conversations: DMConversationData[]; dmUnreadCounts?: Record<string, number> }>(
+        "/dms",
+    );
 }
 
 export function createDMConversation(data: { participantIds: string[]; name?: string }) {
@@ -715,7 +724,7 @@ export function createDMConversation(data: { participantIds: string[]; name?: st
 export function fetchDMMessages(conversationId: string, cursor?: string) {
     const params = cursor ? `?cursor=${cursor}&limit=50` : "?limit=50";
     return api<{ messages: DMMessageData[]; nextCursor: string | null; hasMore: boolean }>(
-        `/dms/${conversationId}/messages${params}`
+        `/dms/${conversationId}/messages${params}`,
     );
 }
 
@@ -736,7 +745,7 @@ export interface DMSearchResult {
 
 export function searchDMMessages(conversationId: string, query: string) {
     return api<{ results: DMSearchResult[] }>(
-        `/dms/${conversationId}/messages/search?q=${encodeURIComponent(query)}`
+        `/dms/${conversationId}/messages/search?q=${encodeURIComponent(query)}`,
     );
 }
 
@@ -776,10 +785,7 @@ export async function uploadAttachment(file: File) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
         const errObj = data as { error?: string; message?: string; details?: string };
-        const baseMessage =
-            errObj?.error ||
-            errObj?.message ||
-            `Request failed (${res.status})`;
+        const baseMessage = errObj?.error || errObj?.message || `Request failed (${res.status})`;
         throw new Error(errObj?.details ? `${baseMessage}: ${errObj.details}` : baseMessage);
     }
 
@@ -832,13 +838,10 @@ export function deleteDMMessage(conversationId: string, messageId: string) {
 }
 
 export function addDMReaction(conversationId: string, messageId: string, emoji: string) {
-    return api<{ message: string }>(
-        `/dms/${conversationId}/messages/${messageId}/reactions`,
-        {
-            method: "POST",
-            body: JSON.stringify({ emoji }),
-        }
-    );
+    return api<{ message: string }>(`/dms/${conversationId}/messages/${messageId}/reactions`, {
+        method: "POST",
+        body: JSON.stringify({ emoji }),
+    });
 }
 
 export function removeDMReaction(conversationId: string, messageId: string, emoji: string) {
@@ -846,7 +849,7 @@ export function removeDMReaction(conversationId: string, messageId: string, emoj
         `/dms/${conversationId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
         {
             method: "DELETE",
-        }
+        },
     );
 }
 
@@ -928,24 +931,22 @@ export function revokeStageSpeak(channelId: string, userId: string) {
 }
 
 export function fetchStageState(channelId: string) {
-    return api<{ speakers: string[]; raisedHands: string[] }>(
-        `/channels/${channelId}/stage/state`
-    );
+    return api<{ speakers: string[]; raisedHands: string[] }>(`/channels/${channelId}/stage/state`);
 }
 
 // ─── Call API ───────────────────────────────────────────────────────────────────
 
-export function startDMCall(conversationId: string) {
+export function startDMCall(conversationId: string, video = false) {
     return api<{ token: string; url: string; roomName: string }>(
         `/dms/${conversationId}/call/start`,
-        { method: "POST" }
+        { method: "POST", body: JSON.stringify({ video }) },
     );
 }
 
 export function joinDMCall(conversationId: string) {
     return api<{ token: string; url: string; roomName: string }>(
         `/dms/${conversationId}/call/join`,
-        { method: "POST" }
+        { method: "POST" },
     );
 }
 
@@ -1022,14 +1023,20 @@ export function fetchRoles(serverId: string) {
     return api<{ roles: RoleData[] }>(`/servers/${serverId}/roles`);
 }
 
-export function createRole(serverId: string, data: { name: string; color?: string; permissions?: number }) {
+export function createRole(
+    serverId: string,
+    data: { name: string; color?: string; permissions?: number },
+) {
     return api<{ role: RoleData }>(`/servers/${serverId}/roles`, {
         method: "POST",
         body: JSON.stringify(data),
     });
 }
 
-export function updateRole(roleId: string, data: { name?: string; color?: string | null; permissions?: number; position?: number }) {
+export function updateRole(
+    roleId: string,
+    data: { name?: string; color?: string | null; permissions?: number; position?: number },
+) {
     return api<{ role: RoleData }>(`/roles/${roleId}`, {
         method: "PATCH",
         body: JSON.stringify(data),
@@ -1055,14 +1062,23 @@ export function removeRoleFromMember(roleId: string, userId: string) {
 }
 
 export function fetchChannelPermissions(channelId: string) {
-    return api<{ overrides: ChannelPermissionOverrideData[] }>(`/channels/${channelId}/permissions`);
+    return api<{ overrides: ChannelPermissionOverrideData[] }>(
+        `/channels/${channelId}/permissions`,
+    );
 }
 
-export function updateChannelPermission(channelId: string, roleId: string, data: { allow: number; deny: number }) {
-    return api<{ override: ChannelPermissionOverrideData }>(`/channels/${channelId}/permissions/${roleId}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-    });
+export function updateChannelPermission(
+    channelId: string,
+    roleId: string,
+    data: { allow: number; deny: number },
+) {
+    return api<{ override: ChannelPermissionOverrideData }>(
+        `/channels/${channelId}/permissions/${roleId}`,
+        {
+            method: "PUT",
+            body: JSON.stringify(data),
+        },
+    );
 }
 
 export function deleteChannelPermission(channelId: string, roleId: string) {

@@ -29,9 +29,10 @@ interface BroadcastMessage {
 // Broadcast channel privacy. Public is functional out-of-the-box (topics use
 // unguessable cuids). Set REALTIME_PRIVATE_CHANNELS=true once the Realtime
 // Authorization RLS policies (see supabase/realtime-policies.sql) are applied.
-const USE_PRIVATE_CHANNELS =
-    process.env.REALTIME_PRIVATE_CHANNELS === "true" ||
-    (process.env.NODE_ENV === "production" && process.env.REALTIME_PRIVATE_CHANNELS !== "false");
+// Keep broadcasts public unless authorization policies have explicitly been
+// installed and enabled. Defaulting production to private silently disconnects
+// every client on deployments that have not applied realtime-policies.sql.
+const USE_PRIVATE_CHANNELS = process.env.REALTIME_PRIVATE_CHANNELS === "true";
 
 function getConfig(): { url: string; serviceRoleKey: string } | null {
     const url = process.env.SUPABASE_URL;
@@ -72,17 +73,21 @@ function toMessage(topic: string, event: RealtimeEvent): BroadcastMessage {
     return { topic, event: event.type, payload: event.data, private: USE_PRIVATE_CHANNELS };
 }
 
-export function broadcastToChannel(channelId: string, event: RealtimeEvent): void {
-    void sendBroadcast([toMessage(`channel:${channelId}`, event)]);
+export function broadcastToChannel(channelId: string, event: RealtimeEvent): Promise<void> {
+    return sendBroadcast([toMessage(`channel:${channelId}`, event)]);
 }
 
-export function broadcastToDMConversation(conversationId: string, event: RealtimeEvent): void {
-    void sendBroadcast([toMessage(`dm:${conversationId}`, event)]);
+export function broadcastToDMConversation(
+    conversationId: string,
+    event: RealtimeEvent
+): Promise<void> {
+    return sendBroadcast([toMessage(`dm:${conversationId}`, event)]);
 }
 
-export function broadcastToUsers(userIds: Iterable<string>, event: RealtimeEvent): void {
+export function broadcastToUsers(userIds: Iterable<string>, event: RealtimeEvent): Promise<void> {
     const messages = Array.from(userIds, (userId) => toMessage(`user:${userId}`, event));
     if (messages.length > 0) {
-        void sendBroadcast(messages);
+        return sendBroadcast(messages);
     }
+    return Promise.resolve();
 }

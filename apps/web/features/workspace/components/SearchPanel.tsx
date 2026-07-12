@@ -48,7 +48,7 @@ export function SearchPanel({ corpus, onClose }: { corpus: SearchCorpus; onClose
   }, [corpus, q]);
 
   return (
-    <aside className="flex h-full w-[360px] shrink-0 flex-col border-l border-border bg-surface-raised">
+    <aside className="absolute inset-0 z-30 flex h-full w-full shrink-0 flex-col bg-surface-raised shadow-e3 lg:static lg:w-[360px] lg:shadow-[inset_1px_0_rgb(var(--c-border-subtle))]">
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted">Search</span>
         <button

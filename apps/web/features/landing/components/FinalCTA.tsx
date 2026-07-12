@@ -1,41 +1,43 @@
 import Link from "next/link";
+import { ArrowRight, GitBranch } from "lucide-react";
 
 export function FinalCTA() {
-  return (
-    <section id="pricing" className="border-t border-border px-6 py-24 sm:py-28">
-      <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
-        <h2 className="text-[40px] font-medium leading-[1.1] tracking-[-0.025em] text-text-primary">
-          Get in early.
-        </h2>
-        <p className="mt-4 text-[16px] leading-[1.6] text-text-secondary">
-          Join the waitlist now and be first in when early access opens.
-        </p>
-
-        <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
-          <a
-            href="#waitlist"
-            className="rounded-lg bg-accent-violet px-6 py-3 text-[15px] font-medium text-on-accent transition-colors hover:bg-accent-violet-bright"
-          >
-            Join the waitlist →
-          </a>
-          <Link
-            href="/spaces/demo"
-            className="rounded-lg border border-border px-6 py-3 text-[15px] font-medium text-text-secondary transition-colors hover:border-border-highlight hover:text-text-primary"
-          >
-            Try Demo
-          </Link>
-          <a
-            href="#developers"
-            className="rounded-lg border border-border px-6 py-3 text-[15px] font-medium text-text-secondary transition-colors hover:border-border-highlight hover:text-text-primary"
-          >
-            View docs
-          </a>
-        </div>
-
-        <p className="mt-8 text-[12px] text-text-muted">
-          No credit card. No vendor lock-in. No 300 MB Electron tax.
-        </p>
-      </div>
-    </section>
-  );
+    return (
+        <section className="relative overflow-hidden px-5 py-24 sm:px-8 sm:py-32">
+            <div className="landing-amber-light" aria-hidden />
+            <div className="relative mx-auto max-w-3xl text-center">
+                <p className="text-sm font-medium text-accent">The workspace is ready to explore</p>
+                <h2 className="mt-5 text-[clamp(36px,6vw,60px)] font-semibold leading-[1.06] tracking-[-0.05em]">
+                    Build your next space on software you can inspect.
+                </h2>
+                <p className="mx-auto mt-5 max-w-[58ch] text-[15px] leading-7 text-text-secondary">
+                    See messaging, voice and connected work in the live demo, or follow development
+                    in the public repository.
+                </p>
+                <div className="mt-9 flex flex-wrap justify-center gap-3">
+                    <Link
+                        href="/spaces/demo"
+                        className="inline-flex h-11 items-center gap-2 rounded-md bg-accent px-5 text-sm font-semibold text-on-accent hover:bg-accent-hover"
+                    >
+                        Explore live demo <ArrowRight size={15} />
+                    </Link>
+                    <a
+                        href="https://github.com/Humayun-glitch/Corvus"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-11 items-center gap-2 rounded-md bg-surface-raised px-5 text-sm font-medium shadow-e1 hover:bg-surface-overlay"
+                    >
+                        <GitBranch size={16} />
+                        View Corvus on GitHub
+                    </a>
+                </div>
+                <a
+                    href="#early-access"
+                    className="mt-5 inline-block text-[12px] text-text-muted hover:text-text-primary"
+                >
+                    Or join early access
+                </a>
+            </div>
+        </section>
+    );
 }

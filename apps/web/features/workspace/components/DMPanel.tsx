@@ -49,7 +49,7 @@ export function DMPanel({
   onSetStatus?: (presence: Presence, text?: string) => void;
 }) {
   return (
-    <aside className="flex h-full w-[260px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface-raised">
+    <aside className="hidden h-full w-[248px] shrink-0 flex-col overflow-hidden bg-channel-sidebar shadow-[inset_-1px_0_rgb(var(--c-border-subtle))] md:flex">
       <div className="px-4 pb-2 pt-3.5">
         <div className="flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-text-primary">Direct Messages</h2>

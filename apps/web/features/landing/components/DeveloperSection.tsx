@@ -1,79 +1,74 @@
-const K = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-accent-violet">{children}</span>
-);
-const S = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-accent-teal">{children}</span>
-);
-const C = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-text-muted">{children}</span>
-);
+import { ArrowUpRight, BookOpen, Bug, Code2, GitFork } from "lucide-react";
+
+const repo = "https://github.com/Humayun-glitch/Corvus";
+const links = [
+    { icon: BookOpen, label: "Read setup documentation", href: `${repo}#getting-started` },
+    { icon: Code2, label: "Browse source", href: repo },
+    { icon: GitFork, label: "View contributing guide", href: `${repo}/blob/main/CONTRIBUTING.md` },
+    { icon: Bug, label: "Report an issue", href: `${repo}/issues/new` },
+];
 
 export function DeveloperSection() {
-  return (
-    <section id="developers" className="px-6 py-24 sm:py-28">
-      <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[3fr_2fr]">
-        {/* Left — copy */}
-        <div>
-          <p className="text-[12px] uppercase tracking-[0.12em] text-accent-violet">
-            Developer first
-          </p>
-          <h2 className="mt-4 text-[28px] font-medium leading-[1.2] tracking-[-0.02em] text-text-primary">
-            Integrate in minutes. Ship in days.
-          </h2>
-          <p className="mt-4 max-w-[420px] text-[15px] leading-[1.6] text-text-secondary">
-            One client, every transport. Connect over WebSocket, subscribe to a
-            channel, and start sending — typed end to end. No glue code, no media
-            servers to operate.
-          </p>
-          <a
-            href="#"
-            className="mt-6 inline-block text-[15px] font-medium text-accent-violet transition-colors hover:text-accent-violet-bright"
-          >
-            Read the full docs →
-          </a>
-        </div>
-
-        {/* Right — code */}
-        <div
-          className="overflow-x-auto rounded-[10px] border border-border p-6"
-          style={{ background: "#0d0d14" }}
-        >
-          <pre className="font-mono text-[13px] leading-[1.7] text-text-primary/85">
-            <code>
-              <K>import</K> {"{ CorvusClient }"} <K>from</K> <S>&apos;@corvus/sdk&apos;</S>
-              {"\n\n"}
-              <K>const</K> client = <K>new</K> CorvusClient({"({ apiKey: process.env.CORVUS_API_KEY })"}
-              {"\n\n"}
-              <C>{"// Send a message"}</C>
-              {"\n"}
-              <K>await</K> client.channel(<S>&apos;eng-general&apos;</S>).send({"({"}
-              {"\n"}
-              {"  text: "}
-              <S>&apos;PR #42 is ready for review&apos;</S>,
-              {"\n"}
-              {"})"}
-              {"\n\n"}
-              <C>{"// Create a kanban card from code"}</C>
-              {"\n"}
-              <K>await</K> client.board(<S>&apos;sprint-12&apos;</S>).cards.create({"({"}
-              {"\n"}
-              {"  title:    "}
-              <S>&apos;Review authentication flow&apos;</S>,
-              {"\n"}
-              {"  assignee: "}
-              <S>&apos;humayun&apos;</S>,
-              {"\n"}
-              {"  due:      "}
-              <S>&apos;2025-06-20&apos;</S>,
-              {"\n"}
-              {"  linkedPR: "}
-              <span className="text-text-primary/85">42</span>,
-              {"\n"}
-              {"})"}
-            </code>
-          </pre>
-        </div>
-      </div>
-    </section>
-  );
+    return (
+        <section id="developers" className="px-5 py-24 sm:px-8 sm:py-32">
+            <div className="mx-auto grid max-w-[1180px] items-center gap-14 lg:grid-cols-2">
+                <div>
+                    <p className="text-sm font-medium text-accent">Built in the open</p>
+                    <h2 className="mt-4 text-[clamp(32px,4vw,48px)] font-semibold leading-tight tracking-[-0.04em]">
+                        Start locally. Follow the real code.
+                    </h2>
+                    <p className="mt-5 max-w-[58ch] text-[15px] leading-7 text-text-secondary">
+                        Corvus is a pnpm workspace with separate web, API and Tauri desktop
+                        applications. The repository documents the current local-development flow
+                        without presenting unfinished SDKs as a product.
+                    </p>
+                    <div className="mt-8 grid gap-1 sm:grid-cols-2">
+                        {links.map(({ icon: Icon, label, href }) => (
+                            <a
+                                key={label}
+                                href={href}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="group flex items-center gap-3 rounded-md p-3 text-[12px] text-text-secondary hover:bg-hover-row hover:text-text-primary"
+                            >
+                                <Icon
+                                    size={15}
+                                    className="text-text-muted group-hover:text-accent"
+                                />
+                                <span className="flex-1">{label}</span>
+                                <ArrowUpRight size={13} />
+                            </a>
+                        ))}
+                    </div>
+                </div>
+                <div className="overflow-hidden rounded-xl bg-[#090a0d] shadow-e3 ring-1 ring-white/10">
+                    <div className="flex h-10 items-center gap-2 border-b border-white/5 px-4">
+                        <span className="h-2 w-2 rounded-full bg-danger/70" />
+                        <span className="h-2 w-2 rounded-full bg-warning/70" />
+                        <span className="h-2 w-2 rounded-full bg-live/70" />
+                        <span className="ml-3 font-mono text-[9px] text-text-faint">
+                            terminal · corvus
+                        </span>
+                    </div>
+                    <pre className="overflow-x-auto p-6 font-mono text-[11px] leading-7 text-text-secondary">
+                        <code>
+                            <span className="text-text-faint"># clone and install</span>
+                            {"\n"}
+                            <span className="text-accent">git</span> clone
+                            https://github.com/Humayun-glitch/Corvus.git{"\n"}
+                            <span className="text-accent">cd</span> Corvus &amp;&amp; pnpm install
+                            {"\n\n"}
+                            <span className="text-text-faint"># run web and API workspaces</span>
+                            {"\n"}
+                            <span className="text-live">pnpm dev</span>
+                            {"\n\n"}
+                            <span className="text-text-faint"># run the Tauri desktop shell</span>
+                            {"\n"}
+                            <span className="text-live">pnpm dev:desktop</span>
+                        </code>
+                    </pre>
+                </div>
+            </div>
+        </section>
+    );
 }

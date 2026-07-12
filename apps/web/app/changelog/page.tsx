@@ -36,7 +36,7 @@ const content: MarketingPageContent = {
         "Workspace redesign: the three-column shell — nav rail, space panel, main area.",
         "Dark and light themes from one semantic token system.",
         "Command palette (Ctrl+K) for navigation and quick actions.",
-        "Desktop app updated to Tauri 2 — installer now ~10 MB.",
+        "Desktop application updated to the Tauri 2 runtime.",
       ],
     },
     { kind: "h2", text: "v1.1.0 — February 2026" },
@@ -45,7 +45,7 @@ const content: MarketingPageContent = {
       items: [
         "Stage channels with raise-hand moderation.",
         "Message threads and pinned messages.",
-        "Self-hosting: ARM64 images and Raspberry Pi support.",
+        "Early self-hosting setup work and deployment planning.",
       ],
     },
   ],

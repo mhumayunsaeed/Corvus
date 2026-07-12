@@ -27,7 +27,7 @@ export function MemberPanel({
   const offline = members.filter((m) => !m.presence || m.presence === "offline");
 
   return (
-    <aside className="flex h-full w-[240px] shrink-0 flex-col border-l border-border bg-background">
+    <aside className="absolute inset-0 z-30 flex h-full w-full shrink-0 flex-col bg-background shadow-e3 lg:static lg:w-[240px] lg:shadow-[inset_1px_0_rgb(var(--c-border-subtle))]">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <span className="text-[14px] font-semibold text-text-primary">Members</span>
         <button
