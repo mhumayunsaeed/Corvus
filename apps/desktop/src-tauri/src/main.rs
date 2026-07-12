@@ -116,22 +116,16 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
-                // Hide to tray instead of quitting
-                api.prevent_close();
-                let _ = window.hide();
-                emit_window_visibility(window, false);
+                // Only the main window hides to tray. Auxiliary windows must
+                // remain closable instead of accumulating invisibly.
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    emit_window_visibility(window, false);
+                }
             }
         })
-        .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_process::init())
         .run(tauri::generate_context!())
         .expect("error while running Corvus");
 }

@@ -4,14 +4,16 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": ["NEXT_PUBLIC_*"],
       "outputs": [".next/**", "!.next/cache/**", "out/**", "dist/**"]
+    },
+    "@corvus/desktop#build": {
+      "cache": false
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
-    "lint": {
-      "dependsOn": ["^build"]
-    }
+    "lint": {}
   }
 }

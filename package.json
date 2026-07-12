@@ -4,8 +4,8 @@
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "turbo dev",
-    "build": "turbo build",
+    "dev": "turbo dev --filter=!@corvus/desktop",
+    "build": "turbo build --filter=!@corvus/desktop",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -21,6 +21,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "prettier": "^3.8.3",
     "turbo": "^2.9.16",
-    "typescript-eslint": "^8.60.1"
+    "typescript-eslint": "^8.60.1",
+    "typescript": "^5.9.3"
   }
 }
